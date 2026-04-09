@@ -1,0 +1,20 @@
+{
+  "profile": "local_8gb",
+  "model": "Qwen/Qwen3-4B-Instruct-2507",
+  "torch_dtype": "float16",
+  "quant_method": "bnb",
+  "quant_bits": 4,
+  "general_phase0_dataset": "D:\\psychologicalAgent\\data\\training\\general_multiturn\\general_phase0_train_ms_swift.jsonl",
+  "weak_input_phase0_5_dataset": "D:\\psychologicalAgent\\data\\training\\weak_input\\weak_input_phase0_5_train_ms_swift.jsonl",
+  "files": {
+    "phase0_powershell": "D:\\psychologicalAgent\\training\\ms_swift\\run_general_phase0_sft.ps1",
+    "phase0_bash": "D:\\psychologicalAgent\\training\\ms_swift\\run_general_phase0_sft.sh",
+    "phase0_5_powershell": "D:\\psychologicalAgent\\training\\ms_swift\\run_weak_input_phase0_5_sft.ps1",
+    "phase0_5_bash": "D:\\psychologicalAgent\\training\\ms_swift\\run_weak_input_phase0_5_sft.sh",
+    "phase1_powershell": "D:\\psychologicalAgent\\training\\ms_swift\\run_style_phase1_sft.ps1",
+    "phase2_powershell": "D:\\psychologicalAgent\\training\\ms_swift\\run_style_phase2_dpo.ps1",
+    "phase1_bash": "D:\\psychologicalAgent\\training\\ms_swift\\run_style_phase1_sft.sh",
+    "phase2_bash": "D:\\psychologicalAgent\\training\\ms_swift\\run_style_phase2_dpo.sh",
+    "manifest": "D:\\psychologicalAgent\\training\\ms_swift\\ms_swift_recipe_manifest.json"
+  }
+}
