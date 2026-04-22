@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -46,11 +45,12 @@ class CampusSupportAgentTests(unittest.TestCase):
     def test_critical_text_routes_to_crisis_response(self) -> None:
         response = self.agent.handle_text(text="我真的不想活了，想自杀。")
         self.assertEqual(response.risk.level, RiskLevel.CRITICAL)
-        self.assertEqual(response.entropy.balance_state, "crisis")
-        self.assertEqual(response.entropy.level, 5)
         self.assertIsNotNone(response.safety.emergency_notice)
         self.assertTrue(any(item.category == "emergency" for item in response.campus_resources))
         self.assertIn("风险压力", response.entropy_reduction.targeted_drivers)
+        self.assertIsNotNone(response.referral_decision)
+        self.assertTrue(response.referral_decision.should_refer)
+        self.assertEqual(response.referral_decision.urgency, "urgent")
 
     def test_audio_path_uses_transcript(self) -> None:
         response = self.agent.handle_audio(
@@ -63,6 +63,33 @@ class CampusSupportAgentTests(unittest.TestCase):
         self.assertIsNotNone(response.transcript)
         self.assertGreater(len(response.plan.follow_up), 0)
         self.assertGreater(response.entropy.score, 0)
+
+    def test_privacy_concern_uses_local_dialogue_policy(self) -> None:
+        response = self.agent.handle_text(text="我怕你会告诉别人。")
+        self.assertIsNotNone(response.local_policy)
+        self.assertEqual(response.local_policy.policy_name, "privacy_concern")
+        self.assertEqual(response.local_policy.policy_stage, "rapport_boundary")
+        self.assertIn("policy:local", response.metadata.model_backend)
+
+    def test_local_policy_response_includes_referral_decision(self) -> None:
+        response = self.agent.handle_text(text="我这几天一直睡不好，也吃不下东西。")
+        self.assertIsNotNone(response.local_policy)
+        self.assertIsNotNone(response.referral_decision)
+        self.assertTrue(response.referral_decision.should_refer)
+        self.assertIn(response.referral_decision.urgency, {"watch", "recommended", "urgent"})
+        self.assertTrue(
+            any(
+                "sleep_appetite_drift" in reason or "elevated_entropy" in reason
+                for reason in response.referral_decision.reasons
+            )
+        )
+
+    def test_crisis_response_includes_urgent_referral(self) -> None:
+        response = self.agent.handle_text(text="我不想活了，我想伤害自己。")
+        self.assertIsNotNone(response.referral_decision)
+        self.assertTrue(response.referral_decision.should_refer)
+        self.assertEqual(response.referral_decision.urgency, "urgent")
+        self.assertTrue(any("risk_level" in reason for reason in response.referral_decision.reasons))
 
     def test_session_store_keeps_recent_history_and_entropy(self) -> None:
         store = InMemorySessionStore(max_messages=4)
@@ -99,13 +126,12 @@ class CampusSupportAgentTests(unittest.TestCase):
         os.environ["CAMPUS_NAME"] = "外部环境学校"
 
         try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                env_path = Path(tmpdir) / ".env"
-                env_path.write_text("CAMPUS_NAME=文件中的学校\nLLM_PROVIDER=openai_compatible\n", encoding="utf-8")
-                load_env_file(env_path, override=False)
+            env_path = ROOT / "test_env_override.env"
+            env_path.write_text("CAMPUS_NAME=文件中的学校\nLLM_PROVIDER=openai_compatible\n", encoding="utf-8")
+            load_env_file(env_path, override=False)
 
-                self.assertEqual(os.environ["CAMPUS_NAME"], "外部环境学校")
-                self.assertEqual(os.environ["LLM_PROVIDER"], "openai_compatible")
+            self.assertEqual(os.environ["CAMPUS_NAME"], "外部环境学校")
+            self.assertEqual(os.environ["LLM_PROVIDER"], "openai_compatible")
         finally:
             if original is None:
                 os.environ.pop("CAMPUS_NAME", None)

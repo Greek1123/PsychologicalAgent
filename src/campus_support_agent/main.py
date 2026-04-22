@@ -86,6 +86,107 @@ def _parse_optional_json(value: str | None, field_name: str) -> dict[str, Any] |
     return parsed
 
 
+def _merge_conversation_history(session_id: str | None, conversation_history: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not session_id:
+        return list(conversation_history)
+    session_store = get_session_store()
+    session_history = session_store.get_history(session_id)
+    return [*session_history, *conversation_history]
+
+
+def _update_session_state(
+    *,
+    session_id: str | None,
+    user_text: str,
+    assistant_text: str,
+    result: Any,
+    response: dict[str, Any],
+) -> None:
+    if not session_id:
+        return
+
+    session_store = get_session_store()
+    previous_entropy = session_store.get_last_entropy(session_id)
+    history_size = session_store.append_exchange(
+        session_id,
+        user_text=user_text,
+        assistant_text=assistant_text,
+    )
+    entropy_trace_size = session_store.append_entropy_snapshot(
+        session_id,
+        response_id=result.response_id,
+        score=result.entropy.score,
+        level=result.entropy.level,
+        balance_state=result.entropy.balance_state,
+        dominant_drivers=result.entropy.dominant_drivers,
+    )
+
+    if previous_entropy:
+        delta = result.entropy.score - int(previous_entropy["score"])
+        direction = "up" if delta > 0 else "down" if delta < 0 else "flat"
+        response["entropy"]["trend"] = {
+            "previous_score": int(previous_entropy["score"]),
+            "delta": delta,
+            "direction": direction,
+        }
+        logger.info(
+            "Entropy trend updated session_id=%s previous=%s current=%s delta=%s direction=%s",
+            session_id,
+            previous_entropy["score"],
+            result.entropy.score,
+            delta,
+            direction,
+        )
+
+    response["session"] = {
+        "session_id": session_id,
+        "history_messages": history_size,
+        "entropy_trace_points": entropy_trace_size,
+    }
+
+
+def _apply_session_escalation(
+    *,
+    session_id: str | None,
+    response: dict[str, Any],
+) -> None:
+    response.setdefault("system_flags", {"manual_referral_recommended": False, "reasons": []})
+    if not session_id:
+        return
+
+    session_store = get_session_store()
+    recent_records = session_store.list_support_responses(session_id=session_id, limit=3)
+    current_referral = response.get("referral_decision") or {}
+    current_entropy = response.get("entropy") or {}
+    current_local_policy = response.get("local_policy") or {}
+    trend = current_entropy.get("trend") or {}
+
+    reasons: list[str] = []
+    prior_referred = sum(1 for record in recent_records if record.get("referral_should_refer"))
+    current_should_refer = bool(current_referral.get("should_refer"))
+    current_urgency = current_referral.get("urgency", "none")
+
+    if trend.get("direction") == "up" and (trend.get("delta") or 0) >= 8:
+        reasons.append("entropy_rising")
+
+    if current_local_policy.get("policy_stage") == "escalation_watch":
+        reasons.append("policy_escalation_watch")
+
+    if current_should_refer and prior_referred >= 2:
+        reasons.append("repeated_referral_pattern")
+
+    manual_referral_recommended = bool(reasons) or current_urgency == "urgent"
+    if manual_referral_recommended and current_urgency == "watch":
+        current_referral["urgency"] = "recommended"
+
+    response["referral_decision"] = current_referral
+    response["system_flags"] = {
+        "manual_referral_recommended": manual_referral_recommended,
+        "reasons": reasons,
+        "recent_referred_count": prior_referred,
+    }
+
+
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
     return RedirectResponse(url="/app")
@@ -124,10 +225,7 @@ def support_text(payload: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail="conversation_history 必须是数组。")
 
     logger.info("Received text support request session_id=%s text_length=%s", session_id or "-", len(text))
-    session_store = get_session_store()
-    session_history = session_store.get_history(session_id) if session_id else []
-    # 会话内历史与显式传入历史一起参与推理，兼容前端和后端两种记忆方式。
-    merged_history = [*session_history, *conversation_history]
+    merged_history = _merge_conversation_history(session_id, conversation_history)
 
     result = get_agent().handle_text(
         text=text,
@@ -136,49 +234,16 @@ def support_text(payload: dict[str, Any]) -> dict[str, Any]:
     )
     response = result.to_dict()
 
-    if session_id:
-        previous_entropy = session_store.get_last_entropy(session_id)
-        history_size = session_store.append_exchange(
-            session_id,
-            user_text=text,
-            assistant_text=result.plan.summary,
-        )
-        entropy_trace_size = session_store.append_entropy_snapshot(
-            session_id,
-            response_id=result.response_id,
-            score=result.entropy.score,
-            level=result.entropy.level,
-            balance_state=result.entropy.balance_state,
-            dominant_drivers=result.entropy.dominant_drivers,
-        )
+    _update_session_state(
+        session_id=session_id,
+        user_text=text,
+        assistant_text=result.reply_text,
+        result=result,
+        response=response,
+    )
+    _apply_session_escalation(session_id=session_id, response=response)
 
-        if previous_entropy:
-            delta = result.entropy.score - int(previous_entropy["score"])
-            if delta > 0:
-                direction = "up"
-            elif delta < 0:
-                direction = "down"
-            else:
-                direction = "flat"
-            response["entropy"]["trend"] = {
-                "previous_score": int(previous_entropy["score"]),
-                "delta": delta,
-                "direction": direction,
-            }
-            logger.info(
-                "Entropy trend updated session_id=%s previous=%s current=%s delta=%s direction=%s",
-                session_id,
-                previous_entropy["score"],
-                result.entropy.score,
-                delta,
-                direction,
-            )
-        response["session"] = {
-            "session_id": session_id,
-            "history_messages": history_size,
-            "entropy_trace_points": entropy_trace_size,
-        }
-
+    session_store = get_session_store()
     session_store.store_support_response(
         session_id=session_id,
         response_id=result.response_id,
@@ -214,9 +279,7 @@ async def support_audio(
         len(audio_bytes),
     )
 
-    session_store = get_session_store()
-    session_history = session_store.get_history(clean_session_id) if clean_session_id else []
-    merged_history = [*session_history, *parsed_history]
+    merged_history = _merge_conversation_history(clean_session_id, parsed_history)
 
     result = get_agent().handle_audio(
         file_bytes=audio_bytes,
@@ -227,49 +290,16 @@ async def support_audio(
     )
     response = result.to_dict()
 
-    if clean_session_id:
-        previous_entropy = session_store.get_last_entropy(clean_session_id)
-        history_size = session_store.append_exchange(
-            clean_session_id,
-            user_text=result.transcript or "",
-            assistant_text=result.plan.summary,
-        )
-        entropy_trace_size = session_store.append_entropy_snapshot(
-            clean_session_id,
-            response_id=result.response_id,
-            score=result.entropy.score,
-            level=result.entropy.level,
-            balance_state=result.entropy.balance_state,
-            dominant_drivers=result.entropy.dominant_drivers,
-        )
+    _update_session_state(
+        session_id=clean_session_id,
+        user_text=result.transcript or "",
+        assistant_text=result.reply_text,
+        result=result,
+        response=response,
+    )
+    _apply_session_escalation(session_id=clean_session_id, response=response)
 
-        if previous_entropy:
-            delta = result.entropy.score - int(previous_entropy["score"])
-            if delta > 0:
-                direction = "up"
-            elif delta < 0:
-                direction = "down"
-            else:
-                direction = "flat"
-            response["entropy"]["trend"] = {
-                "previous_score": int(previous_entropy["score"]),
-                "delta": delta,
-                "direction": direction,
-            }
-            logger.info(
-                "Entropy trend updated session_id=%s previous=%s current=%s delta=%s direction=%s",
-                clean_session_id,
-                previous_entropy["score"],
-                result.entropy.score,
-                delta,
-                direction,
-            )
-        response["session"] = {
-            "session_id": clean_session_id,
-            "history_messages": history_size,
-            "entropy_trace_points": entropy_trace_size,
-        }
-
+    session_store = get_session_store()
     session_store.store_support_response(
         session_id=clean_session_id,
         response_id=result.response_id,
@@ -296,6 +326,22 @@ def get_session_history(session_id: str) -> dict[str, Any]:
         "conversation_history": history,
         "entropy_trace": entropy_trace,
     }
+
+
+@app.get("/api/v1/sessions/{session_id}/analysis")
+def get_session_analysis(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    analysis = session_store.get_session_analysis(session_id)
+    logger.info("Session analysis requested session_id=%s total=%s", session_id, analysis["total_responses"])
+    return analysis
+
+
+@app.get("/api/v1/analytics/overview")
+def get_overview_analytics(limit: int = 200) -> dict[str, Any]:
+    session_store = get_session_store()
+    stats = session_store.get_overview_stats(limit=limit)
+    logger.info("Overview analytics requested total=%s", stats["total_records"])
+    return stats
 
 
 @app.delete("/api/v1/sessions/{session_id}")

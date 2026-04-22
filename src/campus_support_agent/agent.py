@@ -6,6 +6,7 @@ from typing import Any
 from .config import Settings
 from .entropy import evaluate_psychological_entropy
 from .logging_utils import get_logger
+from .local_response_policy import maybe_build_local_support_plan
 from .prompts import build_system_prompt, build_user_prompt
 from .providers import LLMProvider, STTProvider
 from .reduction import build_entropy_reduction_strategy
@@ -15,6 +16,7 @@ from .schemas import (
     CampusResource,
     EntropyReductionStrategy,
     PsychologicalEntropy,
+    ReferralDecision,
     RiskAssessment,
     RiskLevel,
     SafetyNotice,
@@ -73,6 +75,16 @@ class CampusSupportAgent:
 
         campus_resources = self._retrieve_campus_resources(clean_text, risk)
         entropy_reduction = build_entropy_reduction_strategy(entropy, risk, campus_resources)
+        local_result = maybe_build_local_support_plan(
+            clean_text,
+            entropy=entropy,
+            conversation_history=conversation_history,
+        )
+        referral_decision = self._build_referral_decision(
+            risk=risk,
+            entropy=entropy,
+            local_policy=getattr(local_result, "info", None),
+        )
         logger.info(
             "Entropy reduction strategy prepared target=%s drivers=%s",
             entropy_reduction.target_state,
@@ -88,6 +100,35 @@ class CampusSupportAgent:
                 source=source,
                 transcript=transcript,
                 campus_resources=campus_resources,
+            )
+
+        if local_result is not None:
+            assessment, plan = local_result
+            logger.info("Local dialogue policy handled text request.")
+            safety = SafetyNotice(
+                disclaimer="当前回复由本地规则层和支持策略共同生成，用于稳定边界和基础支持，不替代专业诊断。",
+                emergency_notice=None,
+                human_referral=(
+                    f"如需进一步帮助，可联系 {self.settings.campus_counseling_center} "
+                    f"（{self.settings.campus_counseling_hotline} / {self.settings.campus_counseling_email}）。"
+                ),
+            )
+            return SupportResponse(
+                response_id=new_response_id(),
+                source=source,
+                input_text=clean_text,
+                transcript=transcript,
+                reply_text=self._render_reply_text(plan),
+                risk=risk,
+                entropy=entropy,
+                entropy_reduction=entropy_reduction,
+                assessment=assessment,
+                plan=plan,
+                campus_resources=campus_resources,
+                safety=safety,
+                metadata=new_metadata(f"llm:{self.llm_provider.name},stt:{self.stt_provider.name},policy:local"),
+                local_policy=local_result.info,
+                referral_decision=referral_decision,
             )
 
         system_prompt = build_system_prompt(self.settings)
@@ -132,6 +173,7 @@ class CampusSupportAgent:
             source=source,
             input_text=clean_text,
             transcript=transcript,
+            reply_text=self._render_reply_text(plan),
             risk=risk,
             entropy=entropy,
             entropy_reduction=entropy_reduction,
@@ -140,6 +182,8 @@ class CampusSupportAgent:
             campus_resources=campus_resources,
             safety=safety,
             metadata=new_metadata(f"llm:{self.llm_provider.name},stt:{self.stt_provider.name}"),
+            local_policy=None,
+            referral_decision=referral_decision,
         )
 
     def handle_audio(
@@ -269,6 +313,7 @@ class CampusSupportAgent:
             source=source,
             input_text=text,
             transcript=transcript,
+            reply_text="当前最重要的不是继续分析问题，而是立刻转入现实世界的安全支持。请马上联系身边可信任的人，并尽快寻求紧急帮助。",
             risk=risk,
             entropy=entropy,
             entropy_reduction=entropy_reduction,
@@ -310,6 +355,8 @@ class CampusSupportAgent:
                 ),
             ),
             metadata=new_metadata(f"llm:{self.llm_provider.name},stt:{self.stt_provider.name}"),
+            local_policy=None,
+            referral_decision=self._build_referral_decision(risk=risk, entropy=entropy, local_policy=None),
         )
 
     @staticmethod
@@ -343,26 +390,93 @@ class CampusSupportAgent:
         return plan
 
     @staticmethod
+    def _render_reply_text(plan: SupportPlan) -> str:
+        parts: list[str] = []
+        if plan.summary.strip():
+            parts.append(plan.summary.strip())
+        if plan.immediate_support:
+            first_support = plan.immediate_support[0].strip()
+            if first_support and first_support not in parts:
+                parts.append(first_support)
+        if plan.follow_up:
+            first_follow_up = plan.follow_up[0].strip()
+            if first_follow_up and first_follow_up not in parts:
+                parts.append(first_follow_up)
+        return " ".join(parts)
+
+    def _build_referral_decision(
+        self,
+        *,
+        risk: RiskAssessment,
+        entropy: PsychologicalEntropy,
+        local_policy: Any | None,
+    ) -> ReferralDecision:
+        reasons: list[str] = []
+        urgency = "none"
+        should_refer = False
+        recommended_channel: str | None = None
+
+        if risk.level in {RiskLevel.HIGH, RiskLevel.CRITICAL}:
+            should_refer = True
+            urgency = "urgent"
+            reasons.append(f"risk_level:{risk.level}")
+
+        if risk.needs_human_followup:
+            should_refer = True
+            if urgency == "none":
+                urgency = "recommended"
+            reasons.append("human_followup_requested")
+
+        if entropy.level >= 4 or entropy.score >= 70:
+            should_refer = True
+            if urgency == "none":
+                urgency = "recommended"
+            reasons.append("elevated_entropy")
+
+        if local_policy is not None:
+            policy_name = getattr(local_policy, "policy_name", "")
+            policy_stage = getattr(local_policy, "policy_stage", "")
+            escalation_hint = getattr(local_policy, "escalation_hint", None)
+
+            if policy_stage == "escalation_watch":
+                should_refer = True
+                if urgency == "none":
+                    urgency = "watch"
+                reasons.append(f"policy_stage:{policy_stage}")
+
+            if policy_name in {
+                "sleep_appetite_drift",
+                "helplessness_escalation",
+                "rising_emotional_spiral",
+            }:
+                should_refer = True
+                if urgency in {"none", "watch"}:
+                    urgency = "recommended"
+                reasons.append(f"policy_name:{policy_name}")
+
+            if escalation_hint:
+                reasons.append(f"hint:{escalation_hint}")
+
+        if should_refer:
+            recommended_channel = self.settings.campus_counseling_center
+
+        deduped_reasons: list[str] = []
+        for reason in reasons:
+            if reason not in deduped_reasons:
+                deduped_reasons.append(reason)
+
+        return ReferralDecision(
+            should_refer=should_refer,
+            urgency=urgency,
+            reasons=deduped_reasons,
+            recommended_channel=recommended_channel,
+        )
+
+    @staticmethod
     def _align_plan_with_entropy_strategy(
         plan: SupportPlan,
         entropy_reduction: EntropyReductionStrategy,
     ) -> SupportPlan:
-        # 先把减熵动作前置，让计划与当前高熵驱动直接对齐。
-        immediate: list[str] = []
-        for action in [*entropy_reduction.core_actions[:2], *plan.immediate_support]:
-            clean = action.strip()
-            if clean and clean not in immediate:
-                immediate.append(clean)
-        plan.immediate_support = immediate[:5]
-
-        follow_up = list(plan.follow_up)
-        review_text = (
-            f"{entropy_reduction.review_window_hours} 小时内复盘一次，观察心理熵是否朝 {entropy_reduction.target_state} 方向变化。"
-        )
-        if review_text not in follow_up:
-            follow_up.insert(0, review_text)
-        plan.follow_up = follow_up[:5]
-
-        if entropy_reduction.rationale not in plan.summary:
-            plan.summary = f"{plan.summary} 当前减熵重点：{entropy_reduction.rationale}"
+        # 减熵策略保留在独立字段里给系统层和前端分析区展示，
+        # 不再直接混入用户可见的主回复，避免把“认知熵/72小时复盘”这类系统腔推给用户。
         return plan

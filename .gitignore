@@ -25,3 +25,7 @@ data/training/style_first_pack/
 data/training_templates/
 
 training/ms_swift/outputs/
+test_env_override.env
+test_main_runtime.db
+data/*.zip
+data/_tmp_*/

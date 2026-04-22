@@ -12,6 +12,28 @@ from .logging_utils import get_logger
 logger = get_logger("storage")
 
 
+def _flatten_response_summary(response: dict[str, Any]) -> dict[str, Any]:
+    risk = response.get("risk") or {}
+    entropy = response.get("entropy") or {}
+    local_policy = response.get("local_policy") or {}
+    referral_decision = response.get("referral_decision") or {}
+    return {
+        "reply_text": response.get("reply_text"),
+        "risk_level": risk.get("level"),
+        "risk_score": risk.get("score"),
+        "entropy_score": entropy.get("score"),
+        "entropy_level": entropy.get("level"),
+        "balance_state": entropy.get("balance_state"),
+        "local_policy": local_policy,
+        "local_policy_name": local_policy.get("policy_name"),
+        "local_policy_stage": local_policy.get("policy_stage"),
+        "local_policy_escalation_hint": local_policy.get("escalation_hint"),
+        "referral_decision": referral_decision,
+        "referral_should_refer": referral_decision.get("should_refer"),
+        "referral_urgency": referral_decision.get("urgency"),
+    }
+
+
 class SQLiteSessionStore:
     def __init__(self, db_path: str, max_messages: int = 12) -> None:
         self.db_path = Path(db_path)
@@ -288,6 +310,8 @@ class SQLiteSessionStore:
             }
             for row in rows
         ]
+        for record in records:
+            record.update(_flatten_response_summary(record["response"]))
         logger.info("Loaded %s stored support responses for export", len(records))
         return records
 
@@ -297,3 +321,64 @@ class SQLiteSessionStore:
             connection.execute("DELETE FROM entropy_trace WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM support_responses WHERE session_id = ?", (session_id,))
         logger.info("Cleared persisted session data for session_id=%s", session_id)
+
+    def get_session_analysis(self, session_id: str) -> dict[str, Any]:
+        records = self.list_support_responses(session_id=session_id)
+        if not records:
+            return {
+                "session_id": session_id,
+                "total_responses": 0,
+                "latest_reply_text": None,
+                "latest_local_policy": None,
+                "latest_referral_decision": None,
+                "risk_levels": {},
+                "local_policies": {},
+                "referral_urgencies": {},
+            }
+
+        risk_levels: dict[str, int] = {}
+        local_policies: dict[str, int] = {}
+        referral_urgencies: dict[str, int] = {}
+        for record in records:
+            if record.get("risk_level"):
+                risk_levels[record["risk_level"]] = risk_levels.get(record["risk_level"], 0) + 1
+            if record.get("local_policy_name"):
+                local_policies[record["local_policy_name"]] = local_policies.get(record["local_policy_name"], 0) + 1
+            if record.get("referral_urgency"):
+                referral_urgencies[record["referral_urgency"]] = referral_urgencies.get(record["referral_urgency"], 0) + 1
+
+        latest = records[-1]
+        return {
+            "session_id": session_id,
+            "total_responses": len(records),
+            "latest_reply_text": latest.get("reply_text"),
+            "latest_local_policy": latest.get("local_policy"),
+            "latest_referral_decision": latest.get("referral_decision"),
+            "risk_levels": risk_levels,
+            "local_policies": local_policies,
+            "referral_urgencies": referral_urgencies,
+        }
+
+    def get_overview_stats(self, *, limit: int | None = 200) -> dict[str, Any]:
+        records = self.list_support_responses(limit=limit)
+        risk_levels: dict[str, int] = {}
+        local_policies: dict[str, int] = {}
+        referral_urgencies: dict[str, int] = {}
+        referred_count = 0
+        for record in records:
+            if record.get("risk_level"):
+                risk_levels[record["risk_level"]] = risk_levels.get(record["risk_level"], 0) + 1
+            if record.get("local_policy_name"):
+                local_policies[record["local_policy_name"]] = local_policies.get(record["local_policy_name"], 0) + 1
+            if record.get("referral_urgency"):
+                referral_urgencies[record["referral_urgency"]] = referral_urgencies.get(record["referral_urgency"], 0) + 1
+            if record.get("referral_should_refer"):
+                referred_count += 1
+
+        return {
+            "total_records": len(records),
+            "referred_count": referred_count,
+            "risk_levels": risk_levels,
+            "local_policies": local_policies,
+            "referral_urgencies": referral_urgencies,
+        }

@@ -103,11 +103,38 @@ class AgentMetadata:
 
 
 @dataclass(slots=True)
+class LocalPolicyInfo:
+    policy_name: str
+    policy_stage: str
+    escalation_hint: str | None = None
+
+
+@dataclass(slots=True)
+class ReferralDecision:
+    should_refer: bool
+    urgency: str
+    reasons: list[str] = field(default_factory=list)
+    recommended_channel: str | None = None
+
+
+@dataclass(slots=True)
+class LocalPolicyResult:
+    assessment: SupportAssessment
+    plan: SupportPlan
+    info: LocalPolicyInfo
+
+    def __iter__(self):
+        yield self.assessment
+        yield self.plan
+
+
+@dataclass(slots=True)
 class SupportResponse:
     response_id: str
     source: str
     input_text: str
     transcript: str | None
+    reply_text: str
     risk: RiskAssessment
     entropy: PsychologicalEntropy
     entropy_reduction: EntropyReductionStrategy
@@ -116,6 +143,8 @@ class SupportResponse:
     campus_resources: list[CampusResource]
     safety: SafetyNotice
     metadata: AgentMetadata
+    local_policy: LocalPolicyInfo | None = None
+    referral_decision: ReferralDecision | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

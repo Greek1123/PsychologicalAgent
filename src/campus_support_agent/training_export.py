@@ -48,6 +48,8 @@ def _target_from_response(response: dict[str, Any]) -> dict[str, Any]:
         "plan": response.get("plan", {}),
         "campus_resources": response.get("campus_resources", []),
         "safety": response.get("safety", {}),
+        "local_policy": response.get("local_policy", {}),
+        "referral_decision": response.get("referral_decision", {}),
     }
 
 
