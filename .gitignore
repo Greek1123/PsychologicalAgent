@@ -20,6 +20,7 @@ data/training/train_sft.jsonl
 data/processed/
 data/training/ms_swift/
 data/training/general_multiturn/
+data/training/public_sft/
 data/training/weak_input/
 data/training/style_first_pack/
 data/training_templates/
@@ -27,5 +28,8 @@ data/training_templates/
 training/ms_swift/outputs/
 test_env_override.env
 test_main_runtime.db
+test_referral_runtime.db
+test_self_check_*.db
+test_storage_*.db
 data/*.zip
 data/_tmp_*/

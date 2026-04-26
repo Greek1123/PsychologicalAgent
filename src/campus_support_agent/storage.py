@@ -7,6 +7,7 @@ from threading import Lock
 from typing import Any
 
 from .logging_utils import get_logger
+from .session_insights import build_session_insight
 
 
 logger = get_logger("storage")
@@ -92,6 +93,22 @@ class SQLiteSessionStore:
 
                 CREATE INDEX IF NOT EXISTS idx_support_session
                 ON support_responses (session_id, id);
+
+                CREATE TABLE IF NOT EXISTS referral_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    response_id TEXT NOT NULL UNIQUE,
+                    urgency TEXT NOT NULL,
+                    reasons_json TEXT NOT NULL,
+                    policy_name TEXT,
+                    risk_level TEXT,
+                    entropy_score INTEGER,
+                    manual_referral_recommended INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_referral_session
+                ON referral_events (session_id, id);
                 """
             )
         logger.info("SQLite session store initialized at %s", self.db_path)
@@ -273,6 +290,76 @@ class SQLiteSessionStore:
             )
         logger.info("Stored support response response_id=%s session_id=%s", response_id, session_id or "-")
 
+    def append_referral_event(
+        self,
+        *,
+        session_id: str,
+        response_id: str,
+        urgency: str,
+        reasons: list[str],
+        policy_name: str | None,
+        risk_level: str | None,
+        entropy_score: int | None,
+        manual_referral_recommended: bool,
+    ) -> None:
+        with self._lock, self._connect() as connection:
+            connection.execute(
+                """
+                INSERT OR REPLACE INTO referral_events (
+                    session_id,
+                    response_id,
+                    urgency,
+                    reasons_json,
+                    policy_name,
+                    risk_level,
+                    entropy_score,
+                    manual_referral_recommended
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id,
+                    response_id,
+                    urgency,
+                    json.dumps(reasons, ensure_ascii=False),
+                    policy_name,
+                    risk_level,
+                    entropy_score,
+                    1 if manual_referral_recommended else 0,
+                ),
+            )
+        logger.info("Stored referral event response_id=%s session_id=%s urgency=%s", response_id, session_id, urgency)
+
+    def get_referral_events(self, session_id: str, *, limit: int | None = None) -> list[dict[str, Any]]:
+        query = """
+            SELECT response_id, urgency, reasons_json, policy_name, risk_level,
+                   entropy_score, manual_referral_recommended, created_at
+            FROM referral_events
+            WHERE session_id = ?
+            ORDER BY id ASC
+        """
+        params: list[Any] = [session_id]
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        with self._connect() as connection:
+            rows = connection.execute(query, tuple(params)).fetchall()
+
+        return [
+            {
+                "response_id": row["response_id"],
+                "urgency": row["urgency"],
+                "reasons": json.loads(row["reasons_json"]),
+                "policy_name": row["policy_name"],
+                "risk_level": row["risk_level"],
+                "entropy_score": row["entropy_score"],
+                "manual_referral_recommended": bool(row["manual_referral_recommended"]),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
     def list_support_responses(
         self,
         *,
@@ -320,10 +407,19 @@ class SQLiteSessionStore:
             connection.execute("DELETE FROM conversation_messages WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM entropy_trace WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM support_responses WHERE session_id = ?", (session_id,))
+            connection.execute("DELETE FROM referral_events WHERE session_id = ?", (session_id,))
         logger.info("Cleared persisted session data for session_id=%s", session_id)
 
     def get_session_analysis(self, session_id: str) -> dict[str, Any]:
         records = self.list_support_responses(session_id=session_id)
+        referral_events = self.get_referral_events(session_id)
+        entropy_trace = self.get_entropy_trace(session_id)
+        session_insight = build_session_insight(
+            session_id=session_id,
+            records=records,
+            entropy_trace=entropy_trace,
+            referral_events=referral_events,
+        )
         if not records:
             return {
                 "session_id": session_id,
@@ -334,6 +430,8 @@ class SQLiteSessionStore:
                 "risk_levels": {},
                 "local_policies": {},
                 "referral_urgencies": {},
+                "referral_events": [],
+                "session_insight": session_insight,
             }
 
         risk_levels: dict[str, int] = {}
@@ -357,6 +455,8 @@ class SQLiteSessionStore:
             "risk_levels": risk_levels,
             "local_policies": local_policies,
             "referral_urgencies": referral_urgencies,
+            "referral_events": referral_events,
+            "session_insight": session_insight,
         }
 
     def get_overview_stats(self, *, limit: int | None = 200) -> dict[str, Any]:
@@ -364,7 +464,9 @@ class SQLiteSessionStore:
         risk_levels: dict[str, int] = {}
         local_policies: dict[str, int] = {}
         referral_urgencies: dict[str, int] = {}
+        risk_routes: dict[str, int] = {}
         referred_count = 0
+        manual_referral_count = 0
         for record in records:
             if record.get("risk_level"):
                 risk_levels[record["risk_level"]] = risk_levels.get(record["risk_level"], 0) + 1
@@ -374,11 +476,34 @@ class SQLiteSessionStore:
                 referral_urgencies[record["referral_urgency"]] = referral_urgencies.get(record["referral_urgency"], 0) + 1
             if record.get("referral_should_refer"):
                 referred_count += 1
+            system_flags = (record.get("response") or {}).get("system_flags") or {}
+            if system_flags.get("manual_referral_recommended"):
+                manual_referral_count += 1
+            route = _infer_record_route(record)
+            risk_routes[route] = risk_routes.get(route, 0) + 1
 
         return {
             "total_records": len(records),
             "referred_count": referred_count,
+            "manual_referral_count": manual_referral_count,
             "risk_levels": risk_levels,
             "local_policies": local_policies,
             "referral_urgencies": referral_urgencies,
+            "risk_routes": risk_routes,
         }
+
+
+def _infer_record_route(record: dict[str, Any]) -> str:
+    risk_level = record.get("risk_level") or "low"
+    entropy_score = int(record.get("entropy_score") or 0)
+    referral_should_refer = bool(record.get("referral_should_refer"))
+    referral_urgency = record.get("referral_urgency") or "none"
+    system_flags = (record.get("response") or {}).get("system_flags") or {}
+
+    if risk_level == "critical" or referral_urgency == "urgent":
+        return "urgent_referral"
+    if risk_level == "high" or system_flags.get("manual_referral_recommended"):
+        return "manual_followup"
+    if referral_should_refer or entropy_score >= 65:
+        return "watch_closely"
+    return "observe"

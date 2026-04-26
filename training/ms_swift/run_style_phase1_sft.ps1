@@ -12,7 +12,7 @@ New-Item -ItemType Directory -Force $env:HF_XET_CACHE | Out-Null
 
 # Replace the adapter path below with the actual checkpoint from the previous phase.
 # Important: the adapter must come from the same base model family as --model.
-$previous_adapter = "D:\psychologicalAgent\training\ms_swift\outputs\weak_input_phase0_5_sft\checkpoint-last"
+$previous_adapter = "D:\psychologicalAgent\training\ms_swift\outputs\weak_input_phase0_5_sft\v5-20260421-210028\checkpoint-18"
 
 swift sft `
   --model "Qwen/Qwen3-4B-Instruct-2507" `

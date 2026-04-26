@@ -1,7 +1,7 @@
 # Phase 2: style alignment with DPO
 # Profile: local_8gb
 # Before running this script, fill in rejected responses and replace the adapter path below.
-$phase1_adapter = "D:\psychologicalAgent\training\ms_swift\outputs\style_phase1_sft\checkpoint-last"
+$phase1_adapter = "D:\psychologicalAgent\training\ms_swift\outputs\style_phase1_sft\v12-20260421-195735\checkpoint-37"
 
 # Keep large model downloads off the system drive by default.
 $env:MODELSCOPE_CACHE = if ($env:MODELSCOPE_CACHE) { $env:MODELSCOPE_CACHE } else { "D:\llm_cache\modelscope" }

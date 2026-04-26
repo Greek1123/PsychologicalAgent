@@ -35,6 +35,9 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("referral_decision", response)
         self.assertTrue(response["referral_decision"]["should_refer"])
         self.assertIn(response["referral_decision"]["urgency"], {"watch", "recommended", "urgent"})
+        referrals = main.get_session_referrals(session_id)
+        self.assertGreaterEqual(referrals["total_events"], 1)
+        self.assertEqual(referrals["referral_events"][-1]["response_id"], response["response_id"])
 
     def test_session_analysis_and_overview_are_available(self) -> None:
         session_id = "test-analysis-session"
@@ -52,7 +55,12 @@ class MainFlowTests(unittest.TestCase):
         self.assertEqual(analysis["session_id"], session_id)
         self.assertGreaterEqual(analysis["total_responses"], 1)
         self.assertIn("local_policies", analysis)
+        self.assertIn("referral_events", analysis)
+        self.assertIn("session_insight", analysis)
+        self.assertIn("risk_route", analysis["session_insight"])
         self.assertIn("risk_levels", overview)
+        self.assertIn("manual_referral_count", overview)
+        self.assertIn("risk_routes", overview)
         self.assertGreaterEqual(overview["total_records"], 1)
 
 

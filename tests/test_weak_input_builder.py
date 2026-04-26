@@ -39,6 +39,7 @@ class WeakInputBuilderTests(unittest.TestCase):
             self.assertGreater(stats["written"], 0)
             self.assertGreater(stats["zh"], 0)
             self.assertGreater(stats["en"], 0)
+            self.assertGreaterEqual(stats["written"], 20)
 
             records = [
                 json.loads(line)

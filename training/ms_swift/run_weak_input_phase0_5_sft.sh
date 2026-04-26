@@ -2,7 +2,7 @@
 # Profile: local_8gb
 # Replace PHASE0_ADAPTER_PATH with the actual checkpoint from the previous phase.
 # Important: the adapter must come from the same base model family as --model.
-PHASE0_ADAPTER_PATH="D:\psychologicalAgent\training\ms_swift\outputs\general_phase0_sft\checkpoint-last"
+PHASE0_ADAPTER_PATH="D:\psychologicalAgent\training\ms_swift\outputs\general_phase0_sft\v7-20260421-151031\checkpoint-500"
 
 swift sft \
   --model "Qwen/Qwen3-4B-Instruct-2507" \
@@ -13,9 +13,9 @@ swift sft \
   --quant_method bnb \
   --quant_bits 4 \
   --bnb_4bit_compute_dtype float16 \
-  --num_train_epochs 1 \
+  --num_train_epochs 2 \
   --per_device_train_batch_size 1 \
-  --gradient_accumulation_steps 16 \
+  --gradient_accumulation_steps 4 \
   --learning_rate 6e-5 \
   --lora_rank 8 \
   --lora_alpha 16 \

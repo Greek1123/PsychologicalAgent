@@ -1,6 +1,6 @@
-# Phase 0.5: weak-input repair SFT
-# Profile: local_8gb
-# This repo defaults to an explicit dtype because some ms-swift versions do not accept `auto`.
+# Phase 0.5: weak-input repair SFT after public Phase 0
+# Use this after public_phase0_sft has completed.
+
 # Keep large model downloads off the system drive by default.
 $env:MODELSCOPE_CACHE = if ($env:MODELSCOPE_CACHE) { $env:MODELSCOPE_CACHE } else { "D:\llm_cache\modelscope" }
 $env:HF_HOME = if ($env:HF_HOME) { $env:HF_HOME } else { "D:\llm_cache\huggingface" }
@@ -10,9 +10,7 @@ New-Item -ItemType Directory -Force $env:MODELSCOPE_CACHE | Out-Null
 New-Item -ItemType Directory -Force $env:HF_HUB_CACHE | Out-Null
 New-Item -ItemType Directory -Force $env:HF_XET_CACHE | Out-Null
 
-# Replace the adapter path below with the actual checkpoint from the previous phase.
-# Important: the adapter must come from the same base model family as --model.
-$previous_adapter = "D:\psychologicalAgent\training\ms_swift\outputs\general_phase0_sft\v7-20260421-151031\checkpoint-500"
+$previous_adapter = "D:\psychologicalAgent\training\ms_swift\outputs\public_phase0_sft\v0-20260426-134431\checkpoint-465"
 
 swift sft `
   --model "Qwen/Qwen3-4B-Instruct-2507" `
@@ -23,7 +21,7 @@ swift sft `
   --quant_method bnb `
   --quant_bits 4 `
   --bnb_4bit_compute_dtype float16 `
-  --num_train_epochs 2 `
+  --num_train_epochs 3 `
   --per_device_train_batch_size 1 `
   --gradient_accumulation_steps 4 `
   --learning_rate 6e-5 `
@@ -32,7 +30,7 @@ swift sft `
   --target_modules all-linear `
   --max_length 1024 `
   --gradient_checkpointing true `
-  --logging_steps 10 `
-  --save_steps 100 `
+  --logging_steps 5 `
+  --save_steps 50 `
   --save_total_limit 2 `
-  --output_dir "D:\psychologicalAgent\training\ms_swift\outputs\weak_input_phase0_5_sft"
+  --output_dir "D:\psychologicalAgent\training\ms_swift\outputs\public_weak_input_phase0_5_sft"

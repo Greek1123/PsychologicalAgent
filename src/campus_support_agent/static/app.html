@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>校园心理熵减 Agent</title>
+    <title>校园心理支持 Agent</title>
     <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body>
@@ -13,14 +13,15 @@
     <main class="shell">
       <section class="hero">
         <div>
-          <p class="eyebrow">Campus Entropy Balance System</p>
-          <h1>校园心理“熵减”测试台</h1>
+          <p class="eyebrow">Campus Support Agent</p>
+          <h1>校园心理支持调试台</h1>
           <p class="hero-copy">
-            这里不是最终学生端，而是研究与联调界面。你可以直接测试文本、语音、会话历史，并观察心理熵、减熵策略和校园资源命中结果。
+            这个页面会同时展示两层信息：一层是用户真正看到的支持回复，另一层是前端保留的系统分析结果，
+            包括风险等级、心理熵、趋势变化和原始 JSON。前者用于体验，后者用于调试和答辩展示。
           </p>
         </div>
         <label class="toggle-card">
-          <span>显示心理熵与减熵细节</span>
+          <span>显示系统分析（调试）</span>
           <input id="entropyToggle" type="checkbox" checked />
         </label>
       </section>
@@ -28,7 +29,7 @@
       <section class="panel input-panel">
         <div class="panel-head">
           <h2>输入区</h2>
-          <p>同一个 <code>session_id</code> 会累积会话与熵轨迹。</p>
+          <p>同一个 <code>session_id</code> 会复用历史对话。</p>
         </div>
 
         <div class="grid two-col">
@@ -38,10 +39,10 @@
           </label>
 
           <label class="field">
-            <span>模式</span>
+            <span>输入方式</span>
             <select id="inputMode">
               <option value="text">文本输入</option>
-              <option value="audio">语音上传</option>
+              <option value="audio">音频输入</option>
             </select>
           </label>
         </div>
@@ -50,49 +51,49 @@
           <span>学生上下文 JSON</span>
           <textarea id="studentContext" rows="4">{
   "grade": "大二",
-  "major": "计算机"
+  "major": "计算机科学"
 }</textarea>
         </label>
 
         <div id="textMode" class="mode-block">
           <label class="field">
             <span>文本内容</span>
-            <textarea id="messageInput" rows="5">最近考试很多，我晚上总睡不好，也很担心挂科。</textarea>
+            <textarea id="messageInput" rows="5">我最近压力很大，晚上总睡不好。</textarea>
           </label>
           <button id="submitText" class="action-btn primary">发送文本</button>
         </div>
 
         <div id="audioMode" class="mode-block hidden">
           <label class="field">
-            <span>音频文件</span>
+            <span>选择音频文件</span>
             <input id="audioFile" type="file" accept="audio/*" />
           </label>
-          <button id="submitAudio" class="action-btn primary">上传语音</button>
+          <button id="submitAudio" class="action-btn primary">发送音频</button>
         </div>
 
         <div class="toolbar">
-          <button id="loadSession" class="action-btn secondary">查看会话历史</button>
-          <button id="clearSession" class="action-btn secondary">清空当前会话</button>
-          <button id="clearOutput" class="action-btn ghost">清空结果区</button>
+          <button id="loadSession" class="action-btn secondary">加载会话历史</button>
+          <button id="clearSession" class="action-btn secondary">清空这个会话</button>
+          <button id="clearOutput" class="action-btn ghost">清空当前结果</button>
         </div>
 
-        <p id="statusLine" class="status-line">等待请求。</p>
+        <p id="statusLine" class="status-line">等待发送请求。</p>
       </section>
 
       <section class="grid dashboard">
         <article class="panel result-panel">
           <div class="panel-head">
-            <h2>支持结果</h2>
-            <p>展示当前回合的支持方案、校园资源和原始返回值。</p>
+            <h2>结果区</h2>
+            <p>先看“助手当前回复”，其他信息是分析层与系统层结果。</p>
           </div>
 
-          <div class="summary-strip">
+          <div class="summary-strip entropy-visible">
             <div class="metric">
               <span class="metric-label">风险等级</span>
               <strong id="riskLevel">-</strong>
             </div>
             <div class="metric entropy-visible">
-              <span class="metric-label">心理熵</span>
+              <span class="metric-label">心理熵值</span>
               <strong id="entropyScore">-</strong>
             </div>
             <div class="metric entropy-visible">
@@ -100,67 +101,68 @@
               <strong id="balanceState">-</strong>
             </div>
             <div class="metric entropy-visible">
-              <span class="metric-label">熵变化</span>
+              <span class="metric-label">趋势变化</span>
               <strong id="entropyDelta">-</strong>
             </div>
           </div>
 
-          <div class="card-grid">
-            <section class="result-card">
-              <h3>支持摘要</h3>
-              <p id="supportSummary">等待结果。</p>
-            </section>
+          <section class="result-card">
+            <h3>助手当前回复</h3>
+            <p class="muted">这一块就是机器人真正返回给用户的话。</p>
+            <p id="supportSummary">等待结果。</p>
+          </section>
 
+          <div class="card-grid">
             <section class="result-card entropy-visible">
-              <h3>减熵策略</h3>
+              <h3>减熵策略说明</h3>
               <p id="reductionRationale">等待结果。</p>
               <ul id="reductionActions" class="compact-list"></ul>
             </section>
 
             <section class="result-card">
-              <h3>即时支持</h3>
+              <h3>即时支持建议</h3>
               <ul id="immediateSupport" class="compact-list"></ul>
             </section>
 
             <section class="result-card">
-              <h3>校园行动</h3>
+              <h3>校园支持动作</h3>
               <ul id="campusActions" class="compact-list"></ul>
+            </section>
+
+            <section class="result-card entropy-visible">
+              <h3>校园资源推荐</h3>
+              <div id="campusResources" class="resource-stack"></div>
             </section>
           </div>
 
           <section class="result-card entropy-visible">
-            <h3>校园资源命中</h3>
-            <div id="campusResources" class="resource-stack"></div>
-          </section>
-
-          <section class="result-card entropy-visible">
-            <h3>熵维度</h3>
+            <h3>熵值维度</h3>
             <div id="entropyDimensions" class="dimension-grid"></div>
           </section>
 
-          <section class="result-card">
-            <h3>原始 JSON</h3>
+          <section class="result-card entropy-visible">
+            <h3>原始 JSON（调试）</h3>
             <pre id="rawJson" class="raw-json">暂无数据</pre>
           </section>
         </article>
 
-        <article class="panel session-panel">
+        <article class="panel session-panel entropy-visible">
           <div class="panel-head">
-            <h2>会话轨迹</h2>
-            <p>查看同一个 <code>session_id</code> 的对话历史和心理熵变化。</p>
+            <h2>会话追踪（调试）</h2>
+            <p>这里看历史消息和熵值轨迹。</p>
           </div>
 
           <section class="result-card">
-            <h3>熵轨迹</h3>
+            <h3>熵值轨迹</h3>
             <div id="entropyTrace" class="trace-stack">
-              <p class="muted">暂无会话轨迹。</p>
+              <p class="muted">暂无会话追踪数据。</p>
             </div>
           </section>
 
           <section class="result-card">
-            <h3>对话历史</h3>
+            <h3>历史对话</h3>
             <div id="conversationHistory" class="history-stack">
-              <p class="muted">暂无对话历史。</p>
+              <p class="muted">暂无历史对话。</p>
             </div>
           </section>
         </article>

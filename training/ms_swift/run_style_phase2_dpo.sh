@@ -1,7 +1,7 @@
 # Phase 2: style alignment with DPO
 # Profile: local_8gb
 # Replace PHASE1_ADAPTER_PATH after phase 1 training.
-PHASE1_ADAPTER_PATH="D:\psychologicalAgent\training\ms_swift\outputs\style_phase1_sft\checkpoint-last"
+PHASE1_ADAPTER_PATH="D:\psychologicalAgent\training\ms_swift\outputs\style_phase1_sft\v12-20260421-195735\checkpoint-37"
 
 swift rlhf \
   --rlhf_type dpo \

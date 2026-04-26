@@ -94,11 +94,15 @@ def _powershell_sft_script(
     previous_adapter_hint: str | None = None,
     epoch_override: int | None = None,
     lr_override: str | None = None,
+    grad_accum_override: int | None = None,
 ) -> str:
     quant_block = _build_quant_block(config, shell="powershell")
     cache_block = _powershell_cache_block(config["windows_cache_root"])
     num_train_epochs = epoch_override if epoch_override is not None else config["num_train_epochs"]
     learning_rate = lr_override if lr_override is not None else config["learning_rate"]
+    gradient_accumulation_steps = (
+        grad_accum_override if grad_accum_override is not None else config["gradient_accumulation_steps"]
+    )
 
     adapter_block = ""
     adapter_args = ""
@@ -120,7 +124,7 @@ def _powershell_sft_script(
 {adapter_args}  --torch_dtype {config["torch_dtype"]} `
 {quant_block}  --num_train_epochs {num_train_epochs} `
   --per_device_train_batch_size {config["per_device_train_batch_size"]} `
-  --gradient_accumulation_steps {config["gradient_accumulation_steps"]} `
+  --gradient_accumulation_steps {gradient_accumulation_steps} `
   --learning_rate {learning_rate} `
   --lora_rank {config["lora_rank"]} `
   --lora_alpha {config["lora_alpha"]} `
@@ -143,10 +147,14 @@ def _bash_sft_script(
     previous_adapter_hint: str | None = None,
     epoch_override: int | None = None,
     lr_override: str | None = None,
+    grad_accum_override: int | None = None,
 ) -> str:
     quant_block = _build_quant_block(config, shell="bash")
     num_train_epochs = epoch_override if epoch_override is not None else config["num_train_epochs"]
     learning_rate = lr_override if lr_override is not None else config["learning_rate"]
+    gradient_accumulation_steps = (
+        grad_accum_override if grad_accum_override is not None else config["gradient_accumulation_steps"]
+    )
 
     adapter_block = ""
     adapter_args = ""
@@ -167,7 +175,7 @@ def _bash_sft_script(
 {adapter_args}  --torch_dtype {config["torch_dtype"]} \\
 {quant_block}  --num_train_epochs {num_train_epochs} \\
   --per_device_train_batch_size {config["per_device_train_batch_size"]} \\
-  --gradient_accumulation_steps {config["gradient_accumulation_steps"]} \\
+  --gradient_accumulation_steps {gradient_accumulation_steps} \\
   --learning_rate {learning_rate} \\
   --lora_rank {config["lora_rank"]} \\
   --lora_alpha {config["lora_alpha"]} \\
@@ -254,10 +262,11 @@ def _profile_config(profile: str, model_override: str | None, torch_dtype: str |
             "quant_method": None,
             "quant_bits": None,
             "general_num_train_epochs": 1,
-            "weak_input_num_train_epochs": 1,
+            "weak_input_num_train_epochs": 2,
             "style_num_train_epochs": 1,
             "per_device_train_batch_size": 1,
             "gradient_accumulation_steps": 16,
+            "weak_input_gradient_accumulation_steps": 4,
             "general_learning_rate": "8e-5",
             "weak_input_learning_rate": "6e-5",
             "style_learning_rate": "5e-5",
@@ -275,10 +284,11 @@ def _profile_config(profile: str, model_override: str | None, torch_dtype: str |
             "quant_method": "bnb",
             "quant_bits": 4,
             "general_num_train_epochs": 1,
-            "weak_input_num_train_epochs": 1,
+            "weak_input_num_train_epochs": 2,
             "style_num_train_epochs": 1,
             "per_device_train_batch_size": 1,
             "gradient_accumulation_steps": 16,
+            "weak_input_gradient_accumulation_steps": 4,
             "general_learning_rate": "8e-5",
             "weak_input_learning_rate": "6e-5",
             "style_learning_rate": "5e-5",
@@ -379,6 +389,7 @@ def build_ms_swift_recipes(
                 previous_adapter_hint=phase0_adapter_hint if general_phase0_dataset else None,
                 epoch_override=config["weak_input_num_train_epochs"],
                 lr_override=config["weak_input_learning_rate"],
+                grad_accum_override=config.get("weak_input_gradient_accumulation_steps"),
             ),
             encoding="utf-8",
         )
@@ -391,6 +402,7 @@ def build_ms_swift_recipes(
                 previous_adapter_hint=phase0_adapter_hint if general_phase0_dataset else None,
                 epoch_override=config["weak_input_num_train_epochs"],
                 lr_override=config["weak_input_learning_rate"],
+                grad_accum_override=config.get("weak_input_gradient_accumulation_steps"),
             ),
             encoding="utf-8",
         )

@@ -10,6 +10,7 @@ from .local_response_policy import maybe_build_local_support_plan
 from .prompts import build_system_prompt, build_user_prompt
 from .providers import LLMProvider, STTProvider
 from .reduction import build_entropy_reduction_strategy
+from .response_guardrails import sanitize_user_visible_reply
 from .retrieval import CampusKnowledgeRetriever
 from .safety import evaluate_text_risk
 from .schemas import (
@@ -118,7 +119,11 @@ class CampusSupportAgent:
                 source=source,
                 input_text=clean_text,
                 transcript=transcript,
-                reply_text=self._render_reply_text(plan),
+                reply_text=sanitize_user_visible_reply(
+                    clean_text,
+                    self._render_reply_text(plan),
+                    conversation_history=conversation_history,
+                ),
                 risk=risk,
                 entropy=entropy,
                 entropy_reduction=entropy_reduction,
@@ -173,7 +178,11 @@ class CampusSupportAgent:
             source=source,
             input_text=clean_text,
             transcript=transcript,
-            reply_text=self._render_reply_text(plan),
+            reply_text=sanitize_user_visible_reply(
+                clean_text,
+                self._render_reply_text(plan),
+                conversation_history=conversation_history,
+            ),
             risk=risk,
             entropy=entropy,
             entropy_reduction=entropy_reduction,

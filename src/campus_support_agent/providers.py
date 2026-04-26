@@ -176,6 +176,7 @@ class OpenAICompatibleLLMProvider:
     model: str
     api_key: str
     timeout_seconds: int
+    max_tokens: int
     name: str = "openai_compatible"
 
     def complete(self, *, system_prompt: str, user_prompt: str) -> str:
@@ -184,6 +185,7 @@ class OpenAICompatibleLLMProvider:
         payload = {
             "model": self.model,
             "temperature": 0.3,
+            "max_tokens": self.max_tokens,
             "response_format": {"type": "json_object"},
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -273,6 +275,7 @@ def build_llm_provider(settings: Settings) -> LLMProvider:
             model=settings.llm_model,
             api_key=settings.llm_api_key,
             timeout_seconds=settings.llm_timeout_seconds,
+            max_tokens=settings.llm_max_tokens,
         )
     return MockLLMProvider()
 

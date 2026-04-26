@@ -70,6 +70,44 @@ class GeneralDialogBuilderTests(unittest.TestCase):
             self.assertEqual(record["messages"][0]["role"], "user")
             self.assertEqual(record["messages"][1]["role"], "assistant")
 
+    def test_build_general_multiturn_dataset_parses_instruction_records(self) -> None:
+        with _temporary_workspace_dir() as root:
+            input_path = root / "multiturn_chat.jsonl"
+            output_path = root / "general_phase0_train_ms_swift.jsonl"
+
+            lines = [
+                {
+                    "instruction": (
+                        "Human:你好，你能陪我聊聊吗？\n"
+                        "Assistant:当然可以，你现在最想聊什么？\n"
+                        "Human:我最近准备考试，有点烦。\n"
+                        "Assistant:听起来你最近一直绷着。"
+                    ),
+                    "input": "其实我最怕的是挂科。",
+                    "output": "这种担心很真实。你现在最卡住的是复习进度，还是一想到考试就紧张？",
+                }
+            ]
+            input_path.write_text(
+                "\n".join(json.dumps(line, ensure_ascii=False) for line in lines),
+                encoding="utf-8",
+            )
+
+            stats = build_general_multiturn_dataset(
+                str(input_path),
+                str(output_path),
+                min_turns=6,
+                max_turns=8,
+                limit=10,
+                seed=7,
+            )
+
+            self.assertEqual(stats["written"], 1)
+            record = json.loads(output_path.read_text(encoding="utf-8").splitlines()[0])
+            self.assertEqual(record["meta"]["source"], "instruction_multiturn")
+            self.assertEqual(record["messages"][0]["content"], "你好，你能陪我聊聊吗？")
+            self.assertEqual(record["messages"][-1]["role"], "assistant")
+            self.assertTrue(any("挂科" in message["content"] for message in record["messages"]))
+
 
 if __name__ == "__main__":
     unittest.main()

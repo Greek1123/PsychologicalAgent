@@ -59,6 +59,7 @@ class Settings:
     llm_base_url: str = field(default_factory=lambda: os.getenv("LLM_BASE_URL", "http://127.0.0.1:23333/v1"))
     llm_api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
     llm_timeout_seconds: int = field(default_factory=lambda: int(os.getenv("LLM_TIMEOUT_SECONDS", "60")))
+    llm_max_tokens: int = field(default_factory=lambda: int(os.getenv("LLM_MAX_TOKENS", "512")))
 
     stt_provider: str = field(default_factory=lambda: os.getenv("STT_PROVIDER", "mock"))
     stt_model: str = field(default_factory=lambda: os.getenv("STT_MODEL", "whisper-1"))

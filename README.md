@@ -96,6 +96,7 @@ http://127.0.0.1:8000/app
 LOG_LEVEL=INFO
 LOG_FILE_PATH=logs/app.log
 DATABASE_PATH=data/campus_agent.db
+LLM_MAX_TOKENS=512
 ```
 
 日志会记录这些关键节点：

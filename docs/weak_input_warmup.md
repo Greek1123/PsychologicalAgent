@@ -27,9 +27,16 @@ Without dedicated SFT data, the model may:
 - re-anchor the dialogue topic
 - avoid mechanical counting or filler-token echoing
 
+## Current dataset design
+
+- bilingual curated records
+- explicit repairs for `? / 嗯 / 1 / 不知道 / ...`
+- discourage counting continuation and filler echoing
+- tuned for a small local model before support-style SFT
+
 ## Build command
 
-```bash
+```powershell
 python scripts/build_weak_input_dataset.py
 ```
 

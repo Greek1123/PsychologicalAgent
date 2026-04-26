@@ -38,7 +38,7 @@ function renderEntropyDimensions(dimensions) {
   const target = document.getElementById("entropyDimensions");
   target.innerHTML = "";
   if (!dimensions) {
-    target.innerHTML = '<p class="muted">暂无熵维度。</p>';
+    target.innerHTML = '<p class="muted">暂无维度数据。</p>';
     return;
   }
 
@@ -47,7 +47,7 @@ function renderEntropyDimensions(dimensions) {
     emotional_volatility: "情绪波动",
     cognitive_load: "认知负荷",
     physiological_imbalance: "生理失衡",
-    social_support_tension: "社会张力",
+    social_support_tension: "社会支持张力",
     risk_pressure: "风险压力",
   };
 
@@ -63,7 +63,7 @@ function renderCampusResources(resources) {
   const target = document.getElementById("campusResources");
   target.innerHTML = "";
   if (!resources || resources.length === 0) {
-    target.innerHTML = '<p class="muted">暂无资源命中。</p>';
+    target.innerHTML = '<p class="muted">暂无校园资源推荐。</p>';
     return;
   }
 
@@ -83,7 +83,7 @@ function renderTrace(trace) {
   const target = document.getElementById("entropyTrace");
   target.innerHTML = "";
   if (!trace || trace.length === 0) {
-    target.innerHTML = '<p class="muted">暂无会话轨迹。</p>';
+    target.innerHTML = '<p class="muted">暂无会话追踪数据。</p>';
     return;
   }
 
@@ -91,7 +91,7 @@ function renderTrace(trace) {
     const item = document.createElement("div");
     item.className = "trace-item";
     item.innerHTML = `
-      <strong>第 ${index + 1} 个熵点 · Score ${point.score}</strong>
+      <strong>第 ${index + 1} 次记录 · Score ${point.score}</strong>
       <div class="trace-meta">Level ${point.level} · ${point.balance_state}</div>
       <div>${(point.dominant_drivers || []).join(" / ")}</div>
     `;
@@ -103,7 +103,7 @@ function renderHistory(history) {
   const target = document.getElementById("conversationHistory");
   target.innerHTML = "";
   if (!history || history.length === 0) {
-    target.innerHTML = '<p class="muted">暂无对话历史。</p>';
+    target.innerHTML = '<p class="muted">暂无历史对话。</p>';
     return;
   }
 
@@ -129,7 +129,7 @@ function renderResponse(data) {
     : "-";
   document.getElementById("entropyDelta").textContent = deltaText;
 
-  document.getElementById("supportSummary").textContent = data.plan?.summary || "暂无摘要。";
+  document.getElementById("supportSummary").textContent = data.reply_text || data.plan?.summary || "暂无摘要。";
   document.getElementById("reductionRationale").textContent = data.entropy_reduction?.rationale || "暂无减熵策略。";
   renderList("reductionActions", data.entropy_reduction?.core_actions || []);
   renderList("immediateSupport", data.plan?.immediate_support || []);
@@ -141,7 +141,7 @@ function renderResponse(data) {
 
 async function submitText() {
   try {
-    setStatus("正在发送文本请求...");
+    setStatus("正在生成支持回复...");
     const payload = {
       session_id: document.getElementById("sessionId").value.trim(),
       text: document.getElementById("messageInput").value.trim(),
@@ -158,7 +158,7 @@ async function submitText() {
       throw new Error(data.detail || "文本请求失败。");
     }
     renderResponse(data);
-    setStatus("文本请求完成。");
+    setStatus("文本回复已更新。");
   } catch (error) {
     setStatus(error.message || "文本请求失败。", true);
   }
@@ -171,7 +171,7 @@ async function submitAudio() {
       throw new Error("请先选择音频文件。");
     }
 
-    setStatus("正在上传音频...");
+    setStatus("正在处理音频...");
     const formData = new FormData();
     formData.append("file", file);
     formData.append("session_id", document.getElementById("sessionId").value.trim());
@@ -183,12 +183,12 @@ async function submitAudio() {
     });
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.detail || "语音请求失败。");
+      throw new Error(data.detail || "音频请求失败。");
     }
     renderResponse(data);
-    setStatus("语音请求完成。");
+    setStatus("音频回复已更新。");
   } catch (error) {
-    setStatus(error.message || "语音请求失败。", true);
+    setStatus(error.message || "音频请求失败。", true);
   }
 }
 
@@ -196,20 +196,20 @@ async function loadSession() {
   try {
     const sessionId = document.getElementById("sessionId").value.trim();
     if (!sessionId) {
-      throw new Error("请先填写 session_id。");
+      throw new Error("请先输入 session_id。");
     }
 
-    setStatus("正在读取会话历史...");
+    setStatus("正在加载会话历史...");
     const response = await fetch(`/api/v1/sessions/${encodeURIComponent(sessionId)}`);
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.detail || "读取会话历史失败。");
+      throw new Error(data.detail || "加载会话历史失败。");
     }
     renderHistory(data.conversation_history || []);
     renderTrace(data.entropy_trace || []);
     setStatus("会话历史已加载。");
   } catch (error) {
-    setStatus(error.message || "读取会话历史失败。", true);
+    setStatus(error.message || "加载会话历史失败。", true);
   }
 }
 
@@ -217,7 +217,7 @@ async function clearSession() {
   try {
     const sessionId = document.getElementById("sessionId").value.trim();
     if (!sessionId) {
-      throw new Error("请先填写 session_id。");
+      throw new Error("请先输入 session_id。");
     }
 
     setStatus("正在清空会话...");
@@ -261,10 +261,9 @@ function clearOutput() {
   renderHistory([]);
   renderTrace([]);
   document.getElementById("rawJson").textContent = "暂无数据";
-  setStatus("结果区已清空。");
+  setStatus("输出区域已清空。");
 }
 
-// 这里保持前端逻辑尽量轻，方便后续替换成正式学生端或管理端。
 document.getElementById("submitText").addEventListener("click", submitText);
 document.getElementById("submitAudio").addEventListener("click", submitAudio);
 document.getElementById("loadSession").addEventListener("click", loadSession);

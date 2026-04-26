@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+import re
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from .logging_utils import get_logger
 
 
 logger = get_logger("general_dialog_builder")
+_SPEAKER_PATTERN = re.compile(r"(Human|Assistant):")
 
 
 def _alternate_messages(turns: list[str], *, max_turns: int) -> list[dict[str, str]]:
@@ -30,6 +32,77 @@ def _alternate_messages(turns: list[str], *, max_turns: int) -> list[dict[str, s
     return messages
 
 
+def _parse_instruction_transcript(text: str) -> list[dict[str, str]]:
+    """Parse `Human:` / `Assistant:` transcripts into message records."""
+    transcript = str(text or "").strip()
+    if not transcript:
+        return []
+
+    matches = list(_SPEAKER_PATTERN.finditer(transcript))
+    if not matches:
+        return []
+
+    messages: list[dict[str, str]] = []
+    for index, match in enumerate(matches):
+        role = "user" if match.group(1) == "Human" else "assistant"
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(transcript)
+        content = transcript[start:end].strip()
+        if not content:
+            continue
+        messages.append({"role": role, "content": content})
+    return messages
+
+
+def _clip_messages(messages: list[dict[str, str]], *, max_turns: int) -> list[dict[str, str]]:
+    clipped = messages[:max_turns]
+    if len(clipped) % 2 == 1:
+        clipped = clipped[:-1]
+    return clipped
+
+
+def _messages_from_instruction_record(record: dict[str, Any], *, max_turns: int) -> list[dict[str, str]]:
+    messages = _parse_instruction_transcript(record.get("instruction", ""))
+
+    raw_input = str(record.get("input", "") or "").strip()
+    if raw_input:
+        messages.append({"role": "user", "content": raw_input})
+
+    raw_output = str(record.get("output", "") or "").strip()
+    if raw_output:
+        messages.append({"role": "assistant", "content": raw_output})
+
+    if not messages or messages[0]["role"] != "user":
+        return []
+
+    return _clip_messages(messages, max_turns=max_turns)
+
+
+def _load_records(source: Path) -> list[dict[str, Any]]:
+    text = source.read_text(encoding="utf-8")
+    stripped = text.lstrip()
+    if stripped.startswith("["):
+        payload = json.loads(text)
+        if not isinstance(payload, list):
+            raise ValueError("Expected a JSON list when the source file starts with '['.")
+        return [record for record in payload if isinstance(record, dict)]
+
+    decoder = json.JSONDecoder()
+    records: list[dict[str, Any]] = []
+    index = 0
+    text_length = len(text)
+    while index < text_length:
+        while index < text_length and text[index].isspace():
+            index += 1
+        if index >= text_length:
+            break
+        record, next_index = decoder.raw_decode(text, index)
+        if isinstance(record, dict):
+            records.append(record)
+        index = next_index
+    return records
+
+
 def build_general_multiturn_dataset(
     input_path: str,
     output_path: str,
@@ -43,11 +116,7 @@ def build_general_multiturn_dataset(
     output = Path(output_path)
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    raw_records = json.loads(source.read_text(encoding="utf-8"))
-    if not isinstance(raw_records, list):
-        raise ValueError("dialog_release input must be a JSON list.")
-
-    records = list(raw_records)
+    records = _load_records(source)
     random.Random(seed).shuffle(records)
 
     written = 0
@@ -56,12 +125,18 @@ def build_general_multiturn_dataset(
 
     with output.open("w", encoding="utf-8") as handle:
         for record in records:
-            turns = record.get("content", []) if isinstance(record, dict) else []
-            if not isinstance(turns, list):
-                skipped_empty += 1
-                continue
+            messages: list[dict[str, str]] = []
+            source_name = "unknown"
 
-            messages = _alternate_messages(turns, max_turns=max_turns)
+            if {"instruction", "output"} <= set(record.keys()):
+                messages = _messages_from_instruction_record(record, max_turns=max_turns)
+                source_name = "instruction_multiturn"
+            else:
+                turns = record.get("content", []) if isinstance(record, dict) else []
+                if isinstance(turns, list):
+                    messages = _alternate_messages(turns, max_turns=max_turns)
+                    source_name = "dialog_release"
+
             if not messages:
                 skipped_empty += 1
                 continue
@@ -76,9 +151,9 @@ def build_general_multiturn_dataset(
                 "stage_goal": "contextual_continuation",
                 "messages": messages,
                 "meta": {
-                    "source": "dialog_release",
-                    "dialog_id": record.get("dialog_id", ""),
-                    "document_id": record.get("document_id", ""),
+                    "source": source_name,
+                    "dialog_id": str(record.get("dialog_id", "") or ""),
+                    "document_id": str(record.get("document_id", "") or ""),
                 },
             }
             handle.write(json.dumps(sample, ensure_ascii=False) + "\n")

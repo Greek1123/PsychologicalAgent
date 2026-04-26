@@ -131,6 +131,7 @@ def _wrap_local_policy(
     result: tuple[SupportAssessment, SupportPlan],
 ) -> LocalPolicyResult:
     assessment, plan = result
+    plan = _soften_user_facing_plan(policy_name, plan)
     return LocalPolicyResult(
         assessment=assessment,
         plan=plan,
@@ -140,6 +141,71 @@ def _wrap_local_policy(
             escalation_hint=escalation_hint,
         ),
     )
+
+
+def _soften_user_facing_plan(policy_name: str, plan: SupportPlan) -> SupportPlan:
+    """Keep clinical judgment in metadata while making the visible reply feel human."""
+    if policy_name == "privacy_concern":
+        plan.summary = (
+            "你放心，我们可以先停在你觉得有安全感的范围里。你不用一次说很多，"
+            "也不用说具体的人名、地点或细节。"
+        )
+        plan.immediate_support = [
+            "我不会把你的话主动告诉别人；如果真的出现安全风险，我会优先建议你联系现实中可信任的人来保护你。",
+            "你可以先只说一点点，比如你最担心的是被谁知道，还是担心说出来以后被误解。",
+        ]
+        plan.self_regulation = [
+            "先不用逼自己讲完整经过。你可以把信息模糊一点，只说感受，不说具体人物和细节。"
+        ]
+        plan.follow_up = [
+            "如果你愿意，下一句只告诉我：你现在更担心“别人知道”，还是更担心“说出来以后没人理解”。"
+        ]
+    elif policy_name == "boundary_concern":
+        plan.summary = (
+            "可以的，我们先不追问细节。你不想细说并不代表你在逃避，"
+            "也可能只是现在还需要一点安全感和空间。"
+        )
+        plan.immediate_support = [
+            "你不用为了让我理解就勉强自己多说，我们先不追问，可以停在你觉得舒服的位置。",
+            "如果现在说具体事情太难，我们就用轻的方式来：你只说一个感觉也可以，比如烦、怕、委屈、累，或者先什么都不选。",
+        ]
+        plan.self_regulation = [
+            "先把注意力放回当下，喝口水、慢一点呼吸，提醒自己：现在不需要一次讲清楚全部。"
+        ]
+        plan.follow_up = [
+            "你可以只回一个词：现在更像烦、怕、委屈，还是累？如果不想选，也可以直接说“不想选”。"
+        ]
+    elif policy_name == "sleep_appetite_drift":
+        plan.summary = (
+            "这听起来已经影响到你的睡眠和吃饭了，确实会让人很难受。"
+            "我们先不急着找出所有原因，先把身体状态往回稳一点。"
+        )
+        plan.immediate_support = [
+            "今晚先别给自己加很多任务，先照顾最基础的两件事：能不能稍微吃一点、能不能让身体慢下来一点。",
+            "你不用马上变好，我们先找一个最小动作，比如喝点温水、吃两口容易入口的东西，或者先躺下安静十分钟。",
+        ]
+        plan.campus_actions = [
+            "如果睡不好、吃不下已经连续好几天，建议尽快找校医院或学校心理中心做一次基础评估，不要一个人硬扛。"
+        ]
+        plan.self_regulation = [
+            "先把目标降到很小：今天只做一件照顾身体的小事，不要求自己立刻恢复状态。"
+        ]
+        plan.follow_up = [
+            "你下一句只说一个就好：现在更明显的是睡不好，还是吃不下？我先陪你从这一点开始。"
+        ]
+    elif policy_name == "dorm_conflict":
+        plan.summary = (
+            "一回宿舍就烦，说明那个环境可能已经让你有点绷紧了。"
+            "我们先不用急着判断谁对谁错，先把你现在这股烦接住。"
+        )
+        plan.immediate_support = [
+            "你可以先不用讲完整经过，只说最刺你的一个点：是气氛压抑、被针对，还是一想到回宿舍就烦。",
+            "如果现在很堵，可以先让自己离开那个刺激源一小会儿，比如去走廊、楼下或洗手间缓一下。"
+        ]
+        plan.follow_up = [
+            "你愿意的话，先告诉我：这个烦更像生气、委屈，还是害怕之后继续相处？"
+        ]
+    return plan
 
 
 def _normalize(text: str) -> str:

@@ -187,6 +187,30 @@ def _apply_session_escalation(
     }
 
 
+def _store_referral_event_if_needed(*, session_id: str | None, response: dict[str, Any]) -> None:
+    if not session_id:
+        return
+
+    referral = response.get("referral_decision") or {}
+    flags = response.get("system_flags") or {}
+    if not referral.get("should_refer") and not flags.get("manual_referral_recommended"):
+        return
+
+    local_policy = response.get("local_policy") or {}
+    risk = response.get("risk") or {}
+    entropy = response.get("entropy") or {}
+    get_session_store().append_referral_event(
+        session_id=session_id,
+        response_id=response["response_id"],
+        urgency=referral.get("urgency") or "watch",
+        reasons=[*referral.get("reasons", []), *flags.get("reasons", [])],
+        policy_name=local_policy.get("policy_name"),
+        risk_level=risk.get("level"),
+        entropy_score=entropy.get("score"),
+        manual_referral_recommended=bool(flags.get("manual_referral_recommended")),
+    )
+
+
 @app.get("/", include_in_schema=False)
 def root() -> RedirectResponse:
     return RedirectResponse(url="/app")
@@ -242,6 +266,7 @@ def support_text(payload: dict[str, Any]) -> dict[str, Any]:
         response=response,
     )
     _apply_session_escalation(session_id=session_id, response=response)
+    _store_referral_event_if_needed(session_id=session_id, response=response)
 
     session_store = get_session_store()
     session_store.store_support_response(
@@ -298,6 +323,7 @@ async def support_audio(
         response=response,
     )
     _apply_session_escalation(session_id=clean_session_id, response=response)
+    _store_referral_event_if_needed(session_id=clean_session_id, response=response)
 
     session_store = get_session_store()
     session_store.store_support_response(
@@ -334,6 +360,18 @@ def get_session_analysis(session_id: str) -> dict[str, Any]:
     analysis = session_store.get_session_analysis(session_id)
     logger.info("Session analysis requested session_id=%s total=%s", session_id, analysis["total_responses"])
     return analysis
+
+
+@app.get("/api/v1/sessions/{session_id}/referrals")
+def get_session_referrals(session_id: str, limit: int | None = None) -> dict[str, Any]:
+    session_store = get_session_store()
+    events = session_store.get_referral_events(session_id, limit=limit)
+    logger.info("Referral events requested session_id=%s total=%s", session_id, len(events))
+    return {
+        "session_id": session_id,
+        "total_events": len(events),
+        "referral_events": events,
+    }
 
 
 @app.get("/api/v1/analytics/overview")
