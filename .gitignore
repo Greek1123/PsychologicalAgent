@@ -7,6 +7,7 @@ __pycache__/
 
 logs/
 tmp_test_artifacts/
+test_tmp/
 
 data/campus_agent.db
 data/psychologicalAgent.zip
@@ -24,6 +25,12 @@ data/training/public_sft/
 data/training/weak_input/
 data/training/style_first_pack/
 data/training_templates/
+data/training/
+data/public_training_datasets/
+data/Chinese-Psychological-QA-DataSet/
+data/*(1).json
+docs/_training_collection_docx_render*/
+.idea/
 
 training/ms_swift/outputs/
 test_env_override.env

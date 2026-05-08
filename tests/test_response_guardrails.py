@@ -199,5 +199,37 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertNotIn("深呼吸", reply)
 
 
+    def test_consultation_opener_is_replaced_for_exam_pressure(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我最近考试很多，晚上总睡不好，也很担心挂科。",
+            "你好，感谢你前来咨询。能详细告诉我你的困扰吗？",
+        )
+
+        self.assertIn("考试", reply)
+        self.assertIn("15 分钟", reply)
+        self.assertNotIn("感谢你前来咨询", reply)
+
+    def test_consultation_opener_is_replaced_for_privacy_boundary(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我不是很想说，我怕别人会知道。",
+            "你好，感谢你来寻求帮助。能详细告诉我一下你的困扰吗？",
+        )
+
+        self.assertIn("别人知道", reply)
+        self.assertIn("不用说姓名", reply)
+        self.assertNotIn("感谢你来寻求帮助", reply)
+
+    def test_crisis_user_text_overrides_bad_model_reply(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我想自杀",
+            "我也是，但是我觉得我比她好一点，因为她没有男朋友。",
+        )
+
+        self.assertIn("安全", reply)
+        self.assertIn("不要一个人待着", reply)
+        self.assertIn("你现在身边有人吗", reply)
+        self.assertNotIn("男朋友", reply)
+
+
 if __name__ == "__main__":
     unittest.main()

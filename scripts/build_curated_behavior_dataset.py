@@ -3,352 +3,246 @@ from __future__ import annotations
 import argparse
 import json
 import random
-import re
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-USER_PREFIX = "用户："
-ASSISTANT_PREFIX = "助手："
 
-BAD_PHRASES = (
-    "上述小步骤",
-    "这些小方法",
-    "我会保密",
-    "绝对保密",
-    "我是个女生",
-    "我在减肥",
-    "后续对话内容略",
-    "虚构示例",
-    "实际咨询过程",
-    "祝你好运",
+EXAM_USERS = [
+    "我最近很烦躁，快到期末考试了，我好害怕挂科，我压力好大。",
+    "我一想到考试就睡不着，感觉脑子里全是挂科两个字。",
+    "我复习不进去，越看越慌，感觉自己肯定完了。",
+    "我怕这次成绩很差，已经连续几天晚上睡不好了。",
+    "我感觉自己跟不上了，看到别人复习得很好我就更崩溃。",
+]
+
+DORM_USERS = [
+    "我最近心情不好，一回到宿舍就感觉很烦。",
+    "我见到舍友就烦，但我也不知道怎么说。",
+    "宿舍里一点小声音都会让我很焦躁，我快受不了了。",
+    "我不想回宿舍，回去就觉得压抑。",
+    "我感觉舍友好像都在针对我，心里特别堵。",
+]
+
+PRIVACY_USERS = [
+    "我不是很想说，我害怕别人会知道。",
+    "我怕你会告诉别人，所以我不太敢说。",
+    "我想说，但我又担心这些话被别人看到。",
+    "这件事有点隐私，我不知道能不能讲。",
+    "我不想细说，感觉说出来会很丢脸。",
+]
+
+WEAK_USERS = ["？", "嗯", "1", "2", "算了", "不知道", "不想说", "额"]
+
+TYPO_USERS = [
+    "我鸭力好大，晚上睡不召。",
+    "我最近很奔溃，感觉脑子停不下来。",
+    "我好海怕挂科，越想越睡不找。",
+    "我一回数舍就烦，看到室友就难瘦。",
+    "我真的不想或了，感觉撑不住。",
+]
+
+ROLE_CHALLENGE_USERS = [
+    "你为啥感觉累？",
+    "你怎么还有作业？",
+    "大哥，你是人还是我是人？",
+    "你也会挂科吗？",
+    "你别说你自己，我是在说我。",
+]
+
+CASUAL_USERS = [
+    "你喜欢喝奶茶吗？",
+    "今天天气不错，晚上想去聚餐。",
+    "你听过疯狂动物城吗？",
+    "我想随便聊两句。",
+]
+
+EXAM_REPLIES = [
+    "听起来你现在不是单纯不想复习，而是被挂科这件事压得很紧，连睡眠都被影响了。我们先不要一下子处理所有科目，先挑今晚最急的一科，把任务缩到二十分钟能开始的程度。你不用马上变得很有状态，先让自己从最小的一步恢复一点掌控感。",
+    "你现在的害怕是有原因的：考试临近、复习压力和睡不好叠在一起，人很容易把结果想得特别糟。我们先把目标放低一点，不追求今晚全部补完，只先列出明天必须看的三个小点。这样不是逃避，而是在帮大脑从慌乱里先落地。",
+    "我能感觉到你已经绷了好几天，越担心越睡不好，越睡不好又越觉得自己要完了。先暂停一下灾难化的循环，我们可以把问题拆成两个部分：今晚怎么先睡得稍微稳一点，明天怎么开始复习第一块内容。",
+]
+
+DORM_REPLIES = [
+    "宿舍本来应该是休息的地方，但现在它像是一直在触发你的烦躁，这确实会很消耗。我们先不急着判断是不是谁对谁错，先照顾你今晚的状态。你可以先找一个相对安静的位置，或者短暂离开宿舍十分钟，让身体先从那个环境里退出来一点。",
+    "听起来你不是无缘无故烦，而是回到宿舍这个场景时，情绪一下子被拉起来了。我们可以先把目标放得很小：今晚先减少冲突和刺激，不急着马上沟通清楚。等你缓一点，再一起想要不要说、怎么说、跟谁说。",
+    "见到舍友就烦，说明这件事已经在你心里积了一阵子。你现在可以不用马上解释完整原因，我更想先确认你此刻能不能稍微安全、安静一点。先让自己离开刺激源一小会儿，或者戴上耳机、洗把脸，都可以算是有效处理。",
+]
+
+PRIVACY_REPLIES = [
+    "你担心别人知道，这个顾虑很正常，我会尊重你的边界。你不需要把细节都说出来，也可以只说现在最明显的感受，比如害怕、委屈、烦躁，或者不安全。我们可以先从不涉及隐私的部分开始。",
+    "可以不细说，保护自己的隐私很重要。我不会逼你把事情完整讲出来，你也可以只告诉我这件事带给你的影响，比如睡不好、心慌，还是一想到就难受。先讲到你觉得安全的位置就好。",
+    "你能说出“我怕别人知道”，其实已经是在告诉我这件事对你很敏感。我们先不碰具体细节，只照顾你现在的感受。你可以用很模糊的方式说，比如“人际”“家里”“学习”，不用说名字和具体经过。",
+]
+
+WEAK_REPLIES = [
+    "我看到你现在可能不太想展开说，也没关系。我们先不追问细节，你只要告诉我现在更需要我陪你待一会儿，还是给你一个很小的缓解办法就行。",
+    "你只回了很短的一句，我会理解成你现在可能有点卡住了。没关系，不用组织完整语言。你可以只回一个词，比如“烦”“怕”“累”“宿舍”或者“考试”。",
+    "先不用急着解释。很多人在很难受的时候确实只说得出一个字或者一个符号。我会先陪你把节奏放慢一点，你现在最明显的是身体累，还是心里乱？",
+]
+
+TYPO_REPLIES = [
+    "我大概能明白，你可能是在说压力很大、晚上睡不着。情绪很崩的时候打错字很正常，不用因为这个觉得尴尬。我们先不纠结字对不对，先看看今晚最困扰你的是睡不着，还是一直担心某件事。",
+    "我能看出来你现在很难受，即使有几个字打错了，也不影响我理解你的意思。你像是在说自己已经快撑不住、很焦虑。先慢一点，我们把注意力放在让你此刻安全、稳定一点上。",
+    "这些错字反而说明你现在可能真的很急、很乱。没关系，我会尽量按你的意思理解，而不是抓着字面误判。你现在可以只说：是学习压力、人际关系，还是身体睡眠最影响你？",
+]
+
+CRISIS_TYPO_REPLY = (
+    "你说到“不想活/不想撑下去”的意思时，我会先把安全放在第一位。请你现在不要一个人待着，尽快联系身边能马上到你身边的人，比如室友、同学、辅导员或家人；如果你有马上伤害自己的冲动，请立刻联系当地急救或学校危机支持。你可以先只回我一句：你现在身边有人吗？"
 )
 
-SCENARIOS = [
-    {
-        "key": "dorm",
-        "opening": [
-            "我最近心情不好，我一回到宿舍就很烦。",
-            "我一进宿舍就开始烦躁，明明白天还好好的。",
-            "宿舍让我很压抑，我现在有点不想回去。",
-            "我和舍友待在一起就很累，但我也说不清为什么。",
-        ],
-        "reflection": [
-            "宿舍好像不是一个能让你放松的地方，这种回去就紧起来的感觉会很消耗。",
-            "听起来宿舍对你来说像是一个触发点，不一定要马上讲原因，我们可以先看你现在怎么舒服一点。",
-            "你不是无缘无故烦，可能是那个环境让你一直处在防备或者压抑里。",
-        ],
-        "support": [
-            "今晚先把目标放小一点：找一个少被打扰的位置，戴耳机、洗个澡，或者出去走十分钟，让情绪先降下来。",
-            "我们可以先不处理舍友关系，只先做一个短期安排：回去后先别急着交流，给自己留一段缓冲时间。",
-            "如果你愿意，可以先给自己设一个安全边界，比如先去图书馆、楼下或走廊待一会儿，等情绪降一点再回去。",
-        ],
-    },
-    {
-        "key": "exam",
-        "opening": [
-            "最近考试很多，我好害怕自己挂科。",
-            "我一想到考试就心慌，晚上也睡不好。",
-            "复习越复习越乱，我感觉自己肯定考不好。",
-            "我明明想学习，但坐下来就开始焦虑。",
-        ],
-        "reflection": [
-            "考试压力一堆上来时，大脑很容易自动跳到最坏结果，这不代表你真的没救了。",
-            "你现在像是被考试和睡眠一起拖住了，越累越容易觉得自己会失败。",
-            "这种慌不只是懒或者不努力，更像是压力太大后身体和脑子都在报警。",
-        ],
-        "support": [
-            "先别做完整复习计划，只挑一个最小任务，比如看一页笔记或做一道题，让自己重新启动。",
-            "今晚先把目标定成二十分钟复习加十分钟休息，不要求一下子进入满状态。",
-            "可以先列出最可能考的三个点，只处理第一个，别让脑子同时背着全部考试。",
-        ],
-    },
-    {
-        "key": "paper",
-        "opening": [
-            "论文快到截止日期了，可我一点头绪也没有。",
-            "我看着论文题目就想逃避，越拖越慌。",
-            "我的论文一直写不出来，我感觉自己很差。",
-            "导师催我交初稿，但我现在完全卡住了。",
-        ],
-        "reflection": [
-            "论文卡住的时候很容易把它理解成自己不行，其实更多时候是任务太大、入口太模糊。",
-            "你现在不是没救，而是被一个很大的任务压住了，第一步还没被拆出来。",
-            "越临近截止越容易僵住，这种状态很难受，但可以先从非常小的动作开始。",
-        ],
-        "support": [
-            "先不用写完整段落，只建一个标题列表，哪怕很粗糙也算开始。",
-            "你可以先写三句很丑的草稿，不追求质量，只让文档从空白变成有东西。",
-            "先把任务拆成十五分钟：找一篇参考文献、写一个小标题、补一句观点，三选一就行。",
-        ],
-    },
-    {
-        "key": "sleep",
-        "opening": [
-            "我最近压力好大，晚上睡不好。",
-            "我躺在床上脑子停不下来，越想越清醒。",
-            "这几天睡得很差，白天也没精神。",
-            "我一到晚上就焦虑，怕自己又睡不着。",
-        ],
-        "reflection": [
-            "睡不好会把压力放大，压力又会反过来影响睡眠，这个循环真的很磨人。",
-            "你现在最需要的可能不是立刻解决所有问题，而是先让身体从紧绷里松一点。",
-            "晚上脑子停不下来时，不是你故意想太多，而是压力还没找到出口。",
-        ],
-        "support": [
-            "今晚先别逼自己马上睡着，可以先把担心写成三条，告诉自己明天再处理。",
-            "你可以先把手机放远一点，做三轮慢呼吸，只把目标定成让身体安静一些。",
-            "如果脑子一直转，就先不和它争，可以听一点低刺激的声音，让注意力慢慢落回身体。",
-        ],
-    },
-    {
-        "key": "social",
-        "opening": [
-            "我感觉舍友好像针对我。",
-            "我总觉得别人不喜欢我，心里很不安。",
-            "最近和朋友关系很尴尬，我不知道该怎么办。",
-            "他们聊天不叫我，我就觉得自己被排除在外。",
-        ],
-        "reflection": [
-            "被排除或者被冷落的感觉很刺人，尤其是在每天都要见面的关系里。",
-            "你现在可能不只是生气，也有一点委屈和不确定，不知道自己是不是想多了。",
-            "人际里的模糊信号最容易让人反复猜，这会让你很累。",
-        ],
-        "support": [
-            "先不用急着判断他们是不是故意的，可以先记录一两个具体场景，看看哪些是真实发生、哪些是脑子在补全。",
-            "如果现在情绪很满，先别立刻摊牌，等自己平稳一点再决定要不要沟通。",
-            "你可以先找一个相对安全的人聊一点点，不一定要把所有关系一次说清楚。",
-        ],
-    },
-    {
-        "key": "future",
-        "opening": [
-            "我不知道未来该做什么，心里很慌。",
-            "我对以后很迷茫，感觉别人都比我清楚。",
-            "我快毕业了，但我完全不知道自己能干什么。",
-            "我感觉自己没有方向，越想越焦虑。",
-        ],
-        "reflection": [
-            "迷茫本身已经很累了，尤其是看到别人好像都有方向时，会更容易怀疑自己。",
-            "你现在不一定需要马上决定一生的方向，可能只是需要把眼前的一步看清楚一点。",
-            "未来太大时，大脑会很自然地慌起来，这不代表你真的没有可能。",
-        ],
-        "support": [
-            "先别问自己一辈子要做什么，只问接下来两周能尝试什么，比如投一份简历、问一个学长学姐、查一个岗位。",
-            "可以先列出你不排斥的三个方向，不需要喜欢，只要暂时能探索就行。",
-            "我们可以把问题从“我以后怎么办”缩小成“今天能收集一个什么信息”。",
-        ],
-    },
+ROLE_REPAIR_REPLIES = [
+    "你说得对，压力和害怕是你的处境，我不该把话题说成自己的经历。我会把注意力放回你身上：你现在真正难受的是考试本身，还是那种“我可能会失败”的感觉一直压着你？",
+    "你提醒得对，我是支持助手，不是来访者，不应该让你反过来照顾我。我们把话题拉回你这里：刚才你说很害怕挂科，这个害怕现在最影响你的是睡眠、复习，还是情绪崩溃？",
+    "对，这里应该是我支持你，而不是把我的经历放进来。谢谢你指出来。我们先回到你的状态：如果现在只处理一件事，你更想先让自己缓下来，还是先整理考试复习的下一步？",
 ]
 
-BOUNDARY_FOLLOWUPS = [
-    {
-        "user": "但我不太想细说。",
-        "assistant": "可以，不细说也没关系。我不会追着问细节。我们先只照顾当下，你更想安静待一会儿，还是想要一个很简单的缓解办法？",
-    },
-    {
-        "user": "我不想被追问。",
-        "assistant": "明白，我不继续追问。我们可以先停在这里，只做一点点能让你舒服些的事，比如喝口水、换个位置，或者慢慢呼吸几次。",
-    },
-    {
-        "user": "我怕别人会知道。",
-        "assistant": "你担心隐私被知道，这个顾虑很重要。你不用说姓名、宿舍号、具体对象这些信息，我们只谈你的感受和你现在需要什么支持就可以。",
-    },
-    {
-        "user": "我怕你会告诉别人。",
-        "assistant": "我理解你担心被暴露。你不需要提供任何能识别身份的信息，我们可以只聊情绪、压力程度，以及现在怎么让你安全一点。",
-    },
-    {
-        "user": "算了，不说了。",
-        "assistant": "可以，先不说也没关系。我不会把你往下推。你愿意的话，我们就先停在一个轻一点的问题：现在身体哪里最紧？",
-    },
-]
-
-WEAK_INPUTS = [
-    ("嗯", "我在。你不用急着解释很多，如果现在只想停一下也可以。"),
-    ("？", "我可能刚才没有接住你的意思。我换个简单一点的问法：你现在更想被陪着，还是想要一个小建议？"),
-    ("1", "我不会接着数数字。如果你是在试我，也没关系；如果是不知道怎么开口，你可以只回一个词，比如烦、累、怕、乱。"),
-    ("2", "我不会把这个当成继续指令。现在信息太少，我不乱猜；你可以告诉我，你是想随便聊聊，还是确实有点不舒服？"),
-    ("不知道", "不知道也很正常，压力太多时人会说不清楚。我们先不用找原因，只判断一下：更像烦、累，还是慌？"),
-]
-
-CASUAL_OPENINGS = [
-    ("你喜欢喝奶茶吗？", "偶尔会喜欢。你是想轻松聊几句放松一下，还是想先用日常话题缓一缓？"),
-    ("今天天气还不错。", "是啊，天气好一点时人的心情有时也会松一点。你今天是想随便聊聊，还是有什么事想慢慢说？"),
-    ("你平时喜欢看电影吗？", "会喜欢一些轻松的片子。你问这个是想找点放松的事，还是最近心里有点闷，想转移一下？"),
-]
-
-VARIANT_TAILS = [
-    "我们先按这个节奏来。",
-    "你不用急着给出完整答案。",
-    "先让当下这一分钟轻一点就好。",
-    "如果不合适，我们再换一种更轻的方式。",
-    "重点是你不用被逼着马上解释清楚。",
-    "我会尽量把问题放小，不把压力再推高。",
+CASUAL_REPLIES = [
+    "可以聊呀。奶茶我没有真实的味觉，但我知道很多人喜欢珍珠奶茶那种甜甜的、带点咀嚼感的放松感。你平时喜欢甜一点的，还是茶味重一点的？",
+    "听起来像是一个还不错的晚上计划。如果你今天状态还可以，和熟悉的人吃顿饭确实可能让人放松一点。你是期待这个聚餐，还是其实有点不想去？",
+    "听过，《疯狂动物城》是很多人会觉得轻松又有点治愈的电影。你喜欢它是因为角色可爱，还是因为里面那种坚持做自己的感觉？",
 ]
 
 
-def _record(record_id: str, messages: list[dict[str, str]], source: str) -> dict[str, Any]:
+def _record(record_id: str, messages: list[dict[str, str]], category: str) -> dict[str, Any]:
     return {
         "id": record_id,
         "language": "zh",
-        "task_type": "curated_multiturn_dialogue",
-        "stage_goal": "behavior_alignment",
+        "task_type": "curated_behavior_dialogue",
+        "stage_goal": category,
         "messages": messages,
-        "meta": {"source": source},
+        "meta": {"source": "clean_curated_behavior", "category": category},
     }
 
 
-def _dialog(*turns: tuple[str, str]) -> list[dict[str, str]]:
+def _messages(*turns: tuple[str, str]) -> list[dict[str, str]]:
     return [{"role": role, "content": content} for role, content in turns]
 
 
-def _vary(text: str, index: int) -> str:
-    tail = VARIANT_TAILS[index % len(VARIANT_TAILS)]
-    if tail in text:
-        return text
-    return f"{text} {tail}"
-
-
-def _parse_txt(path: Path) -> list[list[dict[str, str]]]:
-    if not path.exists():
-        return []
-    text = path.read_text(encoding="utf-8", errors="replace")
-    blocks = [block.strip() for block in re.split(r"\n\s*\n", text) if block.strip()]
-    dialogs: list[list[dict[str, str]]] = []
-    for block in blocks:
-        messages: list[dict[str, str]] = []
-        for line in block.splitlines():
-            line = line.strip()
-            if line.startswith(USER_PREFIX):
-                content = line[len(USER_PREFIX) :].strip()
-                if content:
-                    messages.append({"role": "user", "content": content})
-            elif line.startswith(ASSISTANT_PREFIX):
-                content = line[len(ASSISTANT_PREFIX) :].strip()
-                if content:
-                    messages.append({"role": "assistant", "content": content})
-        if _is_usable_imported_dialog(messages):
-            dialogs.append(messages)
-    return dialogs
-
-
-def _is_usable_imported_dialog(messages: list[dict[str, str]]) -> bool:
-    if len(messages) < 4 or messages[0]["role"] != "user":
-        return False
-    joined = "\n".join(message["content"] for message in messages)
-    if any(phrase in joined for phrase in BAD_PHRASES):
-        return False
-    if any(message["role"] == "assistant" and len(message["content"]) > 220 for message in messages):
-        return False
-    return 60 <= len(joined) <= 1400
-
-
-def _build_programmatic_dialogs() -> list[list[dict[str, str]]]:
-    dialogs: list[list[dict[str, str]]] = []
-    for scenario in SCENARIOS:
-        for opening in scenario["opening"]:
-            for reflection in scenario["reflection"]:
-                for support in scenario["support"]:
-                    dialogs.append(
-                        _dialog(
-                            ("user", opening),
-                            ("assistant", f"{reflection} {support}"),
-                        )
-                    )
-
-    expanded: list[list[dict[str, str]]] = []
-    for base in dialogs:
-        first_user = base[0]["content"]
-        first_assistant = base[1]["content"]
-        for followup in BOUNDARY_FOLLOWUPS:
-            expanded.append(
-                _dialog(
-                    ("user", first_user),
-                    ("assistant", first_assistant),
-                    ("user", followup["user"]),
-                    ("assistant", _vary(followup["assistant"], len(expanded))),
-                )
-            )
-        for weak_user, weak_assistant in WEAK_INPUTS:
-            expanded.append(
-                _dialog(
-                    ("user", first_user),
-                    ("assistant", first_assistant),
-                    ("user", weak_user),
-                    ("assistant", _vary(weak_assistant, len(expanded))),
-                )
-            )
-
-    for casual_user, casual_assistant in CASUAL_OPENINGS:
-        for scenario in SCENARIOS:
-            for opening in scenario["opening"][:2]:
-                expanded.append(
-                    _dialog(
-                        ("user", casual_user),
-                        ("assistant", casual_assistant),
-                        ("user", opening),
-                        ("assistant", f"我们可以从刚才的轻松话题慢慢转过来。{scenario['reflection'][0]} {scenario['support'][0]}"),
-                    )
-                )
-    return expanded
-
-
-def _dedupe_dialogs(dialogs: list[list[dict[str, str]]]) -> list[list[dict[str, str]]]:
-    seen = set()
-    result = []
-    for messages in dialogs:
-        key = tuple((message["role"], message["content"]) for message in messages)
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(messages)
-    return result
-
-
-def build_curated_behavior_dataset(input_path: Path, output_path: Path, limit: int, seed: int) -> dict[str, int]:
-    rng = random.Random(seed)
-    programmatic = _dedupe_dialogs(_build_programmatic_dialogs())
-    imported = _parse_txt(input_path)
-
-    rng.shuffle(programmatic)
-    rng.shuffle(imported)
-
+def _build_records(rng: random.Random) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
-    for index, messages in enumerate(programmatic[:limit], start=1):
-        records.append(_record(f"curated-behavior-{index:04d}", messages, "programmatic_behavior_seed"))
 
-    imported_limit = max(0, min(80, limit // 5))
-    for index, messages in enumerate(imported[:imported_limit], start=1):
-        records.append(_record(f"curated-imported-{index:04d}", messages, "multi_dialogues_txt_cleaned"))
+    def add(category: str, messages: list[dict[str, str]]) -> None:
+        records.append(_record(f"curated-clean-{len(records) + 1:04d}", messages, category))
+
+    for user in EXAM_USERS:
+        for reply in EXAM_REPLIES:
+            add("exam_anxiety", _messages(("user", user), ("assistant", reply)))
+            for weak in WEAK_USERS[:5]:
+                add("exam_weak_input", _messages(("user", user), ("assistant", reply), ("user", weak), ("assistant", rng.choice(WEAK_REPLIES))))
+            for challenge in ROLE_CHALLENGE_USERS:
+                add(
+                    "role_boundary_repair",
+                    _messages(
+                        ("user", user),
+                        ("assistant", reply),
+                        ("user", challenge),
+                        ("assistant", rng.choice(ROLE_REPAIR_REPLIES)),
+                    ),
+                )
+
+    for user in DORM_USERS:
+        for reply in DORM_REPLIES:
+            add("dorm_distress", _messages(("user", user), ("assistant", reply)))
+            for privacy in PRIVACY_USERS[:3]:
+                add(
+                    "privacy_after_dorm",
+                    _messages(
+                        ("user", user),
+                        ("assistant", reply),
+                        ("user", privacy),
+                        ("assistant", rng.choice(PRIVACY_REPLIES)),
+                    ),
+                )
+            for weak in WEAK_USERS[:4]:
+                add(
+                    "dorm_weak_input",
+                    _messages(("user", user), ("assistant", reply), ("user", weak), ("assistant", rng.choice(WEAK_REPLIES))),
+                )
+
+    for user in PRIVACY_USERS:
+        for reply in PRIVACY_REPLIES:
+            add("privacy_boundary", _messages(("user", user), ("assistant", reply)))
+            add(
+                "privacy_weak_input",
+                _messages(("user", user), ("assistant", reply), ("user", "？"), ("assistant", "我的意思是：你可以不用讲细节，我会尊重你的边界。我们可以只聊你现在的感受，不碰具体的人名和经过。")),
+            )
+
+    for user in TYPO_USERS:
+        if "不想或" in user:
+            add("crisis_typo", _messages(("user", user), ("assistant", CRISIS_TYPO_REPLY)))
+            continue
+        for reply in TYPO_REPLIES:
+            add("noisy_input", _messages(("user", user), ("assistant", reply)))
+
+    for user in CASUAL_USERS:
+        for reply in CASUAL_REPLIES:
+            add("casual_to_support_boundary", _messages(("user", user), ("assistant", reply)))
+            add(
+                "casual_then_distress",
+                _messages(
+                    ("user", user),
+                    ("assistant", reply),
+                    ("user", "其实我最近压力很大，晚上总睡不好。"),
+                    ("assistant", EXAM_REPLIES[0]),
+                ),
+            )
+
+    return records
+
+
+def build_curated_behavior_dataset(output_path: Path, *, limit: int, seed: int) -> dict[str, Any]:
+    rng = random.Random(seed)
+    records = _build_records(rng)
+    rng.shuffle(records)
+    if limit > 0:
+        records = records[:limit]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8") as handle:
-        for record in records:
+        for index, record in enumerate(records, 1):
+            record["id"] = f"curated-clean-{index:04d}"
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-    return {
-        "programmatic_candidates": len(programmatic),
-        "programmatic_written": min(limit, len(programmatic)),
-        "imported_candidates": len(imported),
-        "imported_written": min(imported_limit, len(imported)),
-        "written": len(records),
-    }
+    categories: dict[str, int] = {}
+    for record in records:
+        category = str(record["meta"]["category"])
+        categories[category] = categories.get(category, 0) + 1
+
+    return {"written": len(records), "output": str(output_path), "categories": categories}
+
+
+def build_ms_swift_messages_only_dataset(source_path: Path, output_path: Path) -> dict[str, Any]:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    written = 0
+    with source_path.open("r", encoding="utf-8") as source, output_path.open("w", encoding="utf-8") as target:
+        for line in source:
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            target.write(json.dumps({"messages": record["messages"]}, ensure_ascii=False) + "\n")
+            written += 1
+    return {"written": written, "output": str(output_path)}
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build curated Chinese behavior SFT dataset.")
-    parser.add_argument("--input", default=r"C:\Users\17531\Downloads\multi_dialogues.txt")
+    parser = argparse.ArgumentParser(description="Build clean Chinese behavior SFT data for role-boundary and support style.")
     parser.add_argument(
         "--out",
         default=str(ROOT / "data" / "training" / "curated_behavior" / "curated_behavior_train_ms_swift.jsonl"),
     )
+    parser.add_argument(
+        "--messages-only-out",
+        default=str(ROOT / "data" / "training" / "curated_behavior" / "curated_behavior_messages_only_ms_swift.jsonl"),
+    )
     parser.add_argument("--limit", type=int, default=420)
-    parser.add_argument("--seed", type=int, default=20260426)
+    parser.add_argument("--seed", type=int, default=20260508)
     args = parser.parse_args()
 
-    stats = build_curated_behavior_dataset(Path(args.input), Path(args.out), args.limit, args.seed)
+    output_path = Path(args.out)
+    stats = build_curated_behavior_dataset(output_path, limit=args.limit, seed=args.seed)
+    stats["messages_only"] = build_ms_swift_messages_only_dataset(output_path, Path(args.messages_only_out))
     print(json.dumps(stats, ensure_ascii=False))
 
 

@@ -65,10 +65,27 @@ copy .env.example .env
 
 说明：这版现在会自动读取项目根目录的 `.env`，不需要你每次手动在终端里重新设置 `LLM_PROVIDER`。
 
+如果要让后端直接调用本地 Qwen3 + LoRA checkpoint，把 `.env` 改成：
+
+```env
+LLM_PROVIDER=local_checkpoint
+LOCAL_CHECKPOINT_PATH=D:\psychologicalAgent\training\ms_swift\outputs\public_phase0_sft\v0-20260426-134431\checkpoint-465
+LOCAL_BASE_MODEL_PATH=D:\llm_cache\modelscope\models\Qwen\Qwen3-4B-Instruct-2507
+LOCAL_MODEL_CACHE_ROOT=D:\llm_cache
+LOCAL_GENERATION_TEMPERATURE=0
+LLM_MAX_TOKENS=512
+```
+
 3. 启动服务
 
 ```bash
 uvicorn campus_support_agent.main:app --app-dir src --reload --port 8000
+```
+
+如果使用本地 checkpoint，推荐直接运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\run_local_checkpoint_api.ps1
 ```
 
 4. 打开接口文档
@@ -373,6 +390,26 @@ curl -X POST "http://127.0.0.1:8000/api/v1/support/text" ^
   -d "{\"session_id\":\"demo-student-001\",\"text\":\"最近考试很多，我晚上总睡不好，还总担心挂科。\",\"student_context\":{\"grade\":\"大二\",\"major\":\"计算机\"}}"
 ```
 
+### 自动评测 API 回复质量
+
+先启动后端，再运行：
+
+```bash
+python scripts/evaluate_api_quality.py --base-url http://127.0.0.1:8000
+```
+
+查看当前后端模型配置：
+
+```bash
+curl "http://127.0.0.1:8000/api/v1/model/status"
+```
+
+如果只想测 checkpoint 命令行回复质量：
+
+```bash
+D:\Anaconda\python.exe scripts/evaluate_chat_quality.py --mode checkpoint --checkpoint "D:\psychologicalAgent\training\ms_swift\outputs\public_phase0_sft\v0-20260426-134431\checkpoint-465" --temperature 0
+```
+
 ### 语音输入
 
 ```bash
@@ -640,3 +677,105 @@ python scripts/generate_ms_swift_recipes.py --profile local_8gb
 - EmoLLM 仓库主页：https://github.com/SmartFlowAI/EmoLLM
 - EmoLLM README 中明确包含 `部署指南`、`RAG`、`评测指南` 等模块：https://github.com/SmartFlowAI/EmoLLM#readme
 - EmoLLM README 的免责声明强调其仅提供情绪支持与建议，不能替代专业心理咨询：https://github.com/SmartFlowAI/EmoLLM#readme
+- EmoLLM README é¨å‹«åŽ¤ç’ï½…ï¼é„åº¡å·±ç’‹å†¨å¾æµ å‘®å½æ¸šæ¶™å„ç¼î…æ•®éŽ¸ä½·ç¬Œå¯¤é¸¿î†…é”›å±¼ç¬‰é‘³èŠ¥æµ›æµ ï½„ç¬“æ¶“æ°¬ç¸¾éžå——æŒ©ç’‡î®ç´°https://github.com/SmartFlowAI/EmoLLM#readme
+
+## Intervention Feedback API
+
+The backend stores whether a support reply was actually helpful. This closes the project loop:
+strategy generation -> intervention feedback -> dynamic tracking.
+
+Submit feedback for one model reply:
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/feedback" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"response_id\":\"support_xxx\",\"helpful_score\":2,\"mood_after\":70,\"user_note\":\"helpful reply\",\"tags\":[\"helpful\",\"clear\"]}"
+```
+
+Read feedback for one session:
+
+```bash
+curl "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/feedback"
+```
+
+Feedback fields:
+
+- `helpful_score`: `-2` to `2`, where negative means not helpful and positive means helpful.
+- `mood_after`: optional `0` to `100`, used to track whether the student feels more stable after the reply.
+- `tags`: optional labels such as `helpful`, `too_short`, `pushy`, `clear`.
+
+The feedback summary is also included in:
+
+- `GET /api/v1/sessions/{session_id}/analysis`
+- `GET /api/v1/analytics/overview`
+
+Export negatively rated replies for review:
+
+```bash
+python scripts/export_training_data.py ^
+  --format bad_case ^
+  --out data/training/feedback_bad_cases/bad_cases.jsonl
+```
+
+By default this exports feedback with `helpful_score <= -1`. Each JSONL row contains the user input,
+assistant reply, risk/entropy metadata, feedback tags, and an empty `chosen` field for human rewrite.
+
+If there is no feedback yet, export existing replies for manual screening first:
+
+```bash
+python scripts/export_training_data.py ^
+  --format review_case ^
+  --limit 50 ^
+  --out data/training/feedback_bad_cases/review_cases.jsonl
+```
+
+Review `review_cases.jsonl`, keep the bad replies, and fill `sft_draft.chosen` with a better answer.
+
+For easier review, convert `review_cases.jsonl` into a CSV sheet:
+
+```bash
+python scripts/build_feedback_review_sheet.py build ^
+  --input data/training/feedback_bad_cases/review_cases.jsonl ^
+  --out data/training/feedback_bad_cases/review_sheet.csv
+```
+
+Edit `review_sheet.csv`:
+
+- Fill `mark_bad` with `1` for bad replies.
+- Fill `problem_tags` with labels such as `privacy_missed,too_short`.
+- Fill `chosen` with the better answer.
+- Fill `review_note` if you want to record why the reply was bad.
+
+Apply the edited CSV back to JSONL:
+
+```bash
+python scripts/build_feedback_review_sheet.py apply ^
+  --input data/training/feedback_bad_cases/review_cases.jsonl ^
+  --sheet data/training/feedback_bad_cases/review_sheet.csv ^
+  --out data/training/feedback_bad_cases/review_cases_reviewed.jsonl
+```
+
+After reviewers fill either `sft_draft.chosen` or `failure_review.preferred_reply`, convert the reviewed
+bad cases into DPO-ready files:
+
+```bash
+python scripts/build_feedback_dpo_dataset.py ^
+  --input data/training/feedback_bad_cases/review_cases_reviewed.jsonl ^
+  --out data/training/feedback_bad_cases/feedback_preference.jsonl ^
+  --ms-swift-out data/training/feedback_bad_cases/feedback_dpo_ms_swift.jsonl
+```
+
+Rows without a rewritten `chosen` answer are skipped and counted as `pending_chosen`.
+
+When `feedback_dpo_ms_swift.jsonl` is ready and not empty, run feedback-driven DPO:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2_dpo.ps1
+```
+
+If you want to train on a newer SFT adapter, set it first:
+
+```powershell
+$env:FEEDBACK_BASE_ADAPTER="D:\psychologicalAgent\training\ms_swift\outputs\your_sft_run\checkpoint-xxx"
+powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2_dpo.ps1
+```

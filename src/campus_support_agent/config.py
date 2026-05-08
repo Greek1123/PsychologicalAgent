@@ -60,6 +60,16 @@ class Settings:
     llm_api_key: str = field(default_factory=lambda: os.getenv("LLM_API_KEY", ""))
     llm_timeout_seconds: int = field(default_factory=lambda: int(os.getenv("LLM_TIMEOUT_SECONDS", "60")))
     llm_max_tokens: int = field(default_factory=lambda: int(os.getenv("LLM_MAX_TOKENS", "512")))
+    local_checkpoint_path: str = field(default_factory=lambda: os.getenv("LOCAL_CHECKPOINT_PATH", ""))
+    local_base_model_path: str = field(default_factory=lambda: os.getenv("LOCAL_BASE_MODEL_PATH", ""))
+    local_model_cache_root: str = field(default_factory=lambda: os.getenv("LOCAL_MODEL_CACHE_ROOT", "D:/llm_cache"))
+    local_generation_temperature: float = field(
+        default_factory=lambda: float(os.getenv("LOCAL_GENERATION_TEMPERATURE", "0.0"))
+    )
+    local_generation_top_p: float = field(default_factory=lambda: float(os.getenv("LOCAL_GENERATION_TOP_P", "0.9")))
+    local_generation_repetition_penalty: float = field(
+        default_factory=lambda: float(os.getenv("LOCAL_GENERATION_REPETITION_PENALTY", "1.08"))
+    )
 
     stt_provider: str = field(default_factory=lambda: os.getenv("STT_PROVIDER", "mock"))
     stt_model: str = field(default_factory=lambda: os.getenv("STT_MODEL", "whisper-1"))

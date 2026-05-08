@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
 from typing import Protocol
 from uuid import uuid4
 
@@ -210,6 +213,177 @@ class OpenAICompatibleLLMProvider:
 
 
 @dataclass(slots=True)
+class LocalCheckpointLLMProvider:
+    checkpoint_path: str
+    base_model_path: str
+    cache_root: str
+    max_tokens: int
+    temperature: float
+    top_p: float
+    repetition_penalty: float
+    name: str = "local_checkpoint"
+    _model: Any | None = None
+    _tokenizer: Any | None = None
+
+    def complete(self, *, system_prompt: str, user_prompt: str) -> str:
+        payload = json.loads(user_prompt)
+        user_text = str(payload.get("student_text", "")).strip()
+        history = payload.get("conversation_history") or []
+        if not user_text:
+            raise RuntimeError("Local checkpoint request failed: missing student_text.")
+
+        model, tokenizer = self._load_model_and_tokenizer()
+        messages = self._build_messages(system_prompt=system_prompt, user_text=user_text, history=history)
+        reply = self._generate_reply(model, tokenizer, messages)
+        logger.info("Local checkpoint response generated successfully.")
+        return json.dumps(self._wrap_reply_as_plan(reply, payload), ensure_ascii=False)
+
+    def _load_model_and_tokenizer(self) -> tuple[Any, Any]:
+        if self._model is not None and self._tokenizer is not None:
+            return self._model, self._tokenizer
+
+        try:
+            import torch
+            from peft import PeftModel
+            from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+        except ImportError as exc:
+            raise RuntimeError(
+                "Local checkpoint dependencies are missing. Use the same Anaconda environment that can run ms-swift."
+            ) from exc
+
+        checkpoint_dir = Path(self.checkpoint_path).expanduser().resolve()
+        if not checkpoint_dir.exists():
+            raise FileNotFoundError(f"Local checkpoint directory not found: {checkpoint_dir}")
+
+        self._configure_cache_root()
+        checkpoint_args = self._load_checkpoint_args(checkpoint_dir)
+        base_model, local_only = self._resolve_base_model(checkpoint_args)
+        compute_dtype = self._resolve_dtype(torch, checkpoint_args.get("bnb_4bit_compute_dtype"))
+
+        logger.info("Loading local checkpoint base=%s adapter=%s", base_model, checkpoint_dir)
+        tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True, local_files_only=local_only)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+
+        model_kwargs: dict[str, Any] = {
+            "device_map": "auto",
+            "trust_remote_code": True,
+            "local_files_only": local_only,
+        }
+        if checkpoint_args.get("quant_method") == "bnb" and checkpoint_args.get("quant_bits") == 4:
+            model_kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=compute_dtype,
+                bnb_4bit_quant_type=checkpoint_args.get("bnb_4bit_quant_type", "nf4"),
+                bnb_4bit_use_double_quant=bool(checkpoint_args.get("bnb_4bit_use_double_quant", True)),
+            )
+        else:
+            model_kwargs["torch_dtype"] = self._resolve_dtype(torch, checkpoint_args.get("torch_dtype"))
+
+        model = AutoModelForCausalLM.from_pretrained(base_model, **model_kwargs)
+        model = PeftModel.from_pretrained(model, str(checkpoint_dir))
+        model.eval()
+        self._model = model
+        self._tokenizer = tokenizer
+        return model, tokenizer
+
+    def _configure_cache_root(self) -> None:
+        cache_root = Path(self.cache_root).expanduser()
+        huggingface_root = cache_root / "huggingface"
+        os.environ.setdefault("MODELSCOPE_CACHE", str(cache_root / "modelscope"))
+        os.environ.setdefault("HF_HOME", str(huggingface_root))
+        os.environ.setdefault("HF_HUB_CACHE", str(huggingface_root / "hub"))
+        os.environ.setdefault("HF_XET_CACHE", str(huggingface_root / "xet"))
+        for env_name in ("MODELSCOPE_CACHE", "HF_HUB_CACHE", "HF_XET_CACHE"):
+            Path(os.environ[env_name]).mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _load_checkpoint_args(checkpoint_dir: Path) -> dict[str, Any]:
+        args_path = checkpoint_dir / "args.json"
+        if not args_path.exists():
+            raise FileNotFoundError(f"Could not find args.json under {checkpoint_dir}")
+        return json.loads(args_path.read_text(encoding="utf-8"))
+
+    def _resolve_base_model(self, checkpoint_args: dict[str, Any]) -> tuple[str, bool]:
+        if self.base_model_path:
+            base_path = Path(self.base_model_path).expanduser()
+            return str(base_path), base_path.exists()
+        model_dir = checkpoint_args.get("model_dir")
+        if isinstance(model_dir, str) and model_dir.strip():
+            expanded = Path(model_dir).expanduser()
+            if expanded.exists():
+                return str(expanded), True
+        return str(checkpoint_args["model"]), False
+
+    @staticmethod
+    def _resolve_dtype(torch_module: Any, dtype_name: str | None) -> Any:
+        if dtype_name == "bfloat16":
+            return torch_module.bfloat16
+        if dtype_name == "float32":
+            return torch_module.float32
+        return torch_module.float16
+
+    @staticmethod
+    def _build_messages(*, system_prompt: str, user_text: str, history: list[Any]) -> list[dict[str, str]]:
+        del system_prompt
+        natural_system = (
+            "你是一个面向中国大学生的校园心理支持助手。"
+            "请用自然中文回复，不要输出 JSON，不要暴露心理熵或内部分析。"
+            "先接住用户当下的感受，再给一个很小、现实可做的下一步。"
+            "如果用户不想细说，尊重边界，不要逼问。"
+        )
+        messages: list[dict[str, str]] = [{"role": "system", "content": natural_system}]
+        for item in history[-8:]:
+            if not isinstance(item, dict):
+                continue
+            role = str(item.get("role", "")).strip()
+            content = str(item.get("content", "")).strip()
+            if role in {"user", "assistant"} and content:
+                messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": user_text})
+        return messages
+
+    def _generate_reply(self, model: Any, tokenizer: Any, messages: list[dict[str, str]]) -> str:
+        import torch
+
+        prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        inputs = tokenizer(prompt, return_tensors="pt")
+        inputs = {key: value.to(model.device) for key, value in inputs.items()}
+
+        generation_kwargs: dict[str, Any] = {
+            "max_new_tokens": self.max_tokens,
+            "repetition_penalty": self.repetition_penalty,
+            "pad_token_id": tokenizer.pad_token_id,
+            "eos_token_id": tokenizer.eos_token_id,
+        }
+        if self.temperature > 0:
+            generation_kwargs.update({"do_sample": True, "temperature": self.temperature, "top_p": self.top_p})
+        else:
+            generation_kwargs["do_sample"] = False
+
+        with torch.inference_mode():
+            output_ids = model.generate(**inputs, **generation_kwargs)
+        generated_ids = output_ids[0][inputs["input_ids"].shape[1]:]
+        return tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+
+    @staticmethod
+    def _wrap_reply_as_plan(reply: str, payload: dict[str, Any]) -> dict[str, Any]:
+        entropy = payload.get("psychological_entropy") or {}
+        return {
+            "primary_emotions": ["压力", "低落"],
+            "stressors": entropy.get("dominant_drivers") or ["当前表达的校园压力"],
+            "protective_factors": ["愿意表达当前状态", "仍在尝试寻求支持"],
+            "entropy_level": entropy.get("level", 2),
+            "balance_state": entropy.get("balance_state", "stable"),
+            "summary": reply,
+            "immediate_support": [reply],
+            "campus_actions": [],
+            "self_regulation": [],
+            "follow_up": [reply],
+        }
+
+
+@dataclass(slots=True)
 class DisabledSTTProvider:
     name: str = "disabled"
 
@@ -269,6 +443,16 @@ class OpenAICompatibleSTTProvider:
 
 def build_llm_provider(settings: Settings) -> LLMProvider:
     provider = settings.llm_provider.strip().lower()
+    if provider == "local_checkpoint":
+        return LocalCheckpointLLMProvider(
+            checkpoint_path=settings.local_checkpoint_path,
+            base_model_path=settings.local_base_model_path,
+            cache_root=settings.local_model_cache_root,
+            max_tokens=settings.llm_max_tokens,
+            temperature=settings.local_generation_temperature,
+            top_p=settings.local_generation_top_p,
+            repetition_penalty=settings.local_generation_repetition_penalty,
+        )
     if provider == "openai_compatible":
         return OpenAICompatibleLLMProvider(
             base_url=settings.llm_base_url,

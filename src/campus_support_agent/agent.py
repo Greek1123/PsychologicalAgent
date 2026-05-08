@@ -7,6 +7,7 @@ from .config import Settings
 from .entropy import evaluate_psychological_entropy
 from .logging_utils import get_logger
 from .local_response_policy import maybe_build_local_support_plan
+from .noisy_input import analyze_noisy_distress_text
 from .prompts import build_system_prompt, build_user_prompt
 from .providers import LLMProvider, STTProvider
 from .reduction import build_entropy_reduction_strategy
@@ -58,10 +59,15 @@ class CampusSupportAgent:
         if not clean_text:
             raise ValueError("text 不能为空。")
 
+        # Analyze a cautious copy of the text so typo-heavy distress like
+        # "我不想或了" is still routed as a possible crisis signal.
+        noisy_analysis = analyze_noisy_distress_text(clean_text)
+        analysis_text = noisy_analysis.analysis_text
+
         # 先做安全风控，再做心理熵评估，保证危机信号优先被处理。
-        risk = evaluate_text_risk(clean_text)
+        risk = evaluate_text_risk(analysis_text)
         entropy = evaluate_psychological_entropy(
-            clean_text,
+            analysis_text,
             risk,
             student_context=student_context,
             conversation_history=conversation_history,
@@ -74,10 +80,10 @@ class CampusSupportAgent:
             source,
         )
 
-        campus_resources = self._retrieve_campus_resources(clean_text, risk)
+        campus_resources = self._retrieve_campus_resources(analysis_text, risk)
         entropy_reduction = build_entropy_reduction_strategy(entropy, risk, campus_resources)
         local_result = maybe_build_local_support_plan(
-            clean_text,
+            analysis_text,
             entropy=entropy,
             conversation_history=conversation_history,
         )
@@ -138,7 +144,7 @@ class CampusSupportAgent:
 
         system_prompt = build_system_prompt(self.settings)
         user_prompt = build_user_prompt(
-            clean_text,
+            analysis_text,
             student_context or {},
             conversation_history or [],
             risk,
@@ -154,7 +160,7 @@ class CampusSupportAgent:
             plan = self._build_plan(parsed)
         except Exception as exc:
             logger.exception("LLM pipeline failed, using fallback support plan: %s", exc)
-            assessment, plan = self._build_fallback_plan(clean_text, risk, entropy)
+            assessment, plan = self._build_fallback_plan(analysis_text, risk, entropy)
 
         plan = self._align_plan_with_entropy_strategy(plan, entropy_reduction)
         plan = self._enrich_plan_with_resources(plan, campus_resources)
@@ -179,7 +185,7 @@ class CampusSupportAgent:
             input_text=clean_text,
             transcript=transcript,
             reply_text=sanitize_user_visible_reply(
-                clean_text,
+                analysis_text,
                 self._render_reply_text(plan),
                 conversation_history=conversation_history,
             ),

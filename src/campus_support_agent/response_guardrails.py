@@ -61,6 +61,9 @@ PUSHY_TERMS = (
     "谈谈最近发生的事情",
     "说说你担心的事情",
     "通过倾诉和分享",
+    "为什么你会觉得",
+    "找出一些方法",
+    "你想试试看吗",
     "为什么会出现这种情况",
     "为什么会这样",
     "如何应对",
@@ -85,9 +88,27 @@ BAD_SUPPORT_TERMS = (
     "你不能这么想",
     "要积极一点",
     "想办法缓解一下",
+    "缓解你的焦虑和紧张",
     "他们这样做是不对的",
     "直接质问",
     "我也有点这样的困扰",
+)
+
+CONSULTATION_OPENER_TERMS = (
+    "感谢你前来咨询",
+    "感谢你来寻求帮助",
+    "能详细告诉我你的困扰吗",
+    "能详细告诉我一下你的困扰吗",
+    "能告诉我发生了什么事情让你感到困扰吗",
+)
+
+CRISIS_USER_TERMS = (
+    "自杀",
+    "不想活",
+    "想死",
+    "结束生命",
+    "伤害自己",
+    "活不下去",
 )
 
 
@@ -108,6 +129,20 @@ def sanitize_user_visible_reply(
     clean_reply = " ".join(reply_text.strip().split())
     history_text = _history_text(conversation_history)
     state = classify_dialogue_state(clean_user, conversation_history=conversation_history)
+
+    if _is_modern_crisis_user_text(clean_user) or _is_crisis_user_text(clean_user):
+        return _modern_crisis_support_reply()
+
+    if _has_modern_assistant_self_experience_drift(clean_reply):
+        return _modern_role_boundary_repair_reply(clean_user, history_text)
+
+    if _is_modern_role_boundary_challenge(clean_user) and _has_modern_identity_confusion_reply(clean_reply):
+        return _modern_role_challenge_ack_reply(clean_user, history_text)
+
+    if _has_consultation_opener(clean_reply):
+        if _is_plain_privacy_boundary_text(clean_user):
+            return _privacy_boundary_reply(clean_user, history_text)
+        return _contextual_safe_reply(clean_user, history_text)
 
     if _is_identity_question(clean_user) and (_is_too_short(clean_reply) or _has_identity_drift(clean_reply)):
         return _identity_boundary_reply()
@@ -178,6 +213,228 @@ def _is_weak_input(text: str) -> bool:
     return text.strip() in WEAK_INPUTS
 
 
+def _is_modern_crisis_user_text(text: str) -> bool:
+    compact = text.replace(" ", "")
+    crisis_terms = (
+        "\u4e0d\u60f3\u6d3b",
+        "\u4e0d\u60f3\u6216",
+        "\u60f3\u6b7b",
+        "\u60f3\u4f3c",
+        "\u60f34",
+        "\u60f3s",
+        "\u81ea\u6740",
+        "\u81ea\u9ca8",
+        "\u6d3b\u4e0d\u4e0b\u53bb",
+        "\u6491\u4e0d\u4f4f",
+        "\u7ed3\u675f\u751f\u547d",
+        "\u4f24\u5bb3\u81ea\u5df1",
+    )
+    return any(term in compact for term in crisis_terms)
+
+
+def _modern_crisis_support_reply() -> str:
+    return (
+        "\u4f60\u8bf4\u5230\u4e0d\u60f3\u6d3b\u6216\u5df2\u7ecf\u6491\u4e0d\u4f4f\uff0c\u6211\u4f1a\u5148\u628a\u4f60\u7684\u5b89\u5168\u653e\u5728\u7b2c\u4e00\u4f4d\u3002"
+        "\u8bf7\u4f60\u73b0\u5728\u4e0d\u8981\u4e00\u4e2a\u4eba\u5f85\u7740\uff0c\u5c3d\u5feb\u8054\u7cfb\u8eab\u8fb9\u80fd\u7acb\u523b\u5230\u4f60\u8eab\u8fb9\u7684\u4eba\uff0c\u6bd4\u5982\u5ba4\u53cb\u3001\u540c\u5b66\u3001\u8f85\u5bfc\u5458\u6216\u5bb6\u4eba\u3002"
+        "\u5982\u679c\u4f60\u6709\u9a6c\u4e0a\u4f24\u5bb3\u81ea\u5df1\u7684\u51b2\u52a8\uff0c\u8bf7\u7acb\u5373\u62e8\u6253\u5f53\u5730\u6025\u6551\u7535\u8bdd\u6216\u8054\u7cfb\u5b66\u6821\u5fc3\u7406\u5371\u673a\u652f\u6301\u3002"
+        "\u4f60\u53ef\u4ee5\u5148\u53ea\u56de\u6211\u4e00\u53e5\uff1a\u4f60\u73b0\u5728\u8eab\u8fb9\u6709\u4eba\u5417\uff1f"
+    )
+
+
+def _is_modern_role_boundary_challenge(text: str) -> bool:
+    compact = text.replace(" ", "")
+    terms = (
+        "\u4f60\u4e3a\u5565\u611f\u89c9\u7d2f",
+        "\u4f60\u4e3a\u4ec0\u4e48\u611f\u89c9\u7d2f",
+        "\u4f60\u600e\u4e48\u4f1a\u7d2f",
+        "\u4f60\u662f\u4eba\u8fd8\u662f\u6211\u662f\u4eba",
+        "\u4f60\u4e5f\u4f1a\u6302\u79d1",
+        "\u4f60\u4e5f\u6015\u6302\u79d1",
+        "\u4f60\u4e5f\u6709\u4f5c\u4e1a",
+        "\u4f60\u600e\u4e48\u8fd8\u6709\u4f5c\u4e1a",
+        "\u522b\u8bf4\u4f60\u81ea\u5df1",
+    )
+    return any(term in compact for term in terms)
+
+
+def _has_modern_assistant_self_experience_drift(text: str) -> bool:
+    compact = text.replace(" ", "")
+    exact_terms = (
+        "\u6211\u4e5f\u5f88\u6015\u6302\u79d1",
+        "\u6211\u4e5f\u6015\u6302\u79d1",
+        "\u6211\u4e5f\u5f88\u7126\u8651",
+        "\u6211\u4e5f\u5f88\u96be\u53d7",
+        "\u6211\u4e5f\u6709\u70b9\u8fd9\u6837\u7684\u56f0\u6270",
+        "\u6211\u4e5f\u7ecf\u5e38\u8fd9\u6837",
+        "\u6211\u73b0\u5728\u611f\u89c9\u597d\u7d2f",
+        "\u6211\u611f\u89c9\u7d2f\u662f\u56e0\u4e3a",
+        "\u6211\u7684\u4f5c\u4e1a",
+        "\u4f5c\u4e1a\u8fd8\u6ca1\u505a\u5b8c",
+        "\u6211\u597d\u60f3\u8003\u4e2a\u597d\u6210\u7ee9",
+        "\u6211\u7684\u8003\u8bd5",
+        "\u6211\u7684\u820d\u53cb",
+        "\u6211\u4e00\u56de\u5230\u5bbf\u820d",
+    )
+    if any(term in compact for term in exact_terms):
+        return True
+    if not _has_self_subject_marker(compact):
+        return False
+    return any(
+        term in compact
+        for term in (
+            "\u6302\u79d1",
+            "\u8003\u8bd5",
+            "\u4f5c\u4e1a",
+            "\u820d\u53cb",
+            "\u7761\u4e0d\u7740",
+            "\u538b\u529b\u5927",
+            "\u7126\u8651",
+            "\u96be\u53d7",
+        )
+    )
+
+
+def _has_modern_identity_confusion_reply(text: str) -> bool:
+    compact = text.replace(" ", "")
+    for punctuation in "，。！？；：、,.!?;:":
+        compact = compact.replace(punctuation, "")
+    terms = (
+        "\u6211\u4e0d\u662f\u4eba\u4e5f\u4e0d\u662fAI",
+        "\u6211\u4e0d\u662f\u4eba\u4e5f\u4e0d\u662fai",
+        "\u6211\u4e0d\u662f\u4eba\u4e5f\u4e0d\u662f\u975e\u4eba",
+        "\u4e0d\u662f\u4eba\u4e5f\u4e0d\u662fAI",
+        "\u4e0d\u662f\u4eba\u4e5f\u4e0d\u662f\u975e\u4eba",
+        "\u4e0d\u7528\u628a\u8fd9\u4e2a\u7ec6\u8282\u5f80\u5fc3\u91cc\u53bb",
+        "\u6211\u5148\u4e0d\u56de\u5e94\u8fd9\u4e2a",
+        "\u8ba9\u4f60\u66f4\u6df7\u4e71",
+    )
+    return any(term in compact for term in terms)
+
+
+def _has_self_subject_marker(compact_text: str) -> bool:
+    markers = (
+        "\u6211\u4e5f\u5f88",
+        "\u6211\u4e5f\u6015",
+        "\u6211\u4e5f\u6709",
+        "\u6211\u4e5f\u4f1a",
+        "\u6211\u6700\u8fd1",
+        "\u6211\u73b0\u5728\u611f\u89c9",
+        "\u6211\u611f\u89c9",
+    )
+    if compact_text.startswith(markers):
+        return True
+    return any(f"{punctuation}{marker}" in compact_text for marker in markers for punctuation in "。，！？；：")
+
+
+def _modern_role_challenge_ack_reply(user_text: str, history_text: str = "") -> str:
+    combined = f"{history_text} {user_text}"
+    if any(term in combined for term in ("\u6302\u79d1", "\u8003\u8bd5", "\u671f\u672b", "\u6210\u7ee9", "\u590d\u4e60")):
+        return (
+            "\u4f60\u8bf4\u5f97\u5bf9\uff0c\u521a\u624d\u90a3\u6837\u56de\u4f1a\u8ba9\u4eba\u89c9\u5f97\u50cf\u662f\u4f60\u5728\u7167\u987e\u6211\uff0c\u8fd9\u4e0d\u5bf9\u3002"
+            "\u6211\u662f\u6765\u652f\u6301\u4f60\u7684\uff0c\u4e0d\u662f\u628a\u4f60\u7684\u538b\u529b\u8bb2\u6210\u6211\u7684\u7ecf\u5386\u3002"
+            "\u6211\u4eec\u628a\u8bdd\u62c9\u56de\u4f60\u8fd9\u8fb9\uff1a\u4f60\u73b0\u5728\u6700\u9876\u4e0d\u4f4f\u7684\u662f\u6015\u6302\u79d1\u3001\u7761\u4e0d\u7740\uff0c\u8fd8\u662f\u8111\u5b50\u4e00\u76f4\u505c\u4e0d\u4e0b\u6765\uff1f"
+        )
+    return (
+        "\u4f60\u8bf4\u5f97\u5bf9\uff0c\u8fd9\u91cc\u5e94\u8be5\u662f\u6211\u652f\u6301\u4f60\uff0c\u4e0d\u8be5\u8ba9\u4f60\u611f\u89c9\u50cf\u5728\u7167\u987e\u6211\u3002"
+        "\u6211\u4f1a\u628a\u91cd\u70b9\u653e\u56de\u4f60\u8eab\u4e0a\u3002"
+        "\u4f60\u53ef\u4ee5\u4e0d\u7528\u91cd\u65b0\u89e3\u91ca\u4e00\u5927\u6bb5\uff0c\u53ea\u8981\u544a\u8bc9\u6211\u73b0\u5728\u6700\u96be\u53d7\u7684\u90a3\u4e00\u70b9\u662f\u4ec0\u4e48\u5c31\u884c\u3002"
+    )
+
+
+def _modern_role_boundary_repair_reply(user_text: str, history_text: str = "") -> str:
+    combined = f"{history_text} {user_text}"
+    if any(term in combined for term in ("\u6302\u79d1", "\u8003\u8bd5", "\u671f\u672b", "\u6210\u7ee9", "\u590d\u4e60")):
+        return (
+            "\u4f60\u8bf4\u5f97\u5bf9\uff0c\u8fd9\u91cc\u5e94\u8be5\u56de\u5230\u4f60\u7684\u5904\u5883\uff0c\u4e0d\u8be5\u628a\u8bdd\u9898\u8bf4\u6210\u6211\u7684\u7ecf\u5386\u3002"
+            "\u4e34\u8fd1\u671f\u672b\u53c8\u62c5\u5fc3\u6302\u79d1\uff0c\u8fd9\u79cd\u7d27\u7ef7\u611f\u786e\u5b9e\u5f88\u6d88\u8017\u4eba\u3002"
+            "\u6211\u4eec\u5148\u628a\u95ee\u9898\u7f29\u5c0f\uff1a\u73b0\u5728\u6700\u538b\u7740\u4f60\u7684\u662f\u7761\u4e0d\u7740\u3001\u590d\u4e60\u6765\u4e0d\u53ca\uff0c\u8fd8\u662f\u8111\u5b50\u4e00\u76f4\u4e71\uff1f"
+        )
+    if any(term in combined for term in ("\u5bbf\u820d", "\u820d\u53cb", "\u5ba4\u53cb", "\u56de\u5bbf\u820d", "\u70e6\u8e81")):
+        return (
+            "\u4f60\u8bf4\u5f97\u5bf9\uff0c\u6211\u4e0d\u8be5\u628a\u4f60\u7684\u611f\u53d7\u8f6c\u6210\u6211\u7684\u7ecf\u5386\u3002"
+            "\u542c\u8d77\u6765\u5bbf\u820d\u73b0\u5728\u5bf9\u4f60\u6765\u8bf4\u4e0d\u662f\u4e00\u4e2a\u80fd\u653e\u677e\u7684\u5730\u65b9\uff0c\u8fd9\u4f1a\u5f88\u7d2f\u3002"
+            "\u5982\u679c\u4f60\u4e0d\u60f3\u7ec6\u8bf4\u539f\u56e0\u4e5f\u53ef\u4ee5\uff0c\u6211\u4eec\u5148\u53ea\u5904\u7406\u5f53\u4e0b\uff1a\u5148\u8ba9\u81ea\u5df1\u5c11\u88ab\u523a\u6fc0\u4e00\u70b9\u3002"
+        )
+    return (
+        "\u4f60\u63d0\u9192\u5f97\u5bf9\uff0c\u6211\u662f\u652f\u6301\u52a9\u624b\uff0c\u4e0d\u5e94\u8be5\u628a\u4f60\u7684\u5904\u5883\u8bf4\u6210\u6211\u7684\u7ecf\u5386\u3002"
+        "\u6211\u4f1a\u628a\u6ce8\u610f\u529b\u653e\u56de\u4f60\u8eab\u4e0a\uff1a\u4f60\u73b0\u5728\u6700\u9700\u8981\u7684\u4e0d\u662f\u88ab\u8ffd\u95ee\uff0c\u800c\u662f\u5148\u88ab\u63a5\u4f4f\u3002"
+        "\u5982\u679c\u4f60\u613f\u610f\uff0c\u53ea\u8981\u56de\u6211\u4e00\u4e2a\u8bcd\u4e5f\u53ef\u4ee5\uff0c\u6bd4\u5982\u538b\u529b\u3001\u5bbf\u820d\u3001\u7761\u4e0d\u7740\uff0c\u6216\u8005\u5148\u966a\u6211\u4e00\u4e0b\u3002"
+    )
+
+
+def _is_role_boundary_challenge(text: str) -> bool:
+    compact = text.replace(" ", "")
+    return any(
+        term in compact
+        for term in (
+            "你为啥感觉累",
+            "你为什么感觉累",
+            "你怎么会累",
+            "你是人还是我是人",
+            "你是人吗",
+            "你也会挂科",
+            "你也怕挂科",
+            "你也有作业",
+            "你怎么还有作业",
+        )
+    )
+
+
+def _has_assistant_self_experience_drift(text: str) -> bool:
+    compact = text.replace(" ", "")
+    drift_terms = (
+        "我也很怕挂科",
+        "我也怕挂科",
+        "我也很焦虑",
+        "我也很难受",
+        "我也有点这样的困扰",
+        "我也经常这样",
+        "我现在感觉好累",
+        "我感觉累是因为",
+        "我的作业",
+        "作业还没做完",
+        "我好想考个好成绩",
+        "我最近压力大",
+        "我的学习任务",
+        "我的考试",
+        "我的舍友",
+        "我一回到宿舍",
+    )
+    if any(term in compact for term in drift_terms):
+        return True
+    return (
+        ("我也" in compact or "我最近" in compact or "我现在" in compact)
+        and any(term in compact for term in ("挂科", "考试", "作业", "舍友", "睡不着", "压力大", "焦虑", "难受"))
+    )
+
+
+def _role_boundary_repair_reply(user_text: str, history_text: str = "") -> str:
+    combined = f"{history_text} {user_text}"
+    if any(term in combined for term in ("挂科", "考试", "期末", "成绩", "复习")):
+        return (
+            "你说得对，压力和害怕是你的处境，我不该把话题说成自己的经历。"
+            "我会把注意力放回你身上：临近期末又担心挂科，这种紧绷感很消耗人。"
+            "我们先不要求你一下子振作起来，可以先把今晚最压着你的一个点挑出来，比如睡不着、复习来不及，或者脑子一直乱。"
+        )
+    if any(term in combined for term in ("宿舍", "舍友", "室友", "回宿舍", "烦躁")):
+        return (
+            "你说得对，我不该把你的感受转成我的经历。"
+            "听起来宿舍现在对你来说不是一个能放松的地方，见到舍友就烦也许已经让你很累。"
+            "如果你不想细说原因也可以，我们先只处理当下：今晚能不能先给自己找一个少被打扰的角落，或者短暂离开宿舍十分钟透口气？"
+        )
+    if any(term in combined for term in ("怕别人知道", "告诉别人", "隐私", "不想说", "不敢说")):
+        return (
+            "你担心被别人知道，这个顾虑很正常，我会尊重你的边界。"
+            "你不需要把细节都说出来，也可以只说一点点，比如现在最强烈的是害怕、委屈，还是不安全感。"
+            "如果你愿意，我们可以先从不涉及隐私的部分开始聊。"
+        )
+    return (
+        "你提醒得对，我是支持助手，不应该把你的处境说成我的经历。"
+        "我会把注意力放回你身上：你现在最需要的不是被追问，而是先被接住。"
+        "如果你愿意，只要回我一个词也可以，比如“压力”“宿舍”“睡不着”或者“先陪我一下”。"
+    )
+
+
 def _is_privacy_or_boundary(text: str) -> bool:
     return any(
         term in text
@@ -240,6 +497,18 @@ def _has_bad_support_reply(text: str) -> bool:
     return any(term in text for term in BAD_SUPPORT_TERMS)
 
 
+def _has_consultation_opener(text: str) -> bool:
+    return any(term in text for term in CONSULTATION_OPENER_TERMS)
+
+
+def _is_crisis_user_text(text: str) -> bool:
+    return any(term in text for term in CRISIS_USER_TERMS)
+
+
+def _is_plain_privacy_boundary_text(text: str) -> bool:
+    return any(term in text for term in ("怕别人知道", "怕别人会知道", "别人会知道", "告诉别人", "隐私", "保密", "不想说"))
+
+
 def _is_generic_relaxation_reply(text: str) -> bool:
     return any(term in text for term in ("深呼吸", "冥想", "学会放松", "放松自己", "放松心情")) or (
         "放松" in text and any(term in text for term in ("活动", "缓解压力", "散步"))
@@ -298,6 +567,8 @@ def _privacy_boundary_reply(user_text: str, history_text: str = "") -> str:
 
 
 def _casual_reply(user_text: str) -> str:
+    if "珍珠奶茶" in user_text:
+        return "珍珠奶茶确实很有“奖励自己一下”的感觉。你喜欢偏甜的，还是茶味重一点的？我们可以先轻松聊几句，不用急着进入很沉重的话题。"
     if "奶茶" in user_text:
         return "我没有真实的口味偏好，不过可以陪你轻松聊聊奶茶。你是想随便聊几句放松一下，还是想从日常话题慢慢说起？"
     if "电影" in user_text:
@@ -341,6 +612,14 @@ def _identity_boundary_reply() -> str:
     return (
         "你可以把我当作校园心理支持助手。我没有真实姓名或个人身份，"
         "主要是陪你把现在的感受理一理，并尽量给你一个稳一点的支持。"
+    )
+
+
+def _crisis_support_reply() -> str:
+    return (
+        "你说到想自杀，我会先把安全放在第一位。请你现在不要一个人待着，尽快联系身边能立刻到你身边的人，"
+        "比如室友、同学、辅导员或家人；如果有马上伤害自己的风险，请立即拨打当地急救电话或联系学校心理危机支持。"
+        "如果可以，先把可能伤害自己的东西放远一点，然后只回我一句：你现在身边有人吗？"
     )
 
 

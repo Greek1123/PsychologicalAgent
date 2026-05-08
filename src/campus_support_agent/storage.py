@@ -109,6 +109,20 @@ class SQLiteSessionStore:
 
                 CREATE INDEX IF NOT EXISTS idx_referral_session
                 ON referral_events (session_id, id);
+
+                CREATE TABLE IF NOT EXISTS intervention_feedback (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    response_id TEXT NOT NULL,
+                    helpful_score INTEGER NOT NULL,
+                    mood_after INTEGER,
+                    user_note TEXT,
+                    tags_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_feedback_session
+                ON intervention_feedback (session_id, id);
                 """
             )
         logger.info("SQLite session store initialized at %s", self.db_path)
@@ -360,6 +374,205 @@ class SQLiteSessionStore:
             for row in rows
         ]
 
+    def append_intervention_feedback(
+        self,
+        *,
+        session_id: str,
+        response_id: str,
+        helpful_score: int,
+        mood_after: int | None = None,
+        user_note: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        clean_tags = [str(tag).strip() for tag in (tags or []) if str(tag).strip()]
+        clean_note = user_note.strip() if isinstance(user_note, str) and user_note.strip() else None
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO intervention_feedback (
+                    session_id,
+                    response_id,
+                    helpful_score,
+                    mood_after,
+                    user_note,
+                    tags_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id,
+                    response_id,
+                    helpful_score,
+                    mood_after,
+                    clean_note,
+                    json.dumps(clean_tags, ensure_ascii=False),
+                ),
+            )
+            feedback_id = int(cursor.lastrowid)
+        logger.info(
+            "Stored intervention feedback id=%s session_id=%s response_id=%s helpful_score=%s",
+            feedback_id,
+            session_id,
+            response_id,
+            helpful_score,
+        )
+        return {
+            "id": feedback_id,
+            "session_id": session_id,
+            "response_id": response_id,
+            "helpful_score": helpful_score,
+            "mood_after": mood_after,
+            "user_note": clean_note,
+            "tags": clean_tags,
+        }
+
+    def get_intervention_feedback(self, session_id: str, *, limit: int | None = None) -> list[dict[str, Any]]:
+        query = """
+            SELECT id, session_id, response_id, helpful_score, mood_after, user_note, tags_json, created_at
+            FROM intervention_feedback
+            WHERE session_id = ?
+            ORDER BY id ASC
+        """
+        params: list[Any] = [session_id]
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        with self._connect() as connection:
+            rows = connection.execute(query, tuple(params)).fetchall()
+
+        return [
+            {
+                "id": row["id"],
+                "session_id": row["session_id"],
+                "response_id": row["response_id"],
+                "helpful_score": row["helpful_score"],
+                "mood_after": row["mood_after"],
+                "user_note": row["user_note"],
+                "tags": json.loads(row["tags_json"]),
+                "created_at": row["created_at"],
+            }
+            for row in rows
+        ]
+
+    def list_feedback_cases(
+        self,
+        *,
+        session_id: str | None = None,
+        max_helpful_score: int | None = -1,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        query = """
+            SELECT
+                feedback.id AS feedback_id,
+                feedback.session_id AS feedback_session_id,
+                feedback.response_id AS feedback_response_id,
+                feedback.helpful_score,
+                feedback.mood_after,
+                feedback.user_note,
+                feedback.tags_json,
+                feedback.created_at AS feedback_created_at,
+                responses.session_id AS response_session_id,
+                responses.source,
+                responses.input_text,
+                responses.transcript,
+                responses.student_context_json,
+                responses.conversation_history_json,
+                responses.response_json,
+                responses.created_at AS response_created_at
+            FROM intervention_feedback AS feedback
+            INNER JOIN support_responses AS responses
+            ON feedback.response_id = responses.response_id
+        """
+        clauses: list[str] = []
+        params: list[Any] = []
+        if session_id:
+            clauses.append("feedback.session_id = ?")
+            params.append(session_id)
+        if max_helpful_score is not None:
+            clauses.append("feedback.helpful_score <= ?")
+            params.append(max_helpful_score)
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY feedback.id ASC"
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+
+        with self._connect() as connection:
+            rows = connection.execute(query, tuple(params)).fetchall()
+
+        cases = []
+        for row in rows:
+            response = json.loads(row["response_json"])
+            record = {
+                "session_id": row["response_session_id"] or row["feedback_session_id"],
+                "response_id": row["feedback_response_id"],
+                "source": row["source"],
+                "input_text": row["input_text"],
+                "transcript": row["transcript"],
+                "student_context": json.loads(row["student_context_json"]),
+                "conversation_history": json.loads(row["conversation_history_json"]),
+                "response": response,
+                "created_at": row["response_created_at"],
+                "feedback": {
+                    "id": row["feedback_id"],
+                    "session_id": row["feedback_session_id"],
+                    "response_id": row["feedback_response_id"],
+                    "helpful_score": row["helpful_score"],
+                    "mood_after": row["mood_after"],
+                    "user_note": row["user_note"],
+                    "tags": json.loads(row["tags_json"]),
+                    "created_at": row["feedback_created_at"],
+                },
+            }
+            record.update(_flatten_response_summary(response))
+            cases.append(record)
+        logger.info("Loaded %s feedback cases for export", len(cases))
+        return cases
+
+    def summarize_intervention_feedback(self, session_id: str | None = None) -> dict[str, Any]:
+        params: list[Any] = []
+        where = ""
+        if session_id:
+            where = "WHERE session_id = ?"
+            params.append(session_id)
+        with self._connect() as connection:
+            rows = connection.execute(
+                f"""
+                SELECT helpful_score, mood_after, tags_json
+                FROM intervention_feedback
+                {where}
+                """,
+                tuple(params),
+            ).fetchall()
+
+        if not rows:
+            return {
+                "total_feedback": 0,
+                "average_helpful_score": None,
+                "positive_count": 0,
+                "negative_count": 0,
+                "average_mood_after": None,
+                "common_tags": {},
+            }
+
+        helpful_scores = [int(row["helpful_score"]) for row in rows]
+        mood_values = [int(row["mood_after"]) for row in rows if row["mood_after"] is not None]
+        common_tags: dict[str, int] = {}
+        for row in rows:
+            for tag in json.loads(row["tags_json"]):
+                common_tags[tag] = common_tags.get(tag, 0) + 1
+
+        return {
+            "total_feedback": len(rows),
+            "average_helpful_score": round(sum(helpful_scores) / len(helpful_scores), 2),
+            "positive_count": sum(1 for score in helpful_scores if score > 0),
+            "negative_count": sum(1 for score in helpful_scores if score < 0),
+            "average_mood_after": round(sum(mood_values) / len(mood_values), 2) if mood_values else None,
+            "common_tags": dict(sorted(common_tags.items(), key=lambda item: (-item[1], item[0]))),
+        }
+
     def list_support_responses(
         self,
         *,
@@ -408,12 +621,15 @@ class SQLiteSessionStore:
             connection.execute("DELETE FROM entropy_trace WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM support_responses WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM referral_events WHERE session_id = ?", (session_id,))
+            connection.execute("DELETE FROM intervention_feedback WHERE session_id = ?", (session_id,))
         logger.info("Cleared persisted session data for session_id=%s", session_id)
 
     def get_session_analysis(self, session_id: str) -> dict[str, Any]:
         records = self.list_support_responses(session_id=session_id)
         referral_events = self.get_referral_events(session_id)
         entropy_trace = self.get_entropy_trace(session_id)
+        intervention_feedback = self.get_intervention_feedback(session_id)
+        feedback_summary = self.summarize_intervention_feedback(session_id)
         session_insight = build_session_insight(
             session_id=session_id,
             records=records,
@@ -431,6 +647,8 @@ class SQLiteSessionStore:
                 "local_policies": {},
                 "referral_urgencies": {},
                 "referral_events": [],
+                "intervention_feedback": intervention_feedback,
+                "feedback_summary": feedback_summary,
                 "session_insight": session_insight,
             }
 
@@ -456,6 +674,8 @@ class SQLiteSessionStore:
             "local_policies": local_policies,
             "referral_urgencies": referral_urgencies,
             "referral_events": referral_events,
+            "intervention_feedback": intervention_feedback,
+            "feedback_summary": feedback_summary,
             "session_insight": session_insight,
         }
 
@@ -467,6 +687,7 @@ class SQLiteSessionStore:
         risk_routes: dict[str, int] = {}
         referred_count = 0
         manual_referral_count = 0
+        feedback_summary = self.summarize_intervention_feedback()
         for record in records:
             if record.get("risk_level"):
                 risk_levels[record["risk_level"]] = risk_levels.get(record["risk_level"], 0) + 1
@@ -490,6 +711,7 @@ class SQLiteSessionStore:
             "local_policies": local_policies,
             "referral_urgencies": referral_urgencies,
             "risk_routes": risk_routes,
+            "feedback_summary": feedback_summary,
         }
 
 

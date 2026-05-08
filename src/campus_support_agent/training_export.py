@@ -102,6 +102,84 @@ def _build_sft_sample(record: dict[str, Any], system_prompt: str) -> dict[str, A
     }
 
 
+def _build_bad_case_sample(record: dict[str, Any]) -> dict[str, Any]:
+    response = record.get("response", {})
+    feedback = record.get("feedback", {})
+    review_id = feedback.get("id") or record.get("response_id")
+    return {
+        "id": f"bad_case_{review_id}",
+        "response_id": record.get("response_id"),
+        "session_id": record.get("session_id"),
+        "source": record.get("source"),
+        "language": _detect_language(record.get("input_text", "")),
+        "created_at": record.get("created_at"),
+        "feedback": feedback,
+        "input_text": record.get("input_text", ""),
+        "conversation_history": record.get("conversation_history", []),
+        "assistant_reply": response.get("reply_text") or record.get("reply_text") or "",
+        "risk": response.get("risk", {}),
+        "entropy": response.get("entropy", {}),
+        "local_policy": response.get("local_policy", {}),
+        "referral_decision": response.get("referral_decision", {}),
+        "failure_review": {
+            "suspected_problem": feedback.get("tags", []),
+            "human_review_note": feedback.get("user_note"),
+            "rewrite_needed": True,
+            "preferred_reply": "",
+            "review_status": "pending",
+        },
+        "sft_draft": {
+            "messages": [
+                *record.get("conversation_history", []),
+                {"role": "user", "content": record.get("input_text", "")},
+            ],
+            "rejected": response.get("reply_text") or record.get("reply_text") or "",
+            "chosen": "",
+        },
+    }
+
+
+def _build_review_case_sample(record: dict[str, Any]) -> dict[str, Any]:
+    response = record.get("response", {})
+    reply_text = response.get("reply_text") or record.get("reply_text") or ""
+    return {
+        "id": f"review_case_{record.get('response_id')}",
+        "response_id": record.get("response_id"),
+        "session_id": record.get("session_id"),
+        "source": record.get("source"),
+        "language": _detect_language(record.get("input_text", "")),
+        "created_at": record.get("created_at"),
+        "input_text": record.get("input_text", ""),
+        "conversation_history": record.get("conversation_history", []),
+        "assistant_reply": reply_text,
+        "risk": response.get("risk", {}),
+        "entropy": response.get("entropy", {}),
+        "local_policy": response.get("local_policy", {}),
+        "referral_decision": response.get("referral_decision", {}),
+        "feedback": {
+            "helpful_score": None,
+            "tags": [],
+            "user_note": "",
+            "source": "manual_review",
+        },
+        "failure_review": {
+            "suspected_problem": [],
+            "human_review_note": "",
+            "rewrite_needed": False,
+            "preferred_reply": "",
+            "review_status": "pending",
+        },
+        "sft_draft": {
+            "messages": [
+                *record.get("conversation_history", []),
+                {"role": "user", "content": record.get("input_text", "")},
+            ],
+            "rejected": reply_text,
+            "chosen": "",
+        },
+    }
+
+
 def export_training_dataset(
     *,
     db_path: str,
@@ -109,11 +187,19 @@ def export_training_dataset(
     export_format: str = "sft",
     session_id: str | None = None,
     limit: int | None = None,
+    max_helpful_score: int | None = -1,
 ) -> int:
     settings = Settings()
     configure_logging(settings)
     store = SQLiteSessionStore(db_path=db_path, max_messages=settings.max_history_turns * 2)
-    records = store.list_support_responses(session_id=session_id, limit=limit)
+    if export_format == "bad_case":
+        records = store.list_feedback_cases(
+            session_id=session_id,
+            max_helpful_score=max_helpful_score,
+            limit=limit,
+        )
+    else:
+        records = store.list_support_responses(session_id=session_id, limit=limit)
     system_prompt = build_system_prompt(settings)
 
     output = Path(output_path)
@@ -121,7 +207,11 @@ def export_training_dataset(
     written = 0
     with output.open("w", encoding="utf-8") as handle:
         for record in records:
-            if export_format == "record":
+            if export_format == "bad_case":
+                sample = _build_bad_case_sample(record)
+            elif export_format == "review_case":
+                sample = _build_review_case_sample(record)
+            elif export_format == "record":
                 sample = _build_record_sample(record)
             else:
                 sample = _build_sft_sample(record, system_prompt)
@@ -145,12 +235,19 @@ def main() -> None:
     parser.add_argument(
         "--format",
         dest="export_format",
-        choices=["sft", "record"],
+        choices=["sft", "record", "bad_case", "review_case"],
         default="sft",
-        help="Export format. sft is for instruction fine-tuning; record keeps richer analysis fields.",
+        help="Export format. review_case exports existing replies for manual screening.",
     )
     parser.add_argument("--session-id", dest="session_id", default=None, help="Optional session filter.")
     parser.add_argument("--limit", dest="limit", type=int, default=None, help="Optional max sample count.")
+    parser.add_argument(
+        "--max-helpful-score",
+        dest="max_helpful_score",
+        type=int,
+        default=-1,
+        help="Only used by bad_case. Export feedback with helpful_score <= this value.",
+    )
     args = parser.parse_args()
 
     count = export_training_dataset(
@@ -159,6 +256,7 @@ def main() -> None:
         export_format=args.export_format,
         session_id=args.session_id,
         limit=args.limit,
+        max_helpful_score=args.max_helpful_score,
     )
     print(f"exported {count} samples")
 

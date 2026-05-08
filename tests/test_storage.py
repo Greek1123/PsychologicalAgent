@@ -108,6 +108,70 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         store.clear("session-d")
         self.assertEqual(store.get_referral_events("session-d"), [])
 
+    def test_intervention_feedback_is_summarized_and_cleared(self) -> None:
+        db_path = _test_db_path()
+
+        store = SQLiteSessionStore(str(db_path), max_messages=6)
+        store.store_support_response(
+            session_id="session-e",
+            response_id="resp-e1",
+            source="text",
+            input_text="u1",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={"reply_text": "a1", "risk": {"level": "low"}},
+        )
+        store.store_support_response(
+            session_id="session-e",
+            response_id="resp-e2",
+            source="text",
+            input_text="u2",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={"reply_text": "a2", "risk": {"level": "medium"}},
+        )
+        first = store.append_intervention_feedback(
+            session_id="session-e",
+            response_id="resp-e1",
+            helpful_score=2,
+            mood_after=68,
+            user_note="这次有帮助",
+            tags=["helpful", "grounding"],
+        )
+        store.append_intervention_feedback(
+            session_id="session-e",
+            response_id="resp-e2",
+            helpful_score=-1,
+            mood_after=42,
+            tags=["too_short"],
+        )
+
+        feedback = store.get_intervention_feedback("session-e")
+        summary = store.summarize_intervention_feedback("session-e")
+        analysis = store.get_session_analysis("session-e")
+        overview = store.get_overview_stats()
+
+        self.assertEqual(first["tags"], ["helpful", "grounding"])
+        self.assertEqual(len(feedback), 2)
+        self.assertEqual(summary["total_feedback"], 2)
+        self.assertEqual(summary["average_helpful_score"], 0.5)
+        self.assertEqual(summary["positive_count"], 1)
+        self.assertEqual(summary["negative_count"], 1)
+        self.assertEqual(summary["average_mood_after"], 55)
+        self.assertEqual(summary["common_tags"]["helpful"], 1)
+        self.assertEqual(analysis["feedback_summary"]["total_feedback"], 2)
+        self.assertEqual(len(analysis["intervention_feedback"]), 2)
+        self.assertEqual(overview["feedback_summary"]["total_feedback"], 2)
+        bad_cases = store.list_feedback_cases(session_id="session-e")
+        self.assertEqual(len(bad_cases), 1)
+        self.assertEqual(bad_cases[0]["response_id"], "resp-e2")
+        self.assertEqual(bad_cases[0]["feedback"]["helpful_score"], -1)
+
+        store.clear("session-e")
+        self.assertEqual(store.get_intervention_feedback("session-e"), [])
+
 
 if __name__ == "__main__":
     unittest.main()

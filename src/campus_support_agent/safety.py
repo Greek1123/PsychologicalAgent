@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
+from .noisy_input import analyze_noisy_distress_text
 from .schemas import RiskAssessment, RiskLevel
 
 
@@ -63,6 +64,25 @@ def _find_terms(text: str, terms: Iterable[str]) -> list[str]:
 
 
 def evaluate_text_risk(text: str) -> RiskAssessment:
+    noisy_analysis = analyze_noisy_distress_text(text)
+    if "possible_crisis_typo" in noisy_analysis.typo_flags:
+        return RiskAssessment(
+            level=RiskLevel.CRITICAL,
+            score=95,
+            reason="疑似存在危机表达的错别字或近音字，按高敏感安全策略处理。",
+            trigger_terms=noisy_analysis.inferred_terms,
+            needs_human_followup=True,
+        )
+
+    if "possible_emotional_escalation_typo" in noisy_analysis.typo_flags:
+        return RiskAssessment(
+            level=RiskLevel.HIGH,
+            score=75,
+            reason="疑似存在情绪失控或崩溃表达的错别字，建议提高关注等级。",
+            trigger_terms=noisy_analysis.inferred_terms,
+            needs_human_followup=True,
+        )
+
     # 先做高召回的规则筛查，保证危机词不会被模型生成过程稀释掉。
     critical_hits = _find_terms(text, CRITICAL_TERMS)
     if critical_hits:
@@ -84,7 +104,9 @@ def evaluate_text_risk(text: str) -> RiskAssessment:
             needs_human_followup=True,
         )
 
-    medium_hits = _find_terms(text, MEDIUM_TERMS)
+    medium_hits = _find_terms(noisy_analysis.analysis_text, MEDIUM_TERMS)
+    if "possible_distress_typo" in noisy_analysis.typo_flags:
+        medium_hits = sorted({*medium_hits, *noisy_analysis.inferred_terms})
     if medium_hits:
         return RiskAssessment(
             level=RiskLevel.MEDIUM,

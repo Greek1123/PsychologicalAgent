@@ -234,6 +234,34 @@ def health() -> dict[str, str]:
     }
 
 
+@app.get("/api/v1/model/status")
+def get_model_status() -> dict[str, Any]:
+    settings = get_settings()
+    checkpoint_path = Path(settings.local_checkpoint_path) if settings.local_checkpoint_path else None
+    base_model_path = Path(settings.local_base_model_path) if settings.local_base_model_path else None
+    cache_root = Path(settings.local_model_cache_root) if settings.local_model_cache_root else None
+    is_local = settings.llm_provider.strip().lower() == "local_checkpoint"
+
+    status = {
+        "llm_provider": settings.llm_provider,
+        "llm_model": settings.llm_model,
+        "stt_provider": settings.stt_provider,
+        "local_checkpoint": {
+            "enabled": is_local,
+            "checkpoint_path": str(checkpoint_path) if checkpoint_path else "",
+            "checkpoint_exists": bool(checkpoint_path and checkpoint_path.exists()),
+            "base_model_path": str(base_model_path) if base_model_path else "",
+            "base_model_exists": bool(base_model_path and base_model_path.exists()),
+            "cache_root": str(cache_root) if cache_root else "",
+            "cache_root_exists": bool(cache_root and cache_root.exists()),
+            "temperature": settings.local_generation_temperature,
+            "max_tokens": settings.llm_max_tokens,
+        },
+    }
+    logger.info("Model status requested provider=%s local_enabled=%s", settings.llm_provider, is_local)
+    return status
+
+
 @app.post("/api/v1/support/text")
 def support_text(payload: dict[str, Any]) -> dict[str, Any]:
     text = str(payload.get("text", "")).strip()
@@ -371,6 +399,84 @@ def get_session_referrals(session_id: str, limit: int | None = None) -> dict[str
         "session_id": session_id,
         "total_events": len(events),
         "referral_events": events,
+    }
+
+
+def _parse_feedback_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    response_id = str(payload.get("response_id", "")).strip()
+    if not response_id:
+        raise HTTPException(status_code=422, detail="response_id 不能为空。")
+
+    try:
+        helpful_score = int(payload.get("helpful_score"))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="helpful_score 必须是 -2 到 2 的整数。") from exc
+    if helpful_score < -2 or helpful_score > 2:
+        raise HTTPException(status_code=422, detail="helpful_score 必须在 -2 到 2 之间。")
+
+    mood_after = None
+    if payload.get("mood_after") is not None:
+        try:
+            mood_after = int(payload.get("mood_after"))
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="mood_after 必须是 0 到 100 的整数。") from exc
+        if mood_after < 0 or mood_after > 100:
+            raise HTTPException(status_code=422, detail="mood_after 必须在 0 到 100 之间。")
+
+    tags = payload.get("tags") or []
+    if not isinstance(tags, list):
+        raise HTTPException(status_code=422, detail="tags 必须是字符串数组。")
+
+    user_note = payload.get("user_note")
+    if user_note is not None and not isinstance(user_note, str):
+        raise HTTPException(status_code=422, detail="user_note 必须是字符串。")
+
+    return {
+        "response_id": response_id,
+        "helpful_score": helpful_score,
+        "mood_after": mood_after,
+        "user_note": user_note,
+        "tags": [str(tag) for tag in tags],
+    }
+
+
+@app.post("/api/v1/sessions/{session_id}/feedback")
+def submit_session_feedback(session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    parsed = _parse_feedback_payload(payload)
+    session_store = get_session_store()
+    feedback = session_store.append_intervention_feedback(
+        session_id=session_id,
+        response_id=parsed["response_id"],
+        helpful_score=parsed["helpful_score"],
+        mood_after=parsed["mood_after"],
+        user_note=parsed["user_note"],
+        tags=parsed["tags"],
+    )
+    summary = session_store.summarize_intervention_feedback(session_id)
+    logger.info(
+        "Intervention feedback submitted session_id=%s response_id=%s helpful_score=%s",
+        session_id,
+        parsed["response_id"],
+        parsed["helpful_score"],
+    )
+    return {
+        "session_id": session_id,
+        "feedback": feedback,
+        "feedback_summary": summary,
+    }
+
+
+@app.get("/api/v1/sessions/{session_id}/feedback")
+def get_session_feedback(session_id: str, limit: int | None = None) -> dict[str, Any]:
+    session_store = get_session_store()
+    feedback = session_store.get_intervention_feedback(session_id, limit=limit)
+    summary = session_store.summarize_intervention_feedback(session_id)
+    logger.info("Intervention feedback requested session_id=%s total=%s", session_id, len(feedback))
+    return {
+        "session_id": session_id,
+        "total_feedback": len(feedback),
+        "feedback": feedback,
+        "feedback_summary": summary,
     }
 
 

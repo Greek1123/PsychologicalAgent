@@ -20,11 +20,22 @@ from campus_support_agent.response_guardrails import sanitize_user_visible_reply
 LOGGER = logging.getLogger("chat_with_checkpoint")
 DEFAULT_CACHE_ROOT = Path("D:/llm_cache")
 DEFAULT_SYSTEM_PROMPT = (
-    "You are a warm campus support companion. Reply in natural Chinese by default. "
-    "Most of the time, answer in 2 to 4 sentences instead of only one very short line. "
-    "First respond to the user's current feeling or situation, then offer one small follow-up, clarification, "
-    "or gentle suggestion. If the user does not want to elaborate, respect that boundary and keep the conversation light "
-    "instead of pushing for details. Avoid abrupt topic changes and avoid repetitive template wording."
+    "你是一个面向中国大学生的校园心理支持助手。请始终使用自然、温和的中文回复。"
+    "你不是医生，不做诊断，不暴露心理熵、风险等级、模型分析等后台概念。"
+    "多数情况下回复 2 到 4 句：先接住用户当前的感受或处境，再给一个很小的下一步、澄清或温和建议。"
+    "如果用户不想细说，要尊重边界，不要逼问；如果用户担心隐私，要说明会尊重隐私和边界。"
+    "遇到自伤自杀等高风险表达时，优先引导用户联系现实中的可信任的人、学校心理中心或紧急帮助。"
+    "避免突然转移话题，避免复读模板，避免机械接数字。"
+)
+FIXED_SYSTEM_PROMPT = (
+    "你是一个面向中国大学生的校园心理支持助手。请始终使用自然、温和、具体的中文回复。"
+    "你不是医生，不做诊断，不暴露心理熵、风险等级、模型分析等后台概念。"
+    "你是助手，不是来访者；不要把用户的压力、害怕、挂科、失眠说成你自己的经历。"
+    "如果用户表达痛苦，你要先接住用户的感受，再给一个很小、现实、可执行的下一步。"
+    "多数情况下回复 2 到 4 句话，不要突然转移话题，不要说教，不要复读模板。"
+    "如果用户不想细说，要尊重边界，不要逼问；如果用户担心隐私，要说明会尊重隐私和边界。"
+    "如果用户输入 1、2、3 或单个符号，不要接着数数，也不要当作选择题；应把它理解为用户暂时说不出话。"
+    "遇到自伤、自杀、活不下去、不想活等高风险表达时，优先引导用户联系现实中的可信任人员、学校心理中心或紧急服务。"
 )
 
 
@@ -208,7 +219,7 @@ def main() -> None:
     model, tokenizer = _load_model_and_tokenizer(checkpoint_dir, override_base_model=args.base_model)
     LOGGER.info("Checkpoint loaded successfully. Commands: /reset to clear history, /exit to quit.")
 
-    messages: list[dict[str, str]] = [{"role": "system", "content": DEFAULT_SYSTEM_PROMPT}]
+    messages: list[dict[str, str]] = [{"role": "system", "content": FIXED_SYSTEM_PROMPT}]
     while True:
         try:
             user_text = input("You> ").strip()
@@ -221,7 +232,7 @@ def main() -> None:
         if user_text.lower() in {"/exit", "/quit"}:
             break
         if user_text.lower() == "/reset":
-            messages = [{"role": "system", "content": DEFAULT_SYSTEM_PROMPT}]
+            messages = [{"role": "system", "content": FIXED_SYSTEM_PROMPT}]
             print("History cleared.")
             continue
 

@@ -13,7 +13,7 @@ if str(SRC) not in sys.path:
 from campus_support_agent.agent import CampusSupportAgent
 from campus_support_agent.config import Settings, load_env_file
 from campus_support_agent.memory import InMemorySessionStore
-from campus_support_agent.providers import MockLLMProvider, MockSTTProvider
+from campus_support_agent.providers import LocalCheckpointLLMProvider, MockLLMProvider, MockSTTProvider, build_llm_provider
 from campus_support_agent.retrieval import CampusKnowledgeRetriever
 from campus_support_agent.schemas import RiskLevel
 
@@ -123,7 +123,9 @@ class CampusSupportAgentTests(unittest.TestCase):
 
     def test_load_env_file_does_not_override_existing_env_by_default(self) -> None:
         original = os.environ.get("CAMPUS_NAME")
+        original_provider = os.environ.get("LLM_PROVIDER")
         os.environ["CAMPUS_NAME"] = "外部环境学校"
+        os.environ.pop("LLM_PROVIDER", None)
 
         try:
             env_path = ROOT / "test_env_override.env"
@@ -137,7 +139,24 @@ class CampusSupportAgentTests(unittest.TestCase):
                 os.environ.pop("CAMPUS_NAME", None)
             else:
                 os.environ["CAMPUS_NAME"] = original
-            os.environ.pop("LLM_PROVIDER", None)
+            if original_provider is None:
+                os.environ.pop("LLM_PROVIDER", None)
+            else:
+                os.environ["LLM_PROVIDER"] = original_provider
+
+    def test_build_local_checkpoint_provider_from_settings(self) -> None:
+        settings = Settings(
+            llm_provider="local_checkpoint",
+            local_checkpoint_path="D:/psychologicalAgent/training/ms_swift/outputs/public_phase0_sft/v0/checkpoint-1",
+            local_base_model_path="D:/llm_cache/modelscope/models/Qwen/Qwen3-4B-Instruct-2507",
+            llm_max_tokens=256,
+        )
+
+        provider = build_llm_provider(settings)
+
+        self.assertIsInstance(provider, LocalCheckpointLLMProvider)
+        self.assertEqual(provider.name, "local_checkpoint")
+        self.assertEqual(provider.max_tokens, 256)
 
 
 if __name__ == "__main__":

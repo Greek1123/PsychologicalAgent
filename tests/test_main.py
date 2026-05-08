@@ -4,6 +4,9 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from uuid import uuid4
+
+from fastapi import HTTPException
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -17,6 +20,21 @@ from campus_support_agent import main
 
 class MainFlowTests(unittest.TestCase):
     def setUp(self) -> None:
+        self._saved_env = {
+            key: os.environ.get(key)
+            for key in ("LLM_PROVIDER", "LOCAL_CHECKPOINT_PATH", "LOCAL_BASE_MODEL_PATH")
+        }
+        os.environ["LLM_PROVIDER"] = "mock"
+        main.get_settings.cache_clear()
+        main.get_agent.cache_clear()
+        main.get_session_store.cache_clear()
+
+    def tearDown(self) -> None:
+        for key, value in self._saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
         main.get_settings.cache_clear()
         main.get_agent.cache_clear()
         main.get_session_store.cache_clear()
@@ -62,6 +80,61 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("manual_referral_count", overview)
         self.assertIn("risk_routes", overview)
         self.assertGreaterEqual(overview["total_records"], 1)
+
+    def test_model_status_reports_local_checkpoint_configuration(self) -> None:
+        os.environ["LLM_PROVIDER"] = "local_checkpoint"
+        os.environ["LOCAL_CHECKPOINT_PATH"] = str(ROOT / "missing-checkpoint")
+        os.environ["LOCAL_BASE_MODEL_PATH"] = str(ROOT / "missing-base-model")
+        main.get_settings.cache_clear()
+
+        status = main.get_model_status()
+
+        self.assertEqual(status["llm_provider"], "local_checkpoint")
+        self.assertTrue(status["local_checkpoint"]["enabled"])
+        self.assertFalse(status["local_checkpoint"]["checkpoint_exists"])
+        self.assertFalse(status["local_checkpoint"]["base_model_exists"])
+
+    def test_session_feedback_updates_analysis_and_overview(self) -> None:
+        session_id = f"test-feedback-session-{uuid4().hex}"
+        response = main.support_text(
+            {
+                "session_id": session_id,
+                "text": "我最近压力很大，晚上总是睡不好。",
+                "student_context": {},
+                "conversation_history": [],
+            }
+        )
+
+        result = main.submit_session_feedback(
+            session_id,
+            {
+                "response_id": response["response_id"],
+                "helpful_score": 2,
+                "mood_after": 72,
+                "user_note": "感觉比刚才稳一点",
+                "tags": ["helpful", "clear"],
+            },
+        )
+        feedback = main.get_session_feedback(session_id)
+        analysis = main.get_session_analysis(session_id)
+        overview = main.get_overview_analytics(limit=50)
+
+        self.assertEqual(result["feedback"]["response_id"], response["response_id"])
+        self.assertEqual(result["feedback_summary"]["positive_count"], 1)
+        self.assertEqual(feedback["total_feedback"], 1)
+        self.assertEqual(analysis["feedback_summary"]["total_feedback"], 1)
+        self.assertEqual(analysis["intervention_feedback"][0]["mood_after"], 72)
+        self.assertGreaterEqual(overview["feedback_summary"]["total_feedback"], 1)
+
+    def test_session_feedback_rejects_invalid_payload(self) -> None:
+        with self.assertRaises(HTTPException):
+            main.submit_session_feedback(
+                "test-invalid-feedback",
+                {
+                    "response_id": "resp-invalid",
+                    "helpful_score": 5,
+                },
+            )
 
 
 if __name__ == "__main__":
