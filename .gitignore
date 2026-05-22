@@ -9,6 +9,7 @@ logs/
 reports/
 tmp_test_artifacts/
 test_tmp/
+tmp*/
 
 data/campus_agent.db
 data/psychologicalAgent.zip
@@ -31,6 +32,9 @@ data/public_training_datasets/
 data/Chinese-Psychological-QA-DataSet/
 data/*(1).json
 docs/_training_collection_docx_render*/
+docs/model_evaluations/
+docs/monthly_reports/
+docs/monthly_progress_report_*.md
 .idea/
 
 training/ms_swift/outputs/

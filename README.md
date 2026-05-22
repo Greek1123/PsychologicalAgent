@@ -21,7 +21,7 @@
 
 当前一句话定位：项目已经不是单纯聊天机器人，而是一个后端能力较完整的“校园心理熵减与动态平衡 Agent 原型系统”；下一阶段应重点补齐产品化前端、真实语音能力、人工干预闭环和实验评估报告。
 
-最新对齐进展：已将 `docs/心理助手长对话模拟测试用例50例.docx` 和 `docs/心理助手长对话模拟测试用例_新增50例_含隐性高危场景.docx` 作为参考回复库接入评估流程。当前后端已针对期末复习崩溃、任务拖延堆积、小组作业边缘化、分手后反复联系、宿舍冷落/社交隔离等场景补充本地策略，并修正“崩溃/控制不住”等普通压力语境被误判为危机的边界。最新小批量参考评估平均分 76.48，前 8 例未再出现 `weak_action_specificity` 主问题计数，报告见 `reports/docx_reference_backend_eval/20260522_215755_extracted_docx_reference_eval.md`。
+最新对齐进展：已将 `docs/心理助手长对话模拟测试用例50例.docx` 和 `docs/心理助手长对话模拟测试用例_新增50例_含隐性高危场景.docx` 作为参考回复库接入评估流程。当前后端已针对期末复习崩溃、任务拖延堆积、小组作业边缘化、分手后反复联系、宿舍冷落/社交隔离等场景补充本地策略，并修正“崩溃/控制不住”等普通压力语境被误判为危机的边界。最新小批量参考评估平均分 76.48，前 8 例未再出现 `weak_action_specificity` 主问题计数；评估报告默认作为本地产物生成到 `reports/`，不再随 GitHub 仓库保存。
 
 ## 协作与进展记录
 
@@ -31,6 +31,14 @@
 - `docs/project_progress_log.md`：按日期追加“本次做了什么、验证结果、遗留问题、下一步建议”。
 
 运行时日志仍保存在 `logs/app.log`，用于查看接口请求、风险判断、熵评估、资源检索、存储和异常信息。
+
+## 仓库整理与上传边界
+
+当前 GitHub 仓库只保留能复现实验和后端能力的核心文件：`src/`、`tests/`、`scripts/`、`docs/` 下的正式说明和参考 Word 文档、`data/campus_knowledge.json`、`training/` 下的训练脚本、`.env.example`、`requirements.txt` 和 `README.md`。
+
+以下内容已经作为本地/可再生成产物处理，不随仓库提交：`logs/`、`reports/`、`tmp*/`、`.pytest_cache/`、测试数据库 `test_*.db`、原始公开语料压缩包、`data/training/` 导出的训练集、`docs/model_evaluations/`、月度报告草稿和 Word 渲染缓存。需要重新评估或导出训练数据时，按 README 中对应脚本重新生成。
+
+本地运行配置和模型权重不上传 GitHub：`.env`、`.venv/`、`.idea/` 和 `training/ms_swift/outputs/` 保留在本机。给组员传递模型时，优先传 `training/ms_swift/outputs/` 里的 LoRA checkpoint 目录，以及它依赖的基础模型路径说明；不要把这些大文件提交到 GitHub。
 
 ## 目前已经实现
 
@@ -63,21 +71,21 @@
 .
 ├─ .env.example
 ├─ requirements.txt
+├─ docs/
+│  ├─ project_progress_log.md
+│  ├─ *.md
+│  └─ 心理助手长对话模拟测试用例*.docx
+├─ scripts/
+│  └─ *.py
 ├─ src/
 │  └─ campus_support_agent/
-│     ├─ agent.py
-│     ├─ config.py
-│     ├─ main.py
-│     ├─ memory.py
-│     ├─ prompts.py
-│     ├─ providers.py
-│     ├─ retrieval.py
-│     ├─ safety.py
-│     └─ schemas.py
+│     └─ 后端 Agent、API、Provider、策略、存储与训练导出模块
 ├─ data/
 │  └─ campus_knowledge.json
+├─ training/
+│  └─ ms_swift/
 └─ tests/
-   └─ test_agent.py
+   └─ test_*.py
 ```
 
 ## 怎么跑
@@ -708,7 +716,6 @@ python scripts/generate_ms_swift_recipes.py --profile local_8gb
 - EmoLLM 仓库主页：https://github.com/SmartFlowAI/EmoLLM
 - EmoLLM README 中明确包含 `部署指南`、`RAG`、`评测指南` 等模块：https://github.com/SmartFlowAI/EmoLLM#readme
 - EmoLLM README 的免责声明强调其仅提供情绪支持与建议，不能替代专业心理咨询：https://github.com/SmartFlowAI/EmoLLM#readme
-- EmoLLM README é¨å‹«åŽ¤ç’ï½…ï¼é„åº¡å·±ç’‹å†¨å¾æµ å‘®å½æ¸šæ¶™å„ç¼î…æ•®éŽ¸ä½·ç¬Œå¯¤é¸¿î†…é”›å±¼ç¬‰é‘³èŠ¥æµ›æµ ï½„ç¬“æ¶“æ°¬ç¸¾éžå——æŒ©ç’‡î®ç´°https://github.com/SmartFlowAI/EmoLLM#readme
 
 ## Intervention Feedback API
 

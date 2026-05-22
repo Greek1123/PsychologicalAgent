@@ -180,3 +180,36 @@ python -m pytest
 1. 跑完整 100 个 Word 参考案例，按学业、人际、亲密关系、隐性高危、隐私边界分桶统计弱项。
 2. 优先检查新增 50 个隐性高危场景，确认真正风险不漏判，同时普通压力不被过度危机化。
 3. 把当前兜底回复继续沉淀成更通用的“低压力具体动作增强器”，减少每个场景手写规则的数量。
+
+## 2026-05-22 仓库目录清理与上传边界整理
+
+### 本次做了什么
+
+- 清理项目根目录下的临时文件、测试数据库、缓存目录和旧运行日志，包括 `.pytest_cache/`、`logs/`、`tmp_test_artifacts/`、`test_tmp/`、`tmp*/`、`test_*.db` 等。
+- 清理旧报告和本地评估产物，包括 `reports/`、`docs/model_evaluations/`、`docs/monthly_reports/`、月度报告草稿和 Word 渲染缓存。
+- 清理可再生成的原始/导出数据，只保留 Git 跟踪的正式校园知识库 `data/campus_knowledge.json`。
+- 删除已跟踪但属于旧评估产物的 `reports/api_quality_eval.json` 和 `reports/chat_quality_eval.json`，后续评估报告默认本地生成，不随 GitHub 保存。
+- 保留 `.env`、`.venv/`、`.idea/` 和 `training/ms_swift/outputs/`，因为它们分别对应本地配置、虚拟环境、IDE 配置和模型 checkpoint，不适合直接提交但也不应随便删除。
+- 更新 `.gitignore`，补充 `tmp*/`、`docs/model_evaluations/`、`docs/monthly_reports/` 和 `docs/monthly_progress_report_*.md`。
+- 更新 README，新增“仓库整理与上传边界”，说明 GitHub 应保留的核心文件、应排除的本地产物，以及给组员传递模型时应传 LoRA checkpoint 而不是提交大文件。
+
+### 当前整理后的目录边界
+
+- GitHub 核心内容：`src/`、`tests/`、`scripts/`、`docs/` 正式说明和参考 Word 文档、`data/campus_knowledge.json`、`training/` 训练脚本、`.env.example`、`requirements.txt`、`README.md`。
+- 本地保留但不上传：`.env`、`.venv/`、`.idea/`、`training/ms_swift/outputs/`。
+- 可再生成且不保留：运行日志、评估报告、测试数据库、pytest 缓存、原始公开语料、训练导出数据、月度报告草稿和渲染缓存。
+
+### 验证结果
+
+```text
+python -m pytest
+218 passed
+```
+
+测试通过后再次清理了测试过程中重新生成的本地日志、pytest 缓存和测试数据库。
+
+### 下一步建议
+
+1. 后续需要给组员模型时，发送 `training/ms_swift/outputs/` 中实际要用的 LoRA checkpoint 目录，并同时说明基础模型路径，例如 Qwen3-4B-Instruct-2507。
+2. 如果要重新生成评估报告，先运行对应评估脚本，报告会重新出现在 `reports/`，但默认不提交。
+3. 若要把项目交给组员复现，优先让他们从 GitHub 拉代码，再按 README 配置 `.env` 和本地模型路径。
