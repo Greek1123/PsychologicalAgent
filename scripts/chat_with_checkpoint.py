@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from campus_support_agent.response_guardrails import sanitize_user_visible_reply
+from campus_support_agent.dialogue_memory import build_memory_system_message
 
 
 LOGGER = logging.getLogger("chat_with_checkpoint")
@@ -48,9 +49,29 @@ def _configure_logging() -> None:
 
 def _load_checkpoint_args(checkpoint_dir: Path) -> dict[str, Any]:
     args_path = checkpoint_dir / "args.json"
-    if not args_path.exists():
-        raise FileNotFoundError(f"Could not find args.json under {checkpoint_dir}")
-    return json.loads(args_path.read_text(encoding="utf-8"))
+    if args_path.exists():
+        return json.loads(args_path.read_text(encoding="utf-8"))
+
+    adapter_config_path = checkpoint_dir / "adapter_config.json"
+    if adapter_config_path.exists():
+        adapter_config = json.loads(adapter_config_path.read_text(encoding="utf-8"))
+        base_model = str(adapter_config.get("base_model_name_or_path") or "").strip()
+        if not base_model:
+            raise FileNotFoundError(
+                f"Could not find args.json or base_model_name_or_path in adapter_config.json under {checkpoint_dir}"
+            )
+        return {
+            "model": base_model,
+            "model_dir": base_model,
+            "quant_method": "bnb",
+            "quant_bits": 4,
+            "bnb_4bit_compute_dtype": "float16",
+            "bnb_4bit_quant_type": "nf4",
+            "bnb_4bit_use_double_quant": True,
+            "torch_dtype": "float16",
+        }
+
+    raise FileNotFoundError(f"Could not find args.json or adapter_config.json under {checkpoint_dir}")
 
 
 def _configure_cache_root(cache_root: Path) -> None:
@@ -180,6 +201,19 @@ def _generate_reply(
     return reply
 
 
+def _messages_for_generation(messages: list[dict[str, str]], current_user_text: str) -> list[dict[str, str]]:
+    """Add a compact memory instruction so the model continues the session instead of restarting."""
+    system_messages = [message for message in messages if message.get("role") == "system"]
+    dialogue_messages = [message for message in messages if message.get("role") != "system"]
+    memory_prompt = build_memory_system_message(dialogue_messages[:-1], current_text=current_user_text)
+    recent_dialogue = dialogue_messages[-10:]
+    return [
+        *system_messages[:1],
+        {"role": "system", "content": memory_prompt},
+        *recent_dialogue,
+    ]
+
+
 def main() -> None:
     _configure_logging()
 
@@ -237,10 +271,11 @@ def main() -> None:
             continue
 
         messages.append({"role": "user", "content": user_text})
+        generation_messages = _messages_for_generation(messages, user_text)
         reply = _generate_reply(
             model,
             tokenizer,
-            messages,
+            generation_messages,
             max_new_tokens=args.max_new_tokens,
             temperature=args.temperature,
             top_p=args.top_p,

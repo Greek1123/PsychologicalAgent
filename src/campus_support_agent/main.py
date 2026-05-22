@@ -12,13 +12,28 @@ from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .agent import CampusSupportAgent
+from .adjustment_loop import build_entropy_adjustment_loop, enrich_student_context_with_adjustment_loop
+from .care_plan import enrich_student_context_with_care_plan
 from .config import Settings
+from .dialogue_memory import enrich_student_context_with_memory
+from .dynamic_adjustment import build_dynamic_adjustment
 from .entropy import evaluate_psychological_entropy
+from .feedback_adaptation import build_feedback_adaptation
+from .intervention_next_step import enrich_student_context_with_intervention_next_step
 from .logging_utils import configure_logging, get_logger
 from .providers import build_llm_provider, build_stt_provider
 from .reduction import build_entropy_reduction_strategy
 from .retrieval import CampusKnowledgeRetriever
 from .safety import evaluate_text_risk
+from .schemas import EntropyTrend
+from .session_continuity import build_session_continuity_summary, enrich_student_context_with_continuity
+from .session_tracking import enrich_student_context_with_session_tracking
+from .goal_attainment import build_goal_attainment_timeline
+from .strategy_reselection import (
+    build_strategy_reselection_decision,
+    enrich_student_context_with_strategy_reselection,
+)
+from .strategy_versioning import enrich_student_context_with_strategy_version
 from .storage import SQLiteSessionStore
 
 
@@ -124,10 +139,15 @@ def _update_session_state(
     if previous_entropy:
         delta = result.entropy.score - int(previous_entropy["score"])
         direction = "up" if delta > 0 else "down" if delta < 0 else "flat"
+        trend_override = EntropyTrend(
+            previous_score=int(previous_entropy["score"]),
+            delta=delta,
+            direction=direction,
+        )
         response["entropy"]["trend"] = {
-            "previous_score": int(previous_entropy["score"]),
-            "delta": delta,
-            "direction": direction,
+            "previous_score": trend_override.previous_score,
+            "delta": trend_override.delta,
+            "direction": trend_override.direction,
         }
         logger.info(
             "Entropy trend updated session_id=%s previous=%s current=%s delta=%s direction=%s",
@@ -137,12 +157,36 @@ def _update_session_state(
             delta,
             direction,
         )
+    else:
+        trend_override = result.entropy.trend
+
+    entropy_trace = session_store.get_entropy_trace(session_id)
+    dynamic_adjustment = build_dynamic_adjustment(
+        entropy=result.entropy,
+        risk=result.risk,
+        state_profile=result.state_profile,
+        trend_override=trend_override,
+        entropy_trace=entropy_trace,
+    )
+    response["dynamic_adjustment"] = asdict(dynamic_adjustment)
+    _apply_dynamic_adjustment_to_entropy_reduction(response, dynamic_adjustment.review_window_hours)
 
     response["session"] = {
         "session_id": session_id,
         "history_messages": history_size,
         "entropy_trace_points": entropy_trace_size,
     }
+
+
+def _apply_dynamic_adjustment_to_entropy_reduction(response: dict[str, Any], review_window_hours: int) -> None:
+    reduction = response.get("entropy_reduction")
+    if not isinstance(reduction, dict):
+        return
+    current_window = reduction.get("review_window_hours")
+    if isinstance(current_window, int):
+        reduction["review_window_hours"] = min(current_window, review_window_hours)
+    else:
+        reduction["review_window_hours"] = review_window_hours
 
 
 def _apply_session_escalation(
@@ -159,6 +203,7 @@ def _apply_session_escalation(
     current_referral = response.get("referral_decision") or {}
     current_entropy = response.get("entropy") or {}
     current_local_policy = response.get("local_policy") or {}
+    current_dynamic = response.get("dynamic_adjustment") or {}
     trend = current_entropy.get("trend") or {}
 
     reasons: list[str] = []
@@ -175,8 +220,20 @@ def _apply_session_escalation(
     if current_should_refer and prior_referred >= 2:
         reasons.append("repeated_referral_pattern")
 
-    manual_referral_recommended = bool(reasons) or current_urgency == "urgent"
-    if manual_referral_recommended and current_urgency == "watch":
+    if current_dynamic.get("should_refer"):
+        current_referral["should_refer"] = True
+        if not current_referral.get("recommended_channel"):
+            current_referral["recommended_channel"] = get_settings().campus_counseling_center
+        action = current_dynamic.get("action")
+        if action == "urgent_referral":
+            current_referral["urgency"] = "urgent"
+        elif current_referral.get("urgency") in {None, "", "none", "watch"}:
+            current_referral["urgency"] = "recommended"
+        reasons.append(f"dynamic_adjustment:{current_dynamic.get('stability_state')}")
+
+    updated_urgency = current_referral.get("urgency", current_urgency)
+    manual_referral_recommended = bool(reasons) or updated_urgency == "urgent"
+    if manual_referral_recommended and updated_urgency == "watch":
         current_referral["urgency"] = "recommended"
 
     response["referral_decision"] = current_referral
@@ -278,11 +335,75 @@ def support_text(payload: dict[str, Any]) -> dict[str, Any]:
 
     logger.info("Received text support request session_id=%s text_length=%s", session_id or "-", len(text))
     merged_history = _merge_conversation_history(session_id, conversation_history)
+    student_context = enrich_student_context_with_memory(
+        student_context,
+        merged_history,
+        current_text=text,
+    )
+    previous_entropy_score = None
+    entropy_trace: list[dict[str, Any]] = []
+    if session_id:
+        session_store = get_session_store()
+        previous_entropy = session_store.get_last_entropy(session_id)
+        previous_entropy_score = int(previous_entropy["score"]) if previous_entropy else None
+        entropy_trace = session_store.get_entropy_trace(session_id)
+        previous_records = session_store.list_support_responses(session_id=session_id)
+        continuity_summary = build_session_continuity_summary(
+            session_id=session_id,
+            records=previous_records,
+            conversation_history=merged_history,
+            entropy_trace=entropy_trace,
+        )
+        student_context = enrich_student_context_with_continuity(student_context, continuity_summary)
+        goal_attainment_timeline = build_goal_attainment_timeline(previous_records)
+        strategy_reselection = build_strategy_reselection_decision(
+            goal_attainment_timeline=goal_attainment_timeline,
+            session_continuity=continuity_summary,
+            latest_record=previous_records[-1] if previous_records else None,
+        )
+        student_context = enrich_student_context_with_strategy_reselection(student_context, strategy_reselection)
+        feedback_adaptation = build_feedback_adaptation(
+            feedback_summary=session_store.summarize_intervention_feedback(session_id),
+            recent_feedback=session_store.get_intervention_feedback(session_id, limit=5),
+        )
+        adjustment_loop = build_entropy_adjustment_loop(
+            session_id=session_id,
+            records=previous_records,
+            feedback_summary=session_store.summarize_intervention_feedback(session_id),
+            recent_feedback=session_store.get_intervention_feedback(session_id, limit=5),
+            session_continuity=continuity_summary,
+            strategy_reselection=strategy_reselection,
+            audit_summary=session_store.get_intervention_audits(session_id, limit=20)["audit_summary"],
+        )
+        student_context = enrich_student_context_with_adjustment_loop(student_context, adjustment_loop)
+        student_context = enrich_student_context_with_care_plan(
+            student_context,
+            session_store.get_session_care_plan(session_id)["session_care_plan"],
+        )
+        student_context = enrich_student_context_with_intervention_next_step(
+            student_context,
+            session_store.get_session_intervention_effectiveness(session_id)["intervention_next_step"],
+        )
+        student_context = enrich_student_context_with_session_tracking(
+            student_context,
+            session_store.get_session_tracking(session_id)["session_tracking"],
+        )
+        student_context = enrich_student_context_with_strategy_version(
+            student_context,
+            session_store.get_session_strategy_version(session_id)["strategy_version"],
+        )
+    else:
+        feedback_adaptation = build_feedback_adaptation()
+        adjustment_loop = build_entropy_adjustment_loop(session_id="anonymous")
+        student_context = enrich_student_context_with_adjustment_loop(student_context, adjustment_loop)
 
     result = get_agent().handle_text(
         text=text,
         student_context=student_context,
         conversation_history=merged_history,
+        previous_entropy_score=previous_entropy_score,
+        entropy_trace=entropy_trace,
+        feedback_adaptation=feedback_adaptation,
     )
     response = result.to_dict()
 
@@ -333,6 +454,66 @@ async def support_audio(
     )
 
     merged_history = _merge_conversation_history(clean_session_id, parsed_history)
+    parsed_context = enrich_student_context_with_memory(
+        parsed_context,
+        merged_history,
+    )
+    previous_entropy_score = None
+    entropy_trace: list[dict[str, Any]] = []
+    if clean_session_id:
+        session_store = get_session_store()
+        previous_entropy = session_store.get_last_entropy(clean_session_id)
+        previous_entropy_score = int(previous_entropy["score"]) if previous_entropy else None
+        entropy_trace = session_store.get_entropy_trace(clean_session_id)
+        previous_records = session_store.list_support_responses(session_id=clean_session_id)
+        continuity_summary = build_session_continuity_summary(
+            session_id=clean_session_id,
+            records=previous_records,
+            conversation_history=merged_history,
+            entropy_trace=entropy_trace,
+        )
+        parsed_context = enrich_student_context_with_continuity(parsed_context, continuity_summary)
+        goal_attainment_timeline = build_goal_attainment_timeline(previous_records)
+        strategy_reselection = build_strategy_reselection_decision(
+            goal_attainment_timeline=goal_attainment_timeline,
+            session_continuity=continuity_summary,
+            latest_record=previous_records[-1] if previous_records else None,
+        )
+        parsed_context = enrich_student_context_with_strategy_reselection(parsed_context, strategy_reselection)
+        feedback_adaptation = build_feedback_adaptation(
+            feedback_summary=session_store.summarize_intervention_feedback(clean_session_id),
+            recent_feedback=session_store.get_intervention_feedback(clean_session_id, limit=5),
+        )
+        adjustment_loop = build_entropy_adjustment_loop(
+            session_id=clean_session_id,
+            records=previous_records,
+            feedback_summary=session_store.summarize_intervention_feedback(clean_session_id),
+            recent_feedback=session_store.get_intervention_feedback(clean_session_id, limit=5),
+            session_continuity=continuity_summary,
+            strategy_reselection=strategy_reselection,
+            audit_summary=session_store.get_intervention_audits(clean_session_id, limit=20)["audit_summary"],
+        )
+        parsed_context = enrich_student_context_with_adjustment_loop(parsed_context, adjustment_loop)
+        parsed_context = enrich_student_context_with_care_plan(
+            parsed_context,
+            session_store.get_session_care_plan(clean_session_id)["session_care_plan"],
+        )
+        parsed_context = enrich_student_context_with_intervention_next_step(
+            parsed_context,
+            session_store.get_session_intervention_effectiveness(clean_session_id)["intervention_next_step"],
+        )
+        parsed_context = enrich_student_context_with_session_tracking(
+            parsed_context,
+            session_store.get_session_tracking(clean_session_id)["session_tracking"],
+        )
+        parsed_context = enrich_student_context_with_strategy_version(
+            parsed_context,
+            session_store.get_session_strategy_version(clean_session_id)["strategy_version"],
+        )
+    else:
+        feedback_adaptation = build_feedback_adaptation()
+        adjustment_loop = build_entropy_adjustment_loop(session_id="anonymous")
+        parsed_context = enrich_student_context_with_adjustment_loop(parsed_context, adjustment_loop)
 
     result = get_agent().handle_audio(
         file_bytes=audio_bytes,
@@ -340,6 +521,9 @@ async def support_audio(
         content_type=file.content_type,
         student_context=parsed_context,
         conversation_history=merged_history,
+        previous_entropy_score=previous_entropy_score,
+        entropy_trace=entropy_trace,
+        feedback_adaptation=feedback_adaptation,
     )
     response = result.to_dict()
 
@@ -388,6 +572,151 @@ def get_session_analysis(session_id: str) -> dict[str, Any]:
     analysis = session_store.get_session_analysis(session_id)
     logger.info("Session analysis requested session_id=%s total=%s", session_id, analysis["total_responses"])
     return analysis
+
+
+@app.get("/api/v1/sessions/{session_id}/audit")
+def get_session_audit(session_id: str, limit: int | None = 50) -> dict[str, Any]:
+    session_store = get_session_store()
+    audit = session_store.get_intervention_audits(session_id, limit=limit)
+    logger.info("Intervention audit requested session_id=%s total=%s", session_id, audit["total_audits"])
+    return audit
+
+
+@app.get("/api/v1/sessions/{session_id}/memory")
+def get_session_memory(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    memory = session_store.get_session_memory(session_id)
+    logger.info("Session memory requested session_id=%s messages=%s", session_id, memory["history_messages"])
+    return memory
+
+
+@app.get("/api/v1/sessions/{session_id}/trend-warning")
+def get_session_trend_warning(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    warning = session_store.get_session_trend_warning(session_id)
+    logger.info(
+        "Trend warning requested session_id=%s level=%s",
+        session_id,
+        warning["trend_warning"]["level"],
+    )
+    return warning
+
+
+@app.get("/api/v1/sessions/{session_id}/care-plan")
+def get_session_care_plan(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    care_plan = session_store.get_session_care_plan(session_id)
+    logger.info(
+        "Session care plan requested session_id=%s phase=%s priority=%s",
+        session_id,
+        care_plan["session_care_plan"]["care_phase"],
+        care_plan["session_care_plan"]["priority"],
+    )
+    return care_plan
+
+
+@app.get("/api/v1/sessions/{session_id}/reply-quality")
+def get_session_reply_quality(session_id: str, limit: int | None = None) -> dict[str, Any]:
+    session_store = get_session_store()
+    quality = session_store.get_session_reply_quality(session_id, limit=limit)
+    logger.info(
+        "Reply quality requested session_id=%s needs_review=%s",
+        session_id,
+        quality["summary"]["needs_review"],
+    )
+    return quality
+
+
+@app.get("/api/v1/sessions/{session_id}/intervention-effectiveness")
+def get_session_intervention_effectiveness(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    effectiveness = session_store.get_session_intervention_effectiveness(session_id)
+    summary = effectiveness["intervention_effectiveness"]["summary"]
+    logger.info(
+        "Intervention effectiveness requested session_id=%s status=%s",
+        session_id,
+        summary["overall_status"],
+    )
+    return effectiveness
+
+
+@app.get("/api/v1/sessions/{session_id}/intervention-next-step")
+def get_session_intervention_next_step(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    next_step = session_store.get_session_intervention_next_step(session_id)
+    logger.info(
+        "Intervention next step requested session_id=%s mode=%s priority=%s",
+        session_id,
+        next_step["intervention_next_step"]["next_reply_mode"],
+        next_step["intervention_next_step"]["priority"],
+    )
+    return next_step
+
+
+@app.get("/api/v1/sessions/{session_id}/tracking")
+def get_session_tracking(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    tracking = session_store.get_session_tracking(session_id)
+    logger.info(
+        "Session tracking requested session_id=%s stage=%s",
+        session_id,
+        tracking["session_tracking"]["stage"],
+    )
+    return tracking
+
+
+@app.get("/api/v1/sessions/{session_id}/strategy-version")
+def get_session_strategy_version(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    version = session_store.get_session_strategy_version(session_id)
+    logger.info(
+        "Strategy version requested session_id=%s decision=%s target=%s",
+        session_id,
+        version["strategy_version"]["decision"],
+        version["strategy_version"]["target_strategy_family"],
+    )
+    return version
+
+
+@app.get("/api/v1/sessions/{session_id}/strategy-layer")
+def get_session_strategy_layer(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    strategy_layer = session_store.get_session_strategy_layer(session_id)
+    latest = strategy_layer["strategy_layer_summary"].get("latest") or {}
+    logger.info(
+        "Strategy layer requested session_id=%s state=%s strategy=%s",
+        session_id,
+        latest.get("primary_state"),
+        latest.get("strategy_id"),
+    )
+    return strategy_layer
+
+
+@app.get("/api/v1/sessions/{session_id}/decision-trace")
+def get_session_decision_trace(session_id: str, limit: int | None = 50) -> dict[str, Any]:
+    session_store = get_session_store()
+    trace = session_store.get_session_decision_trace(session_id, limit=limit)
+    logger.info(
+        "Decision trace requested session_id=%s returned=%s attention=%s",
+        session_id,
+        trace["returned_turns"],
+        trace["summary"]["needs_attention"],
+    )
+    return trace
+
+
+@app.get("/api/v1/sessions/{session_id}/entropy-loop")
+def get_session_entropy_reduction_loop(session_id: str) -> dict[str, Any]:
+    session_store = get_session_store()
+    loop = session_store.get_session_entropy_reduction_loop(session_id)
+    summary = loop["entropy_reduction_loop"]["summary"]
+    logger.info(
+        "Entropy reduction loop requested session_id=%s status=%s score=%s",
+        session_id,
+        summary["overall_status"],
+        summary["latest_loop_score"],
+    )
+    return loop
 
 
 @app.get("/api/v1/sessions/{session_id}/referrals")
@@ -453,6 +782,10 @@ def submit_session_feedback(session_id: str, payload: dict[str, Any]) -> dict[st
         tags=parsed["tags"],
     )
     summary = session_store.summarize_intervention_feedback(session_id)
+    feedback_adaptation = build_feedback_adaptation(
+        feedback_summary=summary,
+        recent_feedback=session_store.get_intervention_feedback(session_id, limit=5),
+    )
     logger.info(
         "Intervention feedback submitted session_id=%s response_id=%s helpful_score=%s",
         session_id,
@@ -463,6 +796,7 @@ def submit_session_feedback(session_id: str, payload: dict[str, Any]) -> dict[st
         "session_id": session_id,
         "feedback": feedback,
         "feedback_summary": summary,
+        "feedback_adaptation": asdict(feedback_adaptation),
     }
 
 
@@ -471,12 +805,17 @@ def get_session_feedback(session_id: str, limit: int | None = None) -> dict[str,
     session_store = get_session_store()
     feedback = session_store.get_intervention_feedback(session_id, limit=limit)
     summary = session_store.summarize_intervention_feedback(session_id)
+    feedback_adaptation = build_feedback_adaptation(
+        feedback_summary=summary,
+        recent_feedback=feedback,
+    )
     logger.info("Intervention feedback requested session_id=%s total=%s", session_id, len(feedback))
     return {
         "session_id": session_id,
         "total_feedback": len(feedback),
         "feedback": feedback,
         "feedback_summary": summary,
+        "feedback_adaptation": asdict(feedback_adaptation),
     }
 
 
@@ -486,6 +825,143 @@ def get_overview_analytics(limit: int = 200) -> dict[str, Any]:
     stats = session_store.get_overview_stats(limit=limit)
     logger.info("Overview analytics requested total=%s", stats["total_records"])
     return stats
+
+
+@app.get("/api/v1/analytics/care-queue")
+def get_care_queue(limit: int = 100, include_low_priority: bool = False) -> dict[str, Any]:
+    session_store = get_session_store()
+    queue = session_store.get_care_queue(limit=limit, include_low_priority=include_low_priority)
+    logger.info("Care queue requested total=%s include_low=%s", queue["total_items"], include_low_priority)
+    return queue
+
+
+@app.get("/api/v1/analytics/reply-quality")
+def get_reply_quality_overview(limit: int = 200) -> dict[str, Any]:
+    session_store = get_session_store()
+    quality = session_store.get_reply_quality_overview(limit=limit)
+    logger.info(
+        "Reply quality overview requested total=%s needs_review=%s",
+        quality["total_records"],
+        quality["summary"]["needs_review"],
+    )
+    return quality
+
+
+@app.get("/api/v1/analytics/intervention-effectiveness")
+def get_intervention_effectiveness_overview(limit: int = 200) -> dict[str, Any]:
+    session_store = get_session_store()
+    overview = session_store.get_intervention_effectiveness_overview(limit=limit)
+    logger.info(
+        "Intervention effectiveness overview requested sessions=%s",
+        overview["total_sessions"],
+    )
+    return overview
+
+
+@app.get("/api/v1/analytics/session-tracking")
+def get_session_tracking_overview(limit: int = 200) -> dict[str, Any]:
+    session_store = get_session_store()
+    overview = session_store.get_session_tracking_overview(limit=limit)
+    logger.info(
+        "Session tracking overview requested sessions=%s",
+        overview["total_sessions"],
+    )
+    return overview
+
+
+@app.get("/api/v1/analytics/strategy-version")
+def get_strategy_version_overview(limit: int = 200) -> dict[str, Any]:
+    session_store = get_session_store()
+    overview = session_store.get_strategy_version_overview(limit=limit)
+    logger.info(
+        "Strategy version overview requested sessions=%s switches=%s",
+        overview["total_sessions"],
+        overview["sessions_needing_strategy_switch"],
+    )
+    return overview
+
+
+@app.get("/api/v1/analytics/strategy-layer")
+def get_strategy_layer_overview(limit: int = 200) -> dict[str, Any]:
+    session_store = get_session_store()
+    overview = session_store.get_strategy_layer_overview(limit=limit)
+    logger.info(
+        "Strategy layer overview requested sessions=%s records=%s",
+        overview["total_sessions"],
+        overview["source_records_seen"],
+    )
+    return overview
+
+
+@app.get("/api/v1/analytics/decision-trace")
+def get_decision_trace_overview(limit: int = 200) -> dict[str, Any]:
+    session_store = get_session_store()
+    overview = session_store.get_decision_trace_overview(limit=limit)
+    logger.info(
+        "Decision trace overview requested sessions=%s records=%s",
+        overview["total_sessions"],
+        overview["source_records_seen"],
+    )
+    return overview
+
+
+@app.get("/api/v1/analytics/entropy-loop")
+def get_entropy_reduction_loop_overview(limit: int = 200) -> dict[str, Any]:
+    session_store = get_session_store()
+    overview = session_store.get_entropy_reduction_loop_overview(limit=limit)
+    logger.info(
+        "Entropy reduction loop overview requested sessions=%s",
+        overview["total_sessions"],
+    )
+    return overview
+
+
+@app.get("/api/v1/analytics/reply-quality/bad-cases")
+def get_reply_quality_bad_cases(
+    session_id: str | None = None,
+    source_limit: int = 200,
+    limit: int = 50,
+    min_quality_score: int = 80,
+) -> dict[str, Any]:
+    session_store = get_session_store()
+    bad_cases = session_store.get_reply_quality_bad_cases(
+        session_id=session_id,
+        source_limit=source_limit,
+        limit=limit,
+        min_quality_score=min_quality_score,
+    )
+    logger.info(
+        "Reply quality bad cases requested records=%s cases=%s session_id=%s",
+        bad_cases["records_seen"],
+        bad_cases["bad_case_count"],
+        session_id or "-",
+    )
+    return bad_cases
+
+
+@app.get("/api/v1/analytics/refinement-plan")
+def get_quality_refinement_plan(
+    session_id: str | None = None,
+    source_limit: int = 200,
+    bad_case_limit: int = 100,
+    min_quality_score: int = 80,
+    max_examples_per_bucket: int = 8,
+) -> dict[str, Any]:
+    session_store = get_session_store()
+    plan = session_store.get_quality_refinement_plan(
+        session_id=session_id,
+        source_limit=source_limit,
+        bad_case_limit=bad_case_limit,
+        min_quality_score=min_quality_score,
+        max_examples_per_bucket=max_examples_per_bucket,
+    )
+    logger.info(
+        "Quality refinement plan requested cases=%s routes=%s session_id=%s",
+        plan["total_bad_cases"],
+        plan["route_counts"],
+        session_id or "-",
+    )
+    return plan
 
 
 @app.delete("/api/v1/sessions/{session_id}")

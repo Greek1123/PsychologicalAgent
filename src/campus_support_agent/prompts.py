@@ -4,7 +4,15 @@ import json
 from typing import Any
 
 from .config import Settings
-from .schemas import CampusResource, EntropyReductionStrategy, PsychologicalEntropy, RiskAssessment
+from .dialogue_memory import build_conversation_memory
+from .schemas import (
+    CampusResource,
+    EntropyReductionStrategy,
+    InterventionStrategy,
+    PsychologicalEntropy,
+    RiskAssessment,
+    StateProfile,
+)
 
 
 def build_system_prompt(settings: Settings) -> str:
@@ -54,17 +62,62 @@ def build_user_prompt(
     entropy: PsychologicalEntropy,
     entropy_reduction: EntropyReductionStrategy,
     campus_resources: list[CampusResource],
+    state_profile: StateProfile | None = None,
+    intervention_strategy: InterventionStrategy | None = None,
 ) -> str:
     history = conversation_history[-6:] if conversation_history else []
+    memory = build_conversation_memory(history, current_text=text)
     payload = {
         "student_text": text,
         "student_context": student_context or {},
         "conversation_history": history,
+        "conversation_memory": {
+            "active_topics": memory.active_topics,
+            "user_boundaries": memory.user_boundaries,
+            "recent_user_turns": memory.recent_user_turns,
+            "last_assistant_reply": memory.last_assistant_reply,
+            "continuity_focus": memory.continuity_focus,
+            "instruction": (
+                "Use this memory to continue the conversation. Do not restart as if this is the first turn; "
+                "acknowledge the latest user turn in relation to previous turns, and do not repeat the last reply."
+            ),
+        },
         "risk_assessment": {
             "level": risk.level,
             "score": risk.score,
             "reason": risk.reason,
             "trigger_terms": risk.trigger_terms,
+        },
+        "state_profile": None
+        if state_profile is None
+        else {
+            "primary_state": state_profile.primary_state,
+            "intensity": state_profile.intensity,
+            "confidence": state_profile.confidence,
+            "stress_domains": state_profile.stress_domains,
+            "emotion_signals": state_profile.emotion_signals,
+            "body_signals": state_profile.body_signals,
+            "cognitive_signals": state_profile.cognitive_signals,
+            "social_signals": state_profile.social_signals,
+            "boundary_flags": state_profile.boundary_flags,
+            "weak_input_detected": state_profile.weak_input_detected,
+            "noisy_input_detected": state_profile.noisy_input_detected,
+            "recommended_focus": state_profile.recommended_focus,
+        },
+        "intervention_strategy": None
+        if intervention_strategy is None
+        else {
+            "strategy_id": intervention_strategy.strategy_id,
+            "priority": intervention_strategy.priority,
+            "response_mode": intervention_strategy.response_mode,
+            "user_visible_goal": intervention_strategy.user_visible_goal,
+            "hidden_clinical_goal": intervention_strategy.hidden_clinical_goal,
+            "should_ask_question": intervention_strategy.should_ask_question,
+            "max_questions": intervention_strategy.max_questions,
+            "suggested_opening": intervention_strategy.suggested_opening,
+            "next_step": intervention_strategy.next_step,
+            "avoid": intervention_strategy.avoid,
+            "tags": intervention_strategy.tags,
         },
         "psychological_entropy": {
             "score": entropy.score,

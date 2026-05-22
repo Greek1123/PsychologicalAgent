@@ -3,6 +3,10 @@ from __future__ import annotations
 import os
 import sys
 import unittest
+import io
+import math
+import struct
+import wave
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,6 +67,38 @@ class CampusSupportAgentTests(unittest.TestCase):
         self.assertIsNotNone(response.transcript)
         self.assertGreater(len(response.plan.follow_up), 0)
         self.assertGreater(response.entropy.score, 0)
+        self.assertIsNotNone(response.multimodal_signal)
+        self.assertFalse(response.multimodal_signal.analysis_available)
+        self.assertIn("wav_parse_failed", response.multimodal_signal.analysis_notes)
+
+    def test_audio_path_extracts_basic_wav_signal(self) -> None:
+        sample_rate = 8000
+        duration_seconds = 0.1
+        frames = []
+        for index in range(int(sample_rate * duration_seconds)):
+            value = int(12000 * math.sin(2 * math.pi * 440 * index / sample_rate))
+            frames.append(struct.pack("<h", value))
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(sample_rate)
+            wav.writeframes(b"".join(frames))
+
+        response = self.agent.handle_audio(
+            file_bytes=buffer.getvalue(),
+            filename="tone.wav",
+            content_type="audio/wav",
+            student_context={"grade": "大一"},
+        )
+
+        self.assertIsNotNone(response.multimodal_signal)
+        self.assertTrue(response.multimodal_signal.analysis_available)
+        self.assertEqual(response.multimodal_signal.format, "wav")
+        self.assertEqual(response.multimodal_signal.sample_rate_hz, sample_rate)
+        self.assertEqual(response.multimodal_signal.channels, 1)
+        self.assertGreater(response.multimodal_signal.rms_energy or 0, 0)
+        self.assertIn("multimodal_signal", response.to_dict())
 
     def test_privacy_concern_uses_local_dialogue_policy(self) -> None:
         response = self.agent.handle_text(text="我怕你会告诉别人。")
@@ -90,6 +126,14 @@ class CampusSupportAgentTests(unittest.TestCase):
         self.assertTrue(response.referral_decision.should_refer)
         self.assertEqual(response.referral_decision.urgency, "urgent")
         self.assertTrue(any("risk_level" in reason for reason in response.referral_decision.reasons))
+
+    def test_academic_breakdown_does_not_route_to_crisis_without_safety_signal(self) -> None:
+        response = self.agent.handle_text(
+            text="我这几天真的快被期末压垮了，明明每天复习，但还是觉得什么都不会，越想越慌，控制不住比较。"
+        )
+        self.assertNotIn(response.risk.level, {RiskLevel.HIGH, RiskLevel.CRITICAL})
+        self.assertIsNone(response.safety.emergency_notice)
+        self.assertFalse(response.referral_decision.should_refer)
 
     def test_session_store_keeps_recent_history_and_entropy(self) -> None:
         store = InMemorySessionStore(max_messages=4)

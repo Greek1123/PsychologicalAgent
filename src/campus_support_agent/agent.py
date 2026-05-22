@@ -1,36 +1,113 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from typing import Any
 
 from .config import Settings
+from .care_plan_execution import apply_session_care_plan_to_plan
+from .dynamic_adjustment import build_dynamic_adjustment
+from .entropy_orchestration import build_entropy_orchestration
 from .entropy import evaluate_psychological_entropy
+from .feedback_adaptation import build_feedback_adaptation
+from .final_reply_guardrails import finalize_user_visible_reply
+from .intervention_strategy import select_intervention_strategy
+from .intervention_next_step import apply_intervention_next_step_to_plan
 from .logging_utils import get_logger
 from .local_response_policy import maybe_build_local_support_plan
+from .multimodal_signal import analyze_audio_signal
 from .noisy_input import analyze_noisy_distress_text
 from .prompts import build_system_prompt, build_user_prompt
 from .providers import LLMProvider, STTProvider
 from .reduction import build_entropy_reduction_strategy
+from .reduction_goal import build_entropy_reduction_goal
+from .referral_explanation import build_referral_explanation
 from .response_guardrails import sanitize_user_visible_reply
 from .retrieval import CampusKnowledgeRetriever
 from .safety import evaluate_text_risk
+from .session_tracking import apply_session_tracking_to_plan
+from .strategy_versioning import apply_strategy_version_to_plan
 from .schemas import (
     CampusResource,
     EntropyReductionStrategy,
+    EntropyTrend,
+    FeedbackAdaptation,
+    EntropyOrchestration,
+    EntropyReductionGoal,
     PsychologicalEntropy,
     ReferralDecision,
+    ReferralExplanation,
     RiskAssessment,
     RiskLevel,
     SafetyNotice,
+    StateProfile,
     SupportAssessment,
     SupportPlan,
     SupportResponse,
     new_metadata,
     new_response_id,
 )
+from .state_profile import build_state_profile
+from .strategy_execution import (
+    apply_adjustment_loop_to_plan,
+    apply_dynamic_adjustment_to_plan,
+    apply_feedback_adaptation_to_plan,
+    apply_intervention_strategy_to_plan,
+    apply_session_continuity_to_plan,
+    apply_strategy_reselection_to_plan,
+)
 
 
 logger = get_logger("agent")
+
+
+def _extract_session_continuity(student_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(student_context, dict):
+        return None
+    continuity = student_context.get("session_continuity")
+    return continuity if isinstance(continuity, dict) else None
+
+
+def _extract_strategy_reselection(student_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(student_context, dict):
+        return None
+    decision = student_context.get("strategy_reselection")
+    return decision if isinstance(decision, dict) else None
+
+
+def _extract_adjustment_loop(student_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(student_context, dict):
+        return None
+    loop = student_context.get("adjustment_loop")
+    return loop if isinstance(loop, dict) else None
+
+
+def _extract_session_care_plan(student_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(student_context, dict):
+        return None
+    care_plan = student_context.get("session_care_plan")
+    return care_plan if isinstance(care_plan, dict) else None
+
+
+def _extract_intervention_next_step(student_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(student_context, dict):
+        return None
+    next_step = student_context.get("intervention_next_step")
+    return next_step if isinstance(next_step, dict) else None
+
+
+def _extract_session_tracking(student_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(student_context, dict):
+        return None
+    tracking = student_context.get("session_tracking")
+    return tracking if isinstance(tracking, dict) else None
+
+
+def _extract_strategy_version(student_context: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(student_context, dict):
+        return None
+    version = student_context.get("strategy_version")
+    return version if isinstance(version, dict) else None
 
 
 class CampusSupportAgent:
@@ -52,12 +129,22 @@ class CampusSupportAgent:
         text: str,
         student_context: dict[str, Any] | None = None,
         conversation_history: list[dict[str, Any]] | None = None,
+        previous_entropy_score: int | None = None,
+        entropy_trace: list[dict[str, Any]] | None = None,
+        feedback_adaptation: FeedbackAdaptation | None = None,
         source: str = "text",
         transcript: str | None = None,
     ) -> SupportResponse:
         clean_text = text.strip()
         if not clean_text:
             raise ValueError("text 不能为空。")
+        continuity_summary = _extract_session_continuity(student_context)
+        strategy_reselection = _extract_strategy_reselection(student_context)
+        adjustment_loop = _extract_adjustment_loop(student_context)
+        session_care_plan = _extract_session_care_plan(student_context)
+        intervention_next_step = _extract_intervention_next_step(student_context)
+        session_tracking = _extract_session_tracking(student_context)
+        strategy_version = _extract_strategy_version(student_context)
 
         # Analyze a cautious copy of the text so typo-heavy distress like
         # "我不想或了" is still routed as a possible crisis signal.
@@ -72,16 +159,44 @@ class CampusSupportAgent:
             student_context=student_context,
             conversation_history=conversation_history,
         )
+        if previous_entropy_score is not None:
+            delta = entropy.score - previous_entropy_score
+            entropy.trend = EntropyTrend(
+                previous_score=previous_entropy_score,
+                delta=delta,
+                direction="up" if delta > 0 else "down" if delta < 0 else "flat",
+            )
+        state_profile = build_state_profile(
+            clean_text,
+            risk=risk,
+            entropy=entropy,
+            conversation_history=conversation_history,
+            noisy_input_detected=noisy_analysis.has_inference,
+        )
         logger.info(
-            "Text request analyzed with risk=%s score=%s entropy=%s source=%s",
+            "Text request analyzed with risk=%s score=%s entropy=%s state=%s source=%s",
             risk.level,
             risk.score,
             entropy.score,
+            state_profile.primary_state,
             source,
         )
 
         campus_resources = self._retrieve_campus_resources(analysis_text, risk)
         entropy_reduction = build_entropy_reduction_strategy(entropy, risk, campus_resources)
+        intervention_strategy = select_intervention_strategy(
+            state_profile=state_profile,
+            risk=risk,
+            entropy=entropy,
+            entropy_reduction=entropy_reduction,
+        )
+        dynamic_adjustment = build_dynamic_adjustment(
+            entropy=entropy,
+            risk=risk,
+            state_profile=state_profile,
+            entropy_trace=entropy_trace,
+        )
+        feedback_adaptation = feedback_adaptation or build_feedback_adaptation()
         local_result = maybe_build_local_support_plan(
             analysis_text,
             entropy=entropy,
@@ -92,14 +207,45 @@ class CampusSupportAgent:
             entropy=entropy,
             local_policy=getattr(local_result, "info", None),
         )
+        entropy_orchestration = build_entropy_orchestration(
+            text=analysis_text,
+            conversation_history=conversation_history,
+            risk=risk,
+            entropy=entropy,
+            state_profile=state_profile,
+            intervention_strategy=intervention_strategy,
+            dynamic_adjustment=dynamic_adjustment,
+            feedback_adaptation=feedback_adaptation,
+            referral_decision=referral_decision,
+        )
+        reduction_goal = build_entropy_reduction_goal(
+            text=analysis_text,
+            risk=risk,
+            entropy=entropy,
+            state_profile=state_profile,
+            dynamic_adjustment=dynamic_adjustment,
+            entropy_orchestration=entropy_orchestration,
+            referral_decision=referral_decision,
+            session_continuity=continuity_summary,
+        )
+        referral_explanation = build_referral_explanation(
+            risk=risk,
+            entropy=entropy,
+            state_profile=state_profile,
+            referral_decision=referral_decision,
+            dynamic_adjustment=dynamic_adjustment,
+            reduction_goal=reduction_goal,
+            session_continuity=continuity_summary,
+        )
         logger.info(
-            "Entropy reduction strategy prepared target=%s drivers=%s",
+            "Entropy reduction strategy prepared target=%s drivers=%s intervention=%s",
             entropy_reduction.target_state,
             entropy_reduction.targeted_drivers,
+            intervention_strategy.strategy_id,
         )
         if risk.level in {RiskLevel.HIGH, RiskLevel.CRITICAL}:
             logger.warning("Routing request to crisis flow due to risk=%s", risk.level)
-            return self._build_crisis_response(
+            crisis_response = self._build_crisis_response(
                 text=clean_text,
                 risk=risk,
                 entropy=entropy,
@@ -107,10 +253,66 @@ class CampusSupportAgent:
                 source=source,
                 transcript=transcript,
                 campus_resources=campus_resources,
+                state_profile=state_profile,
+                intervention_strategy=intervention_strategy,
+                dynamic_adjustment=dynamic_adjustment,
+                feedback_adaptation=feedback_adaptation,
+                entropy_orchestration=entropy_orchestration,
+                reduction_goal=reduction_goal,
+                referral_explanation=referral_explanation,
+                adjustment_loop=adjustment_loop,
             )
+            crisis_response.reply_text = finalize_user_visible_reply(
+                clean_text,
+                crisis_response.reply_text,
+                conversation_history=conversation_history,
+                student_context=student_context,
+            )
+            return crisis_response
 
         if local_result is not None:
             assessment, plan = local_result
+            plan = apply_intervention_strategy_to_plan(
+                plan,
+                strategy=intervention_strategy,
+                state_profile=state_profile,
+            )
+            plan = apply_dynamic_adjustment_to_plan(
+                plan,
+                dynamic_adjustment=dynamic_adjustment,
+            )
+            plan = apply_feedback_adaptation_to_plan(
+                plan,
+                feedback_adaptation=feedback_adaptation,
+            )
+            plan = apply_session_continuity_to_plan(
+                plan,
+                continuity_summary=continuity_summary,
+            )
+            plan = apply_strategy_reselection_to_plan(
+                plan,
+                strategy_reselection=strategy_reselection,
+            )
+            plan = apply_adjustment_loop_to_plan(
+                plan,
+                adjustment_loop=adjustment_loop,
+            )
+            plan = apply_intervention_next_step_to_plan(
+                plan,
+                next_step=intervention_next_step,
+            )
+            plan = apply_session_tracking_to_plan(
+                plan,
+                tracking_snapshot=session_tracking,
+            )
+            plan = apply_strategy_version_to_plan(
+                plan,
+                strategy_version=strategy_version,
+            )
+            plan = apply_session_care_plan_to_plan(
+                plan,
+                session_care_plan=session_care_plan,
+            )
             logger.info("Local dialogue policy handled text request.")
             safety = SafetyNotice(
                 disclaimer="当前回复由本地规则层和支持策略共同生成，用于稳定边界和基础支持，不替代专业诊断。",
@@ -125,10 +327,15 @@ class CampusSupportAgent:
                 source=source,
                 input_text=clean_text,
                 transcript=transcript,
-                reply_text=sanitize_user_visible_reply(
+                reply_text=finalize_user_visible_reply(
                     clean_text,
-                    self._render_reply_text(plan),
+                    sanitize_user_visible_reply(
+                        clean_text,
+                        self._render_reply_text(plan),
+                        conversation_history=conversation_history,
+                    ),
                     conversation_history=conversation_history,
+                    student_context=student_context,
                 ),
                 risk=risk,
                 entropy=entropy,
@@ -140,6 +347,14 @@ class CampusSupportAgent:
                 metadata=new_metadata(f"llm:{self.llm_provider.name},stt:{self.stt_provider.name},policy:local"),
                 local_policy=local_result.info,
                 referral_decision=referral_decision,
+                state_profile=state_profile,
+                intervention_strategy=intervention_strategy,
+                dynamic_adjustment=dynamic_adjustment,
+                feedback_adaptation=feedback_adaptation,
+                entropy_orchestration=entropy_orchestration,
+                reduction_goal=reduction_goal,
+                referral_explanation=referral_explanation,
+                adjustment_loop=adjustment_loop,
             )
 
         system_prompt = build_system_prompt(self.settings)
@@ -151,6 +366,8 @@ class CampusSupportAgent:
             entropy,
             entropy_reduction,
             campus_resources,
+            state_profile=state_profile,
+            intervention_strategy=intervention_strategy,
         )
 
         try:
@@ -164,6 +381,47 @@ class CampusSupportAgent:
 
         plan = self._align_plan_with_entropy_strategy(plan, entropy_reduction)
         plan = self._enrich_plan_with_resources(plan, campus_resources)
+        plan = apply_intervention_strategy_to_plan(
+            plan,
+            strategy=intervention_strategy,
+            state_profile=state_profile,
+        )
+        plan = apply_dynamic_adjustment_to_plan(
+            plan,
+            dynamic_adjustment=dynamic_adjustment,
+        )
+        plan = apply_feedback_adaptation_to_plan(
+            plan,
+            feedback_adaptation=feedback_adaptation,
+        )
+        plan = apply_session_continuity_to_plan(
+            plan,
+            continuity_summary=continuity_summary,
+        )
+        plan = apply_strategy_reselection_to_plan(
+            plan,
+            strategy_reselection=strategy_reselection,
+        )
+        plan = apply_adjustment_loop_to_plan(
+            plan,
+            adjustment_loop=adjustment_loop,
+        )
+        plan = apply_intervention_next_step_to_plan(
+            plan,
+            next_step=intervention_next_step,
+        )
+        plan = apply_session_tracking_to_plan(
+            plan,
+            tracking_snapshot=session_tracking,
+        )
+        plan = apply_strategy_version_to_plan(
+            plan,
+            strategy_version=strategy_version,
+        )
+        plan = apply_session_care_plan_to_plan(
+            plan,
+            session_care_plan=session_care_plan,
+        )
         logger.info(
             "Support response built with entropy_score=%s and %s campus resources",
             entropy.score,
@@ -184,10 +442,15 @@ class CampusSupportAgent:
             source=source,
             input_text=clean_text,
             transcript=transcript,
-            reply_text=sanitize_user_visible_reply(
+            reply_text=finalize_user_visible_reply(
                 analysis_text,
-                self._render_reply_text(plan),
+                sanitize_user_visible_reply(
+                    analysis_text,
+                    self._render_reply_text(plan),
+                    conversation_history=conversation_history,
+                ),
                 conversation_history=conversation_history,
+                student_context=student_context,
             ),
             risk=risk,
             entropy=entropy,
@@ -199,6 +462,14 @@ class CampusSupportAgent:
             metadata=new_metadata(f"llm:{self.llm_provider.name},stt:{self.stt_provider.name}"),
             local_policy=None,
             referral_decision=referral_decision,
+            state_profile=state_profile,
+            intervention_strategy=intervention_strategy,
+            dynamic_adjustment=dynamic_adjustment,
+            feedback_adaptation=feedback_adaptation,
+            entropy_orchestration=entropy_orchestration,
+            reduction_goal=reduction_goal,
+            referral_explanation=referral_explanation,
+            adjustment_loop=adjustment_loop,
         )
 
     def handle_audio(
@@ -209,20 +480,50 @@ class CampusSupportAgent:
         content_type: str | None,
         student_context: dict[str, Any] | None = None,
         conversation_history: list[dict[str, Any]] | None = None,
+        previous_entropy_score: int | None = None,
+        entropy_trace: list[dict[str, Any]] | None = None,
+        feedback_adaptation: FeedbackAdaptation | None = None,
     ) -> SupportResponse:
+        multimodal_signal = analyze_audio_signal(
+            file_bytes=file_bytes,
+            filename=filename,
+            content_type=content_type,
+        )
+        enriched_context = dict(student_context or {})
+        enriched_context["multimodal_signal"] = asdict(multimodal_signal)
+        if multimodal_signal.analysis_available:
+            logger.info(
+                "Audio signal analyzed file=%s duration=%s rms=%s silence=%s",
+                filename,
+                multimodal_signal.duration_seconds,
+                multimodal_signal.rms_energy,
+                multimodal_signal.silence_ratio,
+            )
+        else:
+            logger.info(
+                "Audio signal metadata captured file=%s size=%s notes=%s",
+                filename,
+                multimodal_signal.byte_size,
+                multimodal_signal.analysis_notes,
+            )
         transcript = self.stt_provider.transcribe(
             file_bytes=file_bytes,
             filename=filename,
             content_type=content_type,
         )
         logger.info("Audio request transcribed successfully for file=%s", filename)
-        return self.handle_text(
+        response = self.handle_text(
             text=transcript,
-            student_context=student_context,
+            student_context=enriched_context,
             conversation_history=conversation_history,
+            previous_entropy_score=previous_entropy_score,
+            entropy_trace=entropy_trace,
+            feedback_adaptation=feedback_adaptation,
             source="audio",
             transcript=transcript,
         )
+        response.multimodal_signal = multimodal_signal
+        return response
 
     def _extract_json(self, raw_output: str) -> dict[str, Any]:
         candidate = raw_output.strip()
@@ -317,6 +618,14 @@ class CampusSupportAgent:
         source: str,
         transcript: str | None,
         campus_resources: list[CampusResource],
+        state_profile: StateProfile,
+        intervention_strategy: Any,
+        dynamic_adjustment: Any,
+        feedback_adaptation: Any,
+        entropy_orchestration: EntropyOrchestration,
+        reduction_goal: EntropyReductionGoal,
+        referral_explanation: ReferralExplanation,
+        adjustment_loop: Any = None,
     ) -> SupportResponse:
         emergency_notice = (
             "检测到高风险内容。请不要让当事人独处，并立即联系当地紧急服务、校园值班人员"
@@ -328,7 +637,10 @@ class CampusSupportAgent:
             source=source,
             input_text=text,
             transcript=transcript,
-            reply_text="当前最重要的不是继续分析问题，而是立刻转入现实世界的安全支持。请马上联系身边可信任的人，并尽快寻求紧急帮助。",
+            reply_text=(
+                "当前最重要的不是继续分析问题，而是先保证你的安全。请你现在不要一个人待着，"
+                "马上联系身边可信任的人，比如室友、同学、辅导员或家人，并尽快寻求紧急帮助。"
+            ),
             risk=risk,
             entropy=entropy,
             entropy_reduction=entropy_reduction,
@@ -372,6 +684,14 @@ class CampusSupportAgent:
             metadata=new_metadata(f"llm:{self.llm_provider.name},stt:{self.stt_provider.name}"),
             local_policy=None,
             referral_decision=self._build_referral_decision(risk=risk, entropy=entropy, local_policy=None),
+            state_profile=state_profile,
+            intervention_strategy=intervention_strategy,
+            dynamic_adjustment=dynamic_adjustment,
+            feedback_adaptation=feedback_adaptation,
+            entropy_orchestration=entropy_orchestration,
+            reduction_goal=reduction_goal,
+            referral_explanation=referral_explanation,
+            adjustment_loop=adjustment_loop,
         )
 
     @staticmethod

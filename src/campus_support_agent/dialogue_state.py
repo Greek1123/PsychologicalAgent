@@ -94,7 +94,7 @@ def _is_dorm(text: str) -> bool:
 
 def _is_sleep_pressure(text: str) -> bool:
     return any(term in text for term in ("睡不好", "失眠", "睡不着", "晚上睡", "睡眠")) and any(
-        term in text for term in ("压力", "焦虑", "心慌", "烦", "考试", "论文")
+        term in text for term in ("压力", "焦虑", "心慌", "烦", "考试", "论文", "咖啡", "硬撑", "熬")
     )
 
 

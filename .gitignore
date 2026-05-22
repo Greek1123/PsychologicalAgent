@@ -6,6 +6,7 @@ __pycache__/
 *.pyd
 
 logs/
+reports/
 tmp_test_artifacts/
 test_tmp/
 

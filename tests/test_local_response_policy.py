@@ -11,6 +11,7 @@ if str(SRC) not in sys.path:
 
 from campus_support_agent.entropy import evaluate_psychological_entropy
 from campus_support_agent.local_response_policy import maybe_build_local_support_plan
+from campus_support_agent.response_guardrails import sanitize_user_visible_reply
 from campus_support_agent.safety import evaluate_text_risk
 
 
@@ -120,6 +121,30 @@ class LocalResponsePolicyTests(unittest.TestCase):
         _, plan = result
         self.assertTrue(any("\u81ea\u8d23" in item or "\u90fd\u662f\u6211\u7684\u9519" in item or "\u602a\u81ea\u5df1" in item for item in [plan.summary, *plan.immediate_support, *plan.follow_up]))
 
+    def test_task_overload_procrastination_uses_reference_like_steps(self) -> None:
+        text = "我又拖延了，实验报告明天晚上交，英语展示后天，代码下周，现在任务全堆在一起，我觉得自己特别废。"
+        result = maybe_build_local_support_plan(text, entropy=_build_entropy(text), conversation_history=[])
+        self.assertIsNotNone(result)
+        _, plan = result
+        self.assertEqual(result.info.policy_name, "task_overload_procrastination")
+        self.assertTrue(any("可提交骨架" in item or "25 分钟" in item or "截止时间" in item for item in [plan.summary, *plan.immediate_support, *plan.self_regulation, *plan.follow_up]))
+
+    def test_group_work_marginalized_uses_visible_contribution_steps(self) -> None:
+        text = "小组作业让我很憋屈，组员自己定了方案，很多事情都没问我，我怕老师觉得我没贡献。"
+        result = maybe_build_local_support_plan(text, entropy=_build_entropy(text), conversation_history=[])
+        self.assertIsNotNone(result)
+        _, plan = result
+        self.assertEqual(result.info.policy_name, "group_work_marginalized")
+        self.assertTrue(any("实际贡献" in item or "PPT" in item or "聊天记录" in item for item in [plan.summary, *plan.immediate_support, *plan.campus_actions]))
+
+    def test_breakup_contact_loop_uses_delay_boundary(self) -> None:
+        text = "分手一个月了，我还是每天想给他发消息，忍不住看他的朋友圈，怕他真的彻底忘了我。"
+        result = maybe_build_local_support_plan(text, entropy=_build_entropy(text), conversation_history=[])
+        self.assertIsNotNone(result)
+        _, plan = result
+        self.assertEqual(result.info.policy_name, "breakup_contact_loop")
+        self.assertTrue(any("24 小时" in item or "三天" in item or "不发送" in item for item in [plan.summary, *plan.immediate_support, *plan.self_regulation]))
+
     def test_sleep_appetite_drift_uses_local_reply(self) -> None:
         text = "\u6211\u8fd9\u51e0\u5929\u4e00\u76f4\u7761\u4e0d\u597d\uff0c\u4e5f\u5403\u4e0d\u4e0b\u4e1c\u897f\u3002"
         result = maybe_build_local_support_plan(text, entropy=_build_entropy(text), conversation_history=[])
@@ -154,6 +179,22 @@ class LocalResponsePolicyTests(unittest.TestCase):
         self.assertEqual(result.info.policy_name, "sleep_appetite_drift")
         self.assertEqual(result.info.policy_stage, "escalation_watch")
         self.assertEqual(result.info.escalation_hint, "consider_sleep_and_health_followup")
+
+    def test_guardrail_repairs_repeated_reply_with_recent_sleep_context(self) -> None:
+        history = [
+            {"role": "user", "content": "你平时会喝咖啡吗？"},
+            {"role": "assistant", "content": "可以，我们先轻松聊几句。你不用马上进入严肃话题，等你想说别的时再慢慢转过去。"},
+            {"role": "user", "content": "我最近靠咖啡硬撑，晚上更睡不着。"},
+        ]
+
+        reply = sanitize_user_visible_reply(
+            "我最近靠咖啡硬撑，晚上更睡不着。",
+            "可以，我们先轻松聊几句。你不用马上进入严肃话题，等你想说别的时再慢慢转过去。",
+            conversation_history=history,
+        )
+
+        self.assertIn("睡", reply)
+        self.assertNotIn("先轻松聊几句", reply)
 
 
 if __name__ == "__main__":

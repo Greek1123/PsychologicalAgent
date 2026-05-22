@@ -47,6 +47,26 @@ MEDIUM_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"[父付]\s*母\s*吵\s*架", "父母吵架"),
 )
 
+CLEAR_CHINESE_TERMS = (
+    "压力",
+    "焦虑",
+    "害怕",
+    "难受",
+    "烦躁",
+    "睡不着",
+    "睡不好",
+    "失眠",
+    "考试",
+    "挂科",
+    "宿舍",
+    "舍友",
+    "室友",
+    "怕别人知道",
+    "不想说",
+    "自杀",
+    "不想活",
+)
+
 
 def _compact(text: str) -> str:
     return re.sub(r"[\s，。！？!?,.;；：:、~～…]+", "", text.strip())
@@ -69,6 +89,9 @@ def analyze_noisy_distress_text(text: str) -> NoisyInputAnalysis:
     """
 
     original = text.strip()
+    if any(term in original for term in CLEAR_CHINESE_TERMS):
+        return NoisyInputAnalysis(original_text=original, analysis_text=original)
+
     compact = _compact(original)
     inferred: list[str] = []
     flags: list[str] = []

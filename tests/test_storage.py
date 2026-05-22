@@ -82,6 +82,54 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertEqual(rows[0]["response_id"], "resp-c")
         self.assertEqual(rows[0]["student_context"]["grade"], "大一")
 
+    def test_session_analysis_tracks_entropy_orchestration_timeline(self) -> None:
+        db_path = _test_db_path()
+
+        store = SQLiteSessionStore(str(db_path), max_messages=6)
+        store.store_support_response(
+            session_id="session-orchestration",
+            response_id="resp-o1",
+            source="text",
+            input_text="我不想说，我怕别人知道。",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={
+                "reply_text": "你可以不用细说，我会先尊重你的边界。",
+                "risk": {"level": "medium", "score": 46},
+                "entropy": {"score": 58, "level": 3, "trend": {"delta": 6}},
+                "state_profile": {
+                    "primary_state": "privacy_boundary",
+                    "stress_domains": ["social"],
+                    "boundary_flags": ["privacy_concern"],
+                },
+                "dynamic_adjustment": {"action": "soften_and_stabilize"},
+                "feedback_adaptation": {"mode": "reduce_question_pressure"},
+                "entropy_orchestration": {
+                    "route": "boundary_respecting_support",
+                    "next_focus": "先建立安全感，再允许用户少量表达。",
+                    "user_visible_goal": "让用户确认这里可以不急着解释。",
+                    "constraints": ["尊重用户不想细说", "不要展示心理熵术语"],
+                    "risk_control": "watch",
+                },
+            },
+        )
+
+        analysis = store.get_session_analysis("session-orchestration")
+        overview = store.get_overview_stats()
+
+        self.assertEqual(analysis["latest_entropy_orchestration"]["route"], "boundary_respecting_support")
+        self.assertEqual(analysis["orchestration_routes"]["boundary_respecting_support"], 1)
+        self.assertEqual(analysis["orchestration_timeline"][0]["route"], "boundary_respecting_support")
+        self.assertEqual(analysis["session_continuity"]["dialogue_stage"], "boundary_building")
+        self.assertEqual(
+            analysis["next_orchestration_recommendation"]["recommended_action"],
+            "respect_boundary_and_offer_low_pressure_support",
+        )
+        self.assertEqual(overview["orchestration_routes"]["boundary_respecting_support"], 1)
+        self.assertEqual(overview["current_orchestration_routes"]["boundary_respecting_support"], 1)
+        self.assertIn("current_dialogue_stages", overview)
+
     def test_referral_events_can_be_recorded_and_cleared(self) -> None:
         db_path = _test_db_path()
 
@@ -103,7 +151,17 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertTrue(events[0]["manual_referral_recommended"])
         analysis = store.get_session_analysis("session-d")
         self.assertIn("session_insight", analysis)
+        self.assertIn("session_continuity", analysis)
+        self.assertIn("longitudinal_profile", analysis)
+        self.assertIn("care_pathway", analysis)
+        self.assertIn("entropy_reduction_outcome", analysis)
+        self.assertIn("orchestration_timeline", analysis)
+        self.assertIn("next_orchestration_recommendation", analysis)
         self.assertEqual(analysis["session_insight"]["evidence"]["referral_event_count"], 1)
+        self.assertEqual(analysis["session_continuity"]["dialogue_stage"], "initial_contact")
+        self.assertEqual(analysis["longitudinal_profile"]["recommended_care_level"], "manual_followup")
+        self.assertEqual(analysis["care_pathway"]["route"], "human_followup_recommended")
+        self.assertEqual(analysis["entropy_reduction_outcome"]["status"], "needs_human_followup")
 
         store.clear("session-d")
         self.assertEqual(store.get_referral_events("session-d"), [])
@@ -162,8 +220,21 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertEqual(summary["average_mood_after"], 55)
         self.assertEqual(summary["common_tags"]["helpful"], 1)
         self.assertEqual(analysis["feedback_summary"]["total_feedback"], 2)
+        self.assertEqual(analysis["longitudinal_profile"]["recommended_care_level"], "observe")
+        self.assertEqual(analysis["care_pathway"]["route"], "continue_observation")
+        self.assertEqual(analysis["entropy_reduction_outcome"]["status"], "deteriorating")
         self.assertEqual(len(analysis["intervention_feedback"]), 2)
         self.assertEqual(overview["feedback_summary"]["total_feedback"], 2)
+        self.assertIn("care_pathway_routes", overview)
+        self.assertIn("current_care_pathway_routes", overview)
+        self.assertIn("entropy_outcome_statuses", overview)
+        self.assertIn("current_entropy_outcome_statuses", overview)
+        self.assertIn("orchestration_routes", overview)
+        self.assertIn("current_orchestration_routes", overview)
+        self.assertIn("current_dialogue_stages", overview)
+        self.assertGreaterEqual(overview["care_pathway_routes"].get("continue_observation", 0), 2)
+        self.assertGreaterEqual(overview["current_care_pathway_routes"].get("continue_observation", 0), 1)
+        self.assertGreaterEqual(overview["entropy_outcome_statuses"].get("stable_observe", 0), 1)
         bad_cases = store.list_feedback_cases(session_id="session-e")
         self.assertEqual(len(bad_cases), 1)
         self.assertEqual(bad_cases[0]["response_id"], "resp-e2")
@@ -171,6 +242,63 @@ class SQLiteSessionStoreTests(unittest.TestCase):
 
         store.clear("session-e")
         self.assertEqual(store.get_intervention_feedback("session-e"), [])
+
+    def test_care_queue_prioritizes_latest_session_records(self) -> None:
+        db_path = _test_db_path()
+
+        store = SQLiteSessionStore(str(db_path), max_messages=6)
+        store.store_support_response(
+            session_id="session-low",
+            response_id="resp-low",
+            source="text",
+            input_text="u-low",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={
+                "reply_text": "a-low",
+                "risk": {"level": "low", "score": 10},
+                "entropy": {"score": 20, "trend": {"delta": 0}},
+            },
+        )
+        store.store_support_response(
+            session_id="session-high",
+            response_id="resp-high-old",
+            source="text",
+            input_text="u-high-old",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={
+                "reply_text": "a-high-old",
+                "risk": {"level": "low", "score": 10},
+                "entropy": {"score": 25, "trend": {"delta": 0}},
+            },
+        )
+        store.store_support_response(
+            session_id="session-high",
+            response_id="resp-high",
+            source="text",
+            input_text="u-high",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={
+                "reply_text": "a-high",
+                "risk": {"level": "high", "score": 80},
+                "entropy": {"score": 72, "trend": {"delta": 12}},
+                "referral_decision": {"should_refer": True, "urgency": "recommended"},
+            },
+        )
+
+        queue = store.get_care_queue()
+        queue_with_low = store.get_care_queue(include_low_priority=True)
+
+        self.assertEqual(queue["total_items"], 1)
+        self.assertEqual(queue["items"][0]["session_id"], "session-high")
+        self.assertEqual(queue["items"][0]["priority"], "high")
+        self.assertEqual(queue["items"][0]["recommended_action"], "recommend_human_followup")
+        self.assertEqual(queue_with_low["total_items"], 2)
 
 
 if __name__ == "__main__":

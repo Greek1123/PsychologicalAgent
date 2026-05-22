@@ -23,12 +23,12 @@ def maybe_build_local_support_plan(
             "trust_and_confidentiality",
             _build_privacy_plan(entropy),
         )
-    if _matches_dorm_conflict(normalized):
+    if _matches_group_work_marginalized(normalized, recent_normalized):
         return _wrap_local_policy(
-            "dorm_conflict",
+            "group_work_marginalized",
             "situational_support",
-            "watch_interpersonal_escalation",
-            _build_dorm_conflict_plan(entropy),
+            "protect_visible_contribution",
+            _build_group_work_marginalized_plan(entropy),
         )
     if _matches_exam_anxiety(normalized):
         return _wrap_local_policy(
@@ -37,12 +37,33 @@ def maybe_build_local_support_plan(
             "watch_sleep_and_academic_functioning",
             _build_exam_anxiety_plan(entropy),
         )
+    if _matches_task_overload_procrastination(normalized):
+        return _wrap_local_policy(
+            "task_overload_procrastination",
+            "situational_support",
+            "restore_action_entry",
+            _build_task_overload_procrastination_plan(entropy),
+        )
+    if _matches_breakup_contact_loop(normalized):
+        return _wrap_local_policy(
+            "breakup_contact_loop",
+            "situational_support",
+            "reduce_reassurance_loop",
+            _build_breakup_contact_loop_plan(entropy),
+        )
     if _matches_social_isolation(normalized):
         return _wrap_local_policy(
             "social_isolation",
             "situational_support",
             "watch_withdrawal_trend",
             _build_social_isolation_plan(entropy),
+        )
+    if _matches_dorm_conflict(normalized):
+        return _wrap_local_policy(
+            "dorm_conflict",
+            "situational_support",
+            "watch_interpersonal_escalation",
+            _build_dorm_conflict_plan(entropy),
         )
     if _matches_exhaustion_withdrawal(normalized):
         return _wrap_local_policy(
@@ -267,11 +288,16 @@ def _matches_dorm_conflict(text: str) -> bool:
         "回宿舍就烦",
         "舍友针对我",
         "室友针对我",
-        "舍友",
-        "室友",
         "宿舍关系",
         "人际关系很紧张",
         "不想回宿舍",
+        "室友打电话",
+        "舍友打电话",
+        "室友很吵",
+        "舍友很吵",
+        "晚上打电话",
+        "笑得很大声",
+        "戴耳塞",
     ]
     return any(term in text for term in triggers)
 
@@ -279,6 +305,9 @@ def _matches_dorm_conflict(text: str) -> bool:
 def _matches_exam_anxiety(text: str) -> bool:
     triggers = [
         "考试",
+        "期末",
+        "复习",
+        "图书馆",
         "挂科",
         "成绩很差",
         "成绩不好",
@@ -290,6 +319,27 @@ def _matches_exam_anxiety(text: str) -> bool:
         "不敢查成绩",
     ]
     return any(term in text for term in triggers)
+
+
+def _matches_task_overload_procrastination(text: str) -> bool:
+    task_terms = ["拖延", "任务", "实验报告", "改代码", "英语展示", "文档", "截止", "明天晚上交"]
+    self_attack_terms = ["特别废", "很废", "写出来很烂", "控制不住", "打开文档就想逃"]
+    return any(term in text for term in task_terms) and (
+        any(term in text for term in self_attack_terms) or "堆" in text or "来不及" in text
+    )
+
+
+def _matches_group_work_marginalized(text: str, recent_text: str = "") -> bool:
+    group_terms = ["小组作业", "组员", "小组", "团队", "ppt", "挂名成员", "没贡献", "贡献"]
+    marginal_terms = ["不理我", "没问我", "边缘", "强势", "事多", "分工", "老师觉得", "还是不理"]
+    context = f"{recent_text}{text}"
+    return any(term in context for term in group_terms) and any(term in context for term in marginal_terms)
+
+
+def _matches_breakup_contact_loop(text: str) -> bool:
+    breakup_terms = ["分手", "前任", "他以前说过", "她以前说过", "朋友圈", "上线"]
+    loop_terms = ["想给", "发消息", "联系", "忘了我", "不值得被认真对待", "一直陪我", "忍不住"]
+    return any(term in text for term in breakup_terms) and any(term in text for term in loop_terms)
 
 
 def _matches_late_night_distress(text: str, recent_text: str) -> bool:
@@ -327,6 +377,11 @@ def _matches_social_isolation(text: str) -> bool:
         "不想跟别人说话",
         "没有朋友",
         "融不进去",
+        "不叫我",
+        "是不是在说我",
+        "让人讨厌",
+        "讨厌我",
+        "突然不叫",
     ]
     return any(term in text for term in triggers)
 
@@ -541,17 +596,98 @@ def _build_exam_anxiety_plan(entropy: PsychologicalEntropy) -> tuple[SupportAsse
     plan = SupportPlan(
         summary="你现在最难受的，不只是任务多，而是脑子已经开始往“会不会全盘搞砸”那边冲了。一直这样绷着，睡眠也很容易被带坏。",
         immediate_support=[
-            "我们先不急着谈整门课或整场考试，先只盯住眼前最卡的一件事。",
-            "如果你愿意，你先告诉我现在最压你的，是怕挂科、怕来不及复习，还是一躺下脑子就停不下来。",
+            "你不是没有努力，更像是在持续高压里被“必须马上看到成果”的念头追着跑；效率下降不等于你不适合这个专业。",
+            "先把“这次考试一定会挂/明天肯定完蛋”拆开：哪些复习章节是真的不会，哪些只是因为焦虑导致想不起来。",
         ],
         campus_actions=[
             "如果这周已经明显影响睡眠和白天状态，也可以考虑找学院老师或学校心理中心聊聊，先把学业压力拆开。",
         ],
         self_regulation=[
-            "今晚先别要求自己把整周都安排完，只列明天最必要的一小步，剩下的先放着。",
+            "今晚可以做一个“封卷”动作：写下明早最后看的 3 个点，把证件和文具拍照确认后放进包里，然后只保留休息目标。",
         ],
         follow_up=[
-            "你下一句只说一个最重的点就行，我先陪你把那一个点拆开。",
+            "你下一句只说最害怕的一门考试或一个复习知识点就行，我们先从那一小块拆。"
+        ],
+    )
+    return assessment, plan
+
+
+def _build_task_overload_procrastination_plan(entropy: PsychologicalEntropy) -> tuple[SupportAssessment, SupportPlan]:
+    assessment = SupportAssessment(
+        primary_emotions=["自责", "慌乱"],
+        stressors=["任务堆积后启动困难", "用自我攻击加重行动压力"],
+        protective_factors=["能说出任务清单", "还在寻找重新开始的入口"],
+        entropy_level=entropy.level,
+        balance_state=entropy.balance_state,
+    )
+    plan = SupportPlan(
+        summary="你现在的痛苦有两层：任务真的堆起来了，另一层是你一直用“我很废”来攻击自己。自责会制造压力，但通常不会直接带来行动。",
+        immediate_support=[
+            "先把评价放一边，只看眼前局面：哪些任务有硬截止时间，哪些可以降低完成标准，哪些可以先交一个可用版本。",
+            "如果实验报告最急，就先把目标从“写好”改成“凑出可提交骨架”：目的、环境、步骤、结果、问题分析，每部分先写三到五句话。",
+        ],
+        campus_actions=[
+            "如果已经影响到课程提交，可以考虑尽早和任课老师或助教说明进度，争取明确最低提交要求。"
+        ],
+        self_regulation=[
+            "设一个 25 分钟计时，只做第一小块，手机放远。第一版的任务不是漂亮，而是让文档不再空白。"
+        ],
+        follow_up=[
+            "你下一句可以只列出三个截止时间，我先帮你按“先救哪一个”来排。"
+        ],
+    )
+    return assessment, plan
+
+
+def _build_group_work_marginalized_plan(entropy: PsychologicalEntropy) -> tuple[SupportAssessment, SupportPlan]:
+    assessment = SupportAssessment(
+        primary_emotions=["委屈", "担心"],
+        stressors=["小组分工不清导致贡献不可见", "担心表达后被认为事多"],
+        protective_factors=["仍想参与项目", "能意识到自己需要保护贡献边界"],
+        entropy_level=entropy.level,
+        balance_state=entropy.balance_state,
+    )
+    plan = SupportPlan(
+        summary="你现在既委屈，又担心被误解成“不参与”。这不是单纯想太多，团队合作里确实需要清晰分工和可见贡献。",
+        immediate_support=[
+            "先不要急着指责他们，把诉求说短、具体、可执行：你想参与、能承担什么、需要他们给你什么材料或权限。",
+            "可以发一句：“我看目前方案已经定了，为了保证我这边也有实际贡献，我可以负责第3部分资料和PPT排版，今晚10点前给初稿。需要你们把参考资料发我一下。”",
+        ],
+        campus_actions=[
+            "如果明确表达后仍然没有回应，可以保留聊天记录，主动完成资料汇总、参考文献表、PPT美化版或展示稿，必要时向老师事实说明分工过程。"
+        ],
+        self_regulation=[
+            "你要争取的不是吵赢，而是让自己的工作被看见，也让自己不再一直被动等待。"
+        ],
+        follow_up=[
+            "如果你愿意，我们可以先把你能承担的一块内容写成一句群消息。"
+        ],
+    )
+    return assessment, plan
+
+
+def _build_breakup_contact_loop_plan(entropy: PsychologicalEntropy) -> tuple[SupportAssessment, SupportPlan]:
+    assessment = SupportAssessment(
+        primary_emotions=["失落", "不被重视感"],
+        stressors=["分手后的连接中断", "反复查看和联系冲动"],
+        protective_factors=["能意识到自己在反复确认", "还愿意暂停下来求助"],
+        entropy_level=entropy.level,
+        balance_state=entropy.balance_state,
+    )
+    plan = SupportPlan(
+        summary="分手后还想联系，并不说明你没出息，而是亲密关系突然中断后，大脑还在寻找熟悉的连接。你把对方的反应理解成“我不值得”，这会让伤口更痛。",
+        immediate_support=[
+            "先不要要求自己立刻放下，只把“想联系”当成一种冲动来处理，而不是马上执行的命令。",
+            "今晚如果想发消息，可以先写在备忘录里，不发送。写完后等 24 小时，再决定是否真的需要联系。"
+        ],
+        campus_actions=[
+            "如果分手后的难受持续影响睡眠、上课或日常功能，可以找学校心理中心聊一次，把关系里的需求和失落分开梳理。"
+        ],
+        self_regulation=[
+            "先设一个短期边界：三天不主动查看、不主动发消息。难受时转向朋友、运动、写下来或做一件固定的小事。"
+        ],
+        follow_up=[
+            "你下一句可以只说：现在最想联系他的那一刻，通常发生在什么时候？"
         ],
     )
     return assessment, plan
