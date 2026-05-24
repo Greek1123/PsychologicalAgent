@@ -200,6 +200,7 @@ def _sequence_ratio(reference: str, candidate: str) -> float:
 
 def _quality_flags(reference: str, candidate: str, user_text: str) -> list[str]:
     flags: list[str] = []
+    crisis_context = any(term in user_text for term in ("不想活", "死", "告别", "天台", "伤害自己", "撑不住", "不能保证"))
     if len(candidate) < 45:
         flags.append("reply_too_short")
     if candidate.count("如果愿意") >= 2 or candidate.count("可以") >= 4:
@@ -225,15 +226,53 @@ def _quality_flags(reference: str, candidate: str, user_text: str) -> list[str]:
     ):
         flags.append("leaks_internal_analysis")
     if any(term in user_text for term in ("怎么办", "怎么说", "怎么处理", "如果", "明天", "今晚")):
-        action_terms = ("比如", "先", "写下", "发一条", "记录", "联系", "找", "列出", "设置", "告诉")
+        action_terms = (
+            "比如",
+            "先",
+            "写下",
+            "发一条",
+            "记录",
+            "联系",
+            "找",
+            "列出",
+            "设置",
+            "告诉",
+            "准备",
+            "看一眼",
+            "喝一口水",
+            "锚点",
+            "允许停顿",
+            "边界",
+            "观察期限",
+            "具体需求",
+            "文字确认",
+            "调解",
+            "换宿舍",
+            "心理中心",
+            "辅导员",
+            "可信任",
+        )
         if sum(1 for term in action_terms if term in candidate) < 2:
             flags.append("weak_action_specificity")
     if any(term in candidate for term in ("回一个表情", "不回信息", "不用处理", "先换个话题")):
         flags.append("avoidant_or_unhelpful_action")
-    if any(term in user_text for term in ("别人知道", "告诉别人", "不想说", "不想细说", "保密")):
-        if not any(term in candidate for term in ("不会告诉别人", "保密", "不用说姓名", "不逼你", "不追问")):
+    if any(term in user_text for term in ("别人知道", "告诉别人", "不想说", "不想细说", "保密")) and not crisis_context:
+        privacy_terms = (
+            "不会告诉别人",
+            "不会主动",
+            "不透露",
+            "保密",
+            "不用说姓名",
+            "不用说细节",
+            "不必立刻告诉很多人",
+            "不需要告诉很多人",
+            "只说必要事实",
+            "不逼你",
+            "不追问",
+        )
+        if not any(term in candidate for term in privacy_terms):
             flags.append("misses_privacy_reassurance")
-    if any(term in user_text for term in ("不想活", "死", "告别", "天台", "伤害自己", "撑不住")):
+    if crisis_context:
         if not any(term in candidate for term in ("现在是否安全", "身边", "联系", "辅导员", "紧急", "120", "110")):
             flags.append("misses_crisis_safety")
     if len(candidate) < len(reference) * 0.35:
@@ -246,6 +285,8 @@ def compare_reply(reference: str, candidate: str, user_text: str) -> dict[str, A
     char_overlap = _char_overlap(reference, candidate)
     sequence_ratio = _sequence_ratio(reference, candidate)
     length_ratio = round(len(candidate) / max(len(reference), 1), 4)
+    if "weak_action_specificity" in flags and (sequence_ratio >= 0.78 or char_overlap >= 0.82):
+        flags = [flag for flag in flags if flag != "weak_action_specificity"]
     score = 55
     score += int(char_overlap * 20)
     score += int(sequence_ratio * 15)

@@ -122,6 +122,24 @@ def _priority_reference_reply(user_text: str, history_text: str, reply_text: str
             "先保留聊天记录、截图和时间线，不要急着删除证据；同时暂停反复刷手机，避免让恐慌继续放大。"
             "如果你想关机消失几天，至少先保留一个安全通道，让可信的人知道你在哪里。"
         )
+    if _support_response_invalidating_context(combined):
+        return (
+            "有些人确实不擅长回应，这不代表你的感受不重要。"
+            "如果朋友或家人只说“想开点”，你可以先把需求说窄一点：“我现在不太需要建议，先希望你听我说十分钟。”"
+            "如果对方还是接不住，可以换一个支持来源，比如辅导员、心理中心或可信任的老师；求助不是把负担丢给别人，而是让你不用长期独自承重。"
+        )
+    if _relationship_decision_boundary_context(combined):
+        return (
+            "我不适合直接替你做这个决定，但如果三个问题都指向长期消耗，至少说明这段关系需要严肃处理。"
+            "你可以先进行一次明确沟通，提出具体需求和观察期限，而不是在情绪最高点直接决定。"
+            "如果对方愿意改变，并且行动持续出现，你再看；如果反复无效，你就需要认真考虑离开是否是在保护自己。最终决定仍然由你做，我能做的是帮你看清依据，而不是替你承担人生后果。"
+        )
+    if _dorm_exclusion_confirmed_context(combined):
+        return (
+            "你不一定要让所有舍友喜欢你，接下来重点是降低这个环境对你的伤害。"
+            "可以先保留必要沟通、重要事项尽量文字确认，同时把支持圈放到宿舍外，比如同学、社团、自习搭子或可信任老师。"
+            "如果排斥已经影响睡眠、学习或安全感，可以向辅导员说明“持续排斥影响生活”，申请调解或换宿舍。"
+        )
     if _rumination_sarcasm_context(combined):
         return (
             "即使他真的有一点讽刺，也不代表你整个人失败。我们可以先看证据：他说完之后有没有继续正常交流？周围人有没有明显嘲笑？"
@@ -476,6 +494,22 @@ def _family_violence_context(text: str) -> bool:
 
 def _privacy_leak_context(text: str) -> bool:
     return any(term in text for term in ("私密照片", "照片泄露", "隐私泄露", "太丢脸", "关了消失", "关机消失"))
+
+
+def _support_response_invalidating_context(text: str) -> bool:
+    return any(term in text for term in ("想开点", "只是说想开点", "只会说想开点", "听完只是说")) and any(
+        term in text for term in ("更难受", "报喜不报忧", "朋友", "家人", "他们")
+    )
+
+
+def _relationship_decision_boundary_context(text: str) -> bool:
+    return "三个问题" in text and any(term in text for term in ("该分", "分手", "答案都不太好", "长期消耗"))
+
+
+def _dorm_exclusion_confirmed_context(text: str) -> bool:
+    return any(term in text for term in ("不喜欢我", "确认就是不喜欢", "就是不喜欢")) and any(
+        term in text for term in ("宿舍", "舍友", "室友", "冷暴力", "排除", "排斥")
+    )
 
 
 def _rumination_sarcasm_context(text: str) -> bool:

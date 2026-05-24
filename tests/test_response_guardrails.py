@@ -654,6 +654,39 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertIn("同学陪", reply)
         self.assertIn("有灯光", reply)
 
+    def test_invalidating_support_response_gets_specific_support_script(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "如果他们听完只是说想开点，我会更难受。",
+            "不吵不等于完全放弃自己。可以把表达分级。",
+            conversation_history=[{"role": "user", "content": "我一直习惯报喜不报忧，最近撑不住了。"}],
+        )
+
+        self.assertIn("我现在不太需要建议", reply)
+        self.assertIn("心理中心", reply)
+        self.assertNotIn("每周固定和你说一次近况", reply)
+
+    def test_relationship_decision_boundary_gets_observation_period(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "如果三个问题答案都不太好，是不是就该分？",
+            "我不适合直接替你做这个决定，但可以帮你把判断依据理清楚。",
+            conversation_history=[{"role": "user", "content": "这段关系让我长期消耗，也想到分手。"}],
+        )
+
+        self.assertIn("观察期限", reply)
+        self.assertIn("最终决定仍然由你做", reply)
+        self.assertIn("保护自己", reply)
+
+    def test_dorm_exclusion_confirmed_gets_harm_reduction_plan(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "如果确认就是不喜欢我怎么办？",
+            "先给自己一个小缓冲，去楼下待五分钟。",
+            conversation_history=[{"role": "user", "content": "宿舍里我感觉被冷暴力和排除。"}],
+        )
+
+        self.assertIn("不一定要让所有舍友喜欢你", reply)
+        self.assertIn("文字确认", reply)
+        self.assertIn("调解或换宿舍", reply)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -346,3 +346,33 @@ DOCX 总案例：100
 1. 后续每次改后端策略后，先运行 `python scripts\auto_quality_pipeline.py --mode backend --limit 100 --start 1` 做完整后端 DOCX 对照。
 2. 只有当后端评估稳定后，再运行 `--mode full` 自动继续训练，避免把后端策略缺口错误地交给模型微调处理。
 3. 后续可扩展流水线，加入 checkpoint 对照评估，把稳定 LoRA 和实验 LoRA 的同题结果合并到同一份报告。
+
+## 2026-05-24 自动评估后端补丁与 flags 清零
+
+### 本次做了什么
+
+- 使用 `scripts/auto_quality_pipeline.py --mode backend --limit 100 --start 1` 跑完整 100 个 DOCX 参考案例，定位剩余 `weak_action_specificity` 和 `misses_privacy_reassurance`。
+- 修正 `scripts/evaluate_docx_reference_cases.py` 的启发式误报：高度接近参考回复时不再误报行动不具体；高危语境优先检查安全支持，不再同时硬扣隐私安抚；动作词扩展到锚点、观察期限、文字确认、调解、换宿舍、心理中心等真实具体动作。
+- 补强 `response_guardrails.py` 与 `final_reply_guardrails.py` 的高置信场景：
+  - 报喜不报忧后担心对方只说“想开点”：给出“我现在不太需要建议，先希望你听我说”的表达脚本，并建议替代支持来源。
+  - 关系是否分手：不替用户做决定，但补充明确沟通、具体需求和观察期限。
+  - 宿舍冷暴力/确认被排除：转为降低伤害方案，包含文字确认、宿舍外支持圈、辅导员调解或换宿舍。
+- 新增对应回归测试，防止这些场景退回泛化模板。
+
+### 验证结果
+
+```text
+python scripts\auto_quality_pipeline.py --mode backend --limit 100 --start 1
+cases: 100
+turns: 299
+average_score: 69.91
+flag_counts: {}
+report: reports/auto_quality_pipeline/20260524_150320_auto_quality_pipeline.md
+
+python -m pytest
+229 passed
+```
+
+### 当前判断
+
+显式问题标签已经清零，剩余低分主要不是安全漏判，而是若干首轮回复与参考文档的字面相似度不足，例如小组作业被边缘化、分手后价值感受损、父母期待、老师批评羞耻、实习失败、同学 offer 对比等。下一轮应优先补这些首轮场景的高质量具体话术，而不是继续处理危机/隐私兜底。
