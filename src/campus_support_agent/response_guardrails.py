@@ -249,6 +249,45 @@ def _apply_priority_scenario_reply(
     if _is_coercive_relationship_risk_text(clean_user, history_text):
         return _coercive_relationship_safety_reply()
 
+    if _is_other_harm_retaliation_text(clean_user, history_text):
+        return _other_harm_retaliation_reply()
+
+    if _is_family_career_conflict_text(clean_user, history_text):
+        return _family_career_conflict_reply()
+
+    if _is_plagiarism_accusation_response_text(clean_user, history_text):
+        return _plagiarism_accusation_response_reply()
+
+    if _is_friend_repair_uncertainty_text(clean_user, history_text):
+        return _friend_repair_uncertainty_reply()
+
+    if _is_refusal_guilt_boundary_text(clean_user, history_text):
+        return _refusal_guilt_boundary_reply()
+
+    if _is_friendship_loss_fear_text(clean_user, history_text):
+        return _friendship_loss_fear_reply()
+
+    if _is_public_attack_anonymous_text(clean_user, history_text):
+        return _public_attack_anonymous_reply()
+
+    if _is_privacy_betrayal_text(clean_user, history_text):
+        return _privacy_betrayal_reply()
+
+    if _is_study_loneliness_text(clean_user, history_text):
+        return _study_loneliness_reply()
+
+    if _is_rejection_self_worth_text(clean_user, history_text):
+        return _rejection_self_worth_reply()
+
+    if _is_relationship_self_erasure_text(clean_user, history_text):
+        return _relationship_self_erasure_reply()
+
+    if _is_traffic_near_miss_text(clean_user, history_text):
+        return _traffic_near_miss_reply()
+
+    if _is_jealousy_self_blame_text(clean_user, history_text):
+        return _jealousy_self_blame_reply()
+
     if _is_repeated_death_ideation_text(clean_user, history_text):
         return _repeated_death_ideation_reply()
 
@@ -630,6 +669,189 @@ def _coercive_relationship_safety_reply() -> str:
         "\u8fd9\u5df2\u7ecf\u4e0d\u662f\u666e\u901a\u7684\u633d\u7559\uff0c\u800c\u662f\u7528\u81ea\u4f24\u6216\u66dd\u5149\u5a01\u80c1\u628a\u4f60\u56f0\u4f4f\u3002"
         "\u4ed6\u7684\u751f\u547d\u5b89\u5168\u4e0d\u5e94\u8be5\u7531\u4f60\u4e00\u4e2a\u4eba\u627f\u62c5\uff0c\u4f60\u53ef\u4ee5\u628a\u8fd9\u4e2a\u98ce\u9669\u8f6c\u4ea4\u7ed9\u4ed6\u7684\u5bb6\u4eba\u3001\u670b\u53cb\u3001\u8f85\u5bfc\u5458\u6216\u7d27\u6025\u670d\u52a1\u3002"
         "\u8bf7\u4f60\u6682\u65f6\u4e0d\u8981\u5355\u72ec\u89c1\u9762\u644a\u724c\uff0c\u5148\u4fdd\u7559\u804a\u5929\u8bb0\u5f55\u548c\u5a01\u80c1\u8bc1\u636e\uff0c\u627e\u4e00\u4e2a\u53ef\u4fe1\u7684\u4eba\u966a\u4f60\u4e00\u8d77\u5904\u7406\u3002"
+    )
+
+
+def _is_other_harm_retaliation_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_anger_or_revenge = any(term in combined for term in ("咽不下这口气", "欺负我", "找他", "算账", "报复", "教训他", "伤害别人", "伤害他"))
+    has_action_pull = any(term in combined for term in ("不去找他", "去找他", "冲过去", "控制不住", "很想打", "我怕我会"))
+    return has_anger_or_revenge and has_action_pull
+
+
+def _other_harm_retaliation_reply() -> str:
+    return (
+        "你想维护尊严、咽不下这口气，这可以理解；但如果现在用冲动方式去找他，后果很可能转到你身上，反而让你更被动。"
+        "先把“马上去找他”暂停下来，联系一个可信的人陪着你，或者直接找辅导员、老师、保卫处介入。"
+        "你可以先保存证据、截图和时间线，等情绪降一点后用正式渠道处理，而不是让愤怒替你决定下一步。"
+    )
+
+
+def _is_family_career_conflict_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_family = any(term in combined for term in ("家里", "爸妈", "父母", "他们会说", "供我读大学"))
+    has_career = any(term in combined for term in ("县城工作", "回县城", "大城市", "稳定岗位", "以后别那么辛苦", "工作"))
+    return has_family and has_career
+
+
+def _family_career_conflict_reply() -> str:
+    return (
+        "这句话背后有爱，也有控制感：他们希望你少吃苦，但你也需要为自己的发展保留选择。"
+        "先不要只用“我想出去”对抗，可以把回应改成具体计划：我会先在大城市工作两年，设定存款目标、职业评估点和备选方案；如果发展不理想，再重新考虑稳定岗位。"
+        "具体计划会比情绪争辩更容易被听见，也能让你不是在证明“不听话”，而是在说明自己有承担后果的能力。"
+    )
+
+
+def _is_plagiarism_accusation_response_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_accusation = any(term in combined for term in ("抄袭", "质疑", "比赛作品", "作品被质疑", "心虚"))
+    has_response_question = any(term in combined for term in ("怎么回应", "不回应", "应该怎么办", "显得心虚", "解释"))
+    return has_accusation and has_response_question
+
+
+def _plagiarism_accusation_response_reply() -> str:
+    return (
+        "可以回应，但最好用结构化、可验证的方式，而不是和对方互怼。"
+        "你们可以按四点准备：一，说明参考来源和许可证；二，列出自研模块、数据、界面或实验；三，附上提交记录、版本迭代截图；四，表示欢迎评委或老师核查。"
+        "简短、透明、可验证，比急着辩解更有力量，也能把讨论从情绪攻击拉回事实。"
+    )
+
+
+def _is_friend_repair_uncertainty_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_friend_conflict = any(term in combined for term in ("朋友吵架", "和朋友吵", "道歉", "修复", "她不接受", "他不接受"))
+    has_uncertainty = any(term in combined for term in ("不接受怎么办", "不愿意原谅", "不想聊", "怎么办"))
+    return has_friend_conflict and has_uncertainty
+
+
+def _friend_repair_uncertainty_reply() -> str:
+    return (
+        "她可能需要时间，这也是她的边界。你能做的是把自己的部分表达清楚，但不要逼她立刻恢复原状。"
+        "可以发一条短消息：“我知道刚才那件事让你不舒服，我愿意为我的部分道歉。你现在不想聊也没关系，等你愿意的时候我在。”"
+        "关系修复不是马上回到从前，而是双方慢慢重新建立安全感；你为自己的部分负责，就已经迈出了一步。"
+    )
+
+
+def _is_refusal_guilt_boundary_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_refusal = any(term in combined for term in ("不会拒绝", "帮他改PPT", "改PPT", "不够朋友", "拒绝别人", "自己的作业"))
+    has_guilt = any(term in combined for term in ("内疚", "怪自己", "不够朋友", "怕他说", "答应了"))
+    return has_refusal and has_guilt
+
+
+def _refusal_guilt_boundary_reply() -> str:
+    return (
+        "你不是没有边界，而是拒绝时很怕让别人失望、破坏关系，所以表面答应，心里却积累委屈。"
+        "真正稳定的关系应该能承受合理拒绝。你可以不用生硬地说“不帮”，而是给出边界：“我今晚自己的作业也很急，没法完整帮你改。最多可以帮你看一页结构，其他你得自己处理。”"
+        "这样既表达了限制，也保留了善意；拒绝不等于不够朋友，透支自己才会让关系变得更累。"
+    )
+
+
+def _is_friendship_loss_fear_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_friendship = any(term in combined for term in ("好友", "朋友", "疏远", "不理我", "不想和我好了", "不想跟我好了"))
+    has_loss_fear = any(term in combined for term in ("真的不想和我好", "不想和我好了", "讨厌我", "不要我", "如果她真的"))
+    return has_friendship and has_loss_fear
+
+
+def _friendship_loss_fear_reply() -> str:
+    return (
+        "如果她真的在疏远你，那会很痛，但友情的变化不等于你不值得被喜欢。"
+        "你可以先尊重她现在的距离，同时把生活重心慢慢分散到其他连接上，不要用一个人的反应定义你全部的社交价值。"
+        "下一步可以只做一个低压力动作：发一条不追问、不施压的消息；如果对方仍然冷淡，就先把注意力放回自己的作息、学习和其他支持关系。"
+    )
+
+
+def _is_public_attack_anonymous_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("表白墙", "匿名发我", "朋友圈截图", "评论里", "跟着骂", "所有人都在议论"))
+
+
+def _public_attack_anonymous_reply() -> str:
+    return (
+        "被公开攻击会让人产生很强的羞耻和暴露感，尤其还用了你的个人截图。你现在不需要硬撑着证明自己没事。"
+        "第一步先保存证据：截图、链接、发布时间和评论；第二步减少反复刷评论，因为持续观看会让伤害不断重复发生。"
+        "如果内容涉及造谣、隐私或持续攻击，可以联系平台管理员、辅导员或学校相关老师，目标是让伤害停止，而不是一个人和所有评论对抗。"
+    )
+
+
+def _is_privacy_betrayal_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("私人的事", "告诉了朋友", "告诉了别人", "顺口提到", "不敢相信别人", "被背叛"))
+
+
+def _privacy_betrayal_reply() -> str:
+    return (
+        "私人信息被说出去，会让人感到被背叛和暴露。哪怕她说不是故意的，你的受伤仍然成立，因为被影响的是你的安全感。"
+        "现在可以先允许自己生气，而不是急着替她找理由。等情绪稍微降一点，再考虑要不要说清楚边界：“这件事对我很私密，以后没有我的同意，请不要再转述。”"
+        "之后你也可以把信任分层：不是从此谁都不能信，而是更谨慎地区分哪些内容可以说、哪些内容需要留给更可靠的人。"
+    )
+
+
+def _is_study_loneliness_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("二战考研", "租房复习", "背书刷题", "没人说话", "被世界剩下"))
+
+
+def _study_loneliness_reply() -> str:
+    return (
+        "你现在承受的是长期孤独加高压目标，不只是“学习累”。别人进入新阶段，会让你更容易觉得自己停在原地。"
+        "可二战不是被世界剩下，而是你在一条更慢、更窄、更少人陪的路上走，难受是正常反应。"
+        "可以先给这条路加一个最小连接：每天固定和一个人说一句近况，或每周安排一次线下自习/散步，不让复习生活只剩下题目和房间。"
+    )
+
+
+def _is_rejection_self_worth_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_romantic_context = any(term in combined for term in ("表白", "喜欢她", "喜欢他", "喜欢的人", "被拒绝", "委婉地拒绝"))
+    has_self_worth_drop = any(term in combined for term in ("小丑", "后悔认识", "尴尬", "不值得", "可笑"))
+    return has_romantic_context and has_self_worth_drop
+
+
+def _rejection_self_worth_reply() -> str:
+    return (
+        "被拒绝后会有尴尬、失落和自我怀疑，这很正常。你不是小丑，你只是认真表达了一次喜欢。"
+        "对方没有接受，说明关系没有走向你期待的方向，不说明你的感情很可笑，也不说明你这个人不值得被喜欢。"
+        "现在先别逼自己立刻大方，可以给自己一点距离：减少反复回看聊天记录，先把注意力放回今天能完成的一件小事。"
+    )
+
+
+def _is_relationship_self_erasure_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("谈恋爱以后越来越不像自己", "马上道歉", "推掉自己的安排", "不够爱他", "牺牲"))
+
+
+def _relationship_self_erasure_reply() -> str:
+    return (
+        "你在这段关系里像是一直用牺牲来换安全感。这样短期可能减少冲突，长期会让你越来越没有自己。"
+        "爱不应该只能靠压低自己来证明。你可以先选一个很小的边界练习：保留一个自己的安排，不临时取消；或者在道歉前先问自己“这真的是我的责任吗”。"
+        "如果对方总是用不高兴来让你让步，这段关系就需要更认真地看边界和安全感，而不是只要求你继续忍。"
+    )
+
+
+def _is_traffic_near_miss_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("差点出事故", "急刹车", "闪回", "一坐车就紧张", "那一瞬间"))
+
+
+def _traffic_near_miss_reply() -> str:
+    return (
+        "身体没受伤不代表心理上就完全没影响。突发惊吓后，反复想起画面、对相似声音敏感，是人在经历强烈威胁后的常见反应。"
+        "你不是小题大做，而是大脑还在确认安全。短期可以先做分级恢复：先坐较短路线、选靠近出口或让你安心的位置，和可信的人同行一次。"
+        "如果闪回、惊跳或回避持续影响出行，建议找学校心理中心或校医院做一次评估，不要只靠“没事就好”把它压下去。"
+    )
+
+
+def _is_jealousy_self_blame_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("朋友拿了奖", "替她开心", "嫉妒她", "很阴暗", "心里很酸"))
+
+
+def _jealousy_self_blame_reply() -> str:
+    return (
+        "嫉妒不等于你不希望朋友好，它常常说明你也很渴望被看见、被肯定。你能为这种情绪感到不舒服，说明你在乎关系和自己的价值。"
+        "先不用因为有嫉妒就否定自己，可以把它当成一个信号：我想要的认可是什么、我最近是不是也很需要被肯定。"
+        "你可以同时做到两件事：真诚祝贺朋友，也给自己的失落留一点位置，而不是把自己骂成“阴暗”。"
     )
 
 

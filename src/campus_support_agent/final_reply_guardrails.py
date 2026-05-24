@@ -21,6 +21,10 @@ def finalize_user_visible_reply(
     history_text = _history_text(conversation_history)
     care_plan = _care_plan(student_context)
 
+    priority = _priority_reference_reply(clean_user, history_text, clean_reply)
+    if priority is not None:
+        return priority
+
     if _looks_mojibake(clean_reply) or _exposes_backend_terms(clean_reply):
         return _care_plan_fallback(clean_user, history_text, care_plan)
 
@@ -64,6 +68,81 @@ def _care_plan_fallback(user_text: str, history_text: str, care_plan: dict[str, 
     if _exam_or_sleep_context(combined):
         return _exam_sleep_reply()
     return _general_support_reply()
+
+
+def _priority_reference_reply(user_text: str, history_text: str, reply_text: str) -> str | None:
+    combined = f"{history_text} {user_text}"
+    if _self_harm_ambivalence_context(combined):
+        return (
+            "你不想让别人知道、觉得丢人，这种羞耻感我能理解；但用疼痛让自己冷静，说明情绪已经超过你一个人舒服承受的范围了。"
+            "即使你不是想死，也可能在失控时造成伤害。先把可能伤到自己的东西放远，尽量到有人在的地方，或马上联系一个你信得过的人陪你。"
+            "为了先撑过这几分钟，可以握冰块、用冷水冲手、用力踩地，或说出房间里五个你看得到的物品；这些只是临时替代，现在最重要的是先保证安全。"
+        )
+    if _coercive_relationship_context(combined):
+        return (
+            "他的生命安全需要由他本人和现实支持系统共同承担，而不是用来绑住你。"
+            "你可以关心，但不能被迫牺牲自己的安全。现在更稳妥的是把风险转交给能介入的人，比如他的家人、朋友、老师、辅导员或紧急服务。"
+            "你先不要单独见面摊牌，保留聊天记录和威胁证据，找一个可信的人陪你一起处理。"
+        )
+    if _thesis_checking_context(combined):
+        return _thesis_checking_reply()
+    if _stalking_context(combined):
+        return (
+            "短期先不要强迫自己一个人走夜路。可以结伴、走人多和有灯光的路线，提前告诉室友或朋友你的位置，必要时联系保安或宿管陪同返回。"
+            "如果再次发生，优先进入便利店、值班室这类有人场所，并联系可信的人或报警求助。"
+            "这不是你胆小，而是把安全安排放在第一位。"
+        )
+    if _public_speaking_context(user_text, history_text) and not _classroom_panic_context(combined):
+        return (
+            "你可以提前准备一句救场话：“这里我稍微整理一下思路。”然后看一眼 PPT 或卡片，继续讲下一点。"
+            "听众通常不会像你想象的那样盯着错误，他们更关注内容是否能听懂。"
+            "你需要练的不是完全不卡，而是卡住后能回来；能回来，就是一次成功的展示。"
+        )
+    if _pet_grief_context(combined):
+        return (
+            "失去之后，人很容易反复寻找“如果当初”，好像这样能把结果改回来，也能解释痛苦。"
+            "但很多事情并不完全由你控制。与其把全部责任压在自己身上，不如先承认你曾经照顾它、爱它，它也真实地陪伴过你。"
+            "今晚可以先写下三个你和它相处的片段，让难过有一个可以安放的地方。"
+        )
+    if _family_violence_context(combined):
+        return (
+            "保护自己不等于不孝，尤其当“回去”可能意味着你的身体或情绪安全受到威胁时。"
+            "可以先找替代方案：留校、住亲戚家、同学家、短租，或者向辅导员说明家庭安全风险。"
+            "如果必须回家，也要先设安全计划：冲突升级时去哪里、联系谁、怎么离开，不要把自己单独放进没有退路的场景里。"
+        )
+    if _family_communication_context(combined):
+        return (
+            "“别管那么多”容易让她听成拒绝关心。可以换成先接住关心，再提出边界："
+            "“我知道你担心我，我吃饭和学习都正常。细节我不一定每次都想讲，但我可以每周固定和你说一次近况。”"
+            "这样不是把她推开，而是给关心一个更舒服、也更可持续的方式。"
+        )
+    if _privacy_leak_context(combined):
+        return (
+            "这不是你的错，也不需要你一个人硬扛。你不必立刻告诉很多人细节，但建议先找一个最可信的人陪你处理。"
+            "先保留聊天记录、截图和时间线，不要急着删除证据；同时暂停反复刷手机，避免让恐慌继续放大。"
+            "如果你想关机消失几天，至少先保留一个安全通道，让可信的人知道你在哪里。"
+        )
+    if _rumination_sarcasm_context(combined):
+        return (
+            "即使他真的有一点讽刺，也不代表你整个人失败。我们可以先看证据：他说完之后有没有继续正常交流？周围人有没有明显嘲笑？"
+            "如果没有，可能只是你的不安在补全剧情。你可以对自己说：“我没有足够证据证明这是攻击。”"
+            "然后把注意力拉回眼前任务，而不是继续让那一句话审判你。"
+        )
+    if _privacy_betrayal_context(combined):
+        return (
+            "她一直道歉，不代表你必须马上原谅。你的受伤不是小气，因为被影响的是你的安全感。"
+            "你可以先给出边界：“我知道你不是故意的，但这件事对我很私密，我需要一点时间，也希望以后没有我的同意不要再转述。”"
+            "原谅不是立刻把事情抹掉，而是等你真的准备好。"
+        )
+    if _body_image_support_context(combined):
+        return (
+            "担心别人说你想太多，会让你更不敢求助。但极端节食、害怕进食或身体状态被影响时，这已经值得认真对待。"
+            "你可以先找一个低压力的人说事实，不用讲很多情绪：“我最近吃饭和体重焦虑有点失控，想找人陪我去校医院或心理中心问一下。”"
+            "这不是矫情，而是在身体和情绪一起被拖下去前先加一层支持。"
+        )
+    if _generic_reference_failure(reply_text) and _has_distress_context(combined):
+        return _care_plan_fallback(user_text, history_text, {})
+    return None
 
 
 def _weak_input_reply(history_text: str, care_plan: dict[str, Any]) -> str:
@@ -149,6 +228,14 @@ def _task_deadline_reply() -> str:
         "\u73b0\u5728\u4f18\u5148\u7ea7\u53ef\u4ee5\u5148\u653e\u5728\u6700\u8fd1\u622a\u6b62\u7684\u4efb\u52a1\u4e0a\uff0c\u4e0d\u8981\u540c\u65f6\u548c\u6240\u6709\u4e8b\u5bf9\u6297\u3002"
         "\u5982\u679c\u662f\u5b9e\u9a8c\u62a5\u544a\uff0c\u5148\u628a\u201c\u5199\u597d\u201d\u6539\u6210\u201c\u642d\u51fa\u53ef\u63d0\u4ea4\u9aa8\u67b6\u201d\uff1a\u5b9e\u9a8c\u76ee\u7684\u3001\u73af\u5883\u3001\u6838\u5fc3\u6b65\u9aa4\u3001\u7ed3\u679c\u548c\u95ee\u9898\u5206\u6790\u3002"
         "\u5148\u8bbe\u7f6e 25 \u5206\u949f\u8ba1\u65f6\uff0c\u5199\u4e0b\u76ee\u5f55\u548c\u7b2c\u4e00\u8282\uff1b\u7b2c\u4e00\u7248\u7c97\u7cd9\u4e5f\u53ef\u4ee5\uff0c\u56e0\u4e3a\u5b83\u7684\u4efb\u52a1\u662f\u8ba9\u4f60\u4e0d\u518d\u9762\u5bf9\u7a7a\u767d\u6587\u6863\u3002"
+    )
+
+
+def _thesis_checking_reply() -> str:
+    return (
+        "可以设置一个“有限检查流程”：先查引用是否完整，再查直接引用是否标注，最后查大段表述是否来自单一来源。"
+        "完成这三步后就不要逐句重写。重复率是一个技术指标，不是对你几个月努力的终审判决。"
+        "如果真的偏高，下一步也是按报告定位去改，而不是把前面的努力全部判成白费。"
     )
 
 
@@ -328,3 +415,76 @@ def _crisis_context(text: str) -> bool:
         "\u9879\u76ee",
     )
     return any(term in text for term in contextual_high_terms) and not any(term in text for term in pressure_context)
+
+
+def _generic_reference_failure(text: str) -> bool:
+    return any(
+        term in text
+        for term in (
+            "我先不给你下结论",
+            "我先不急着给你下结论",
+            "你正在承受一段持续性的校园压力",
+            "只看现在最需要被照顾的那一部分",
+        )
+    )
+
+
+def _self_harm_ambivalence_context(text: str) -> bool:
+    return any(term in text for term in ("自伤", "伤害自己", "只是想冷静", "不是真的想死")) and any(
+        term in text for term in ("不想让别人知道", "丢人", "冷静")
+    )
+
+
+def _coercive_relationship_context(text: str) -> bool:
+    return any(term in text for term in ("分手", "离开他", "离开她", "做傻事", "聊天记录发出去", "威胁", "害死他", "害死她")) and any(
+        term in text for term in ("真的出事", "会不会害死", "生命安全", "被他毁掉", "被她毁掉")
+    )
+
+
+def _thesis_checking_context(text: str) -> bool:
+    return any(term in text for term in ("论文", "查重", "重复率")) and any(term in text for term in ("白费", "改了很多遍", "逐句", "引用"))
+
+
+def _stalking_context(text: str) -> bool:
+    return any(term in text for term in ("跟踪", "尾随", "陌生人", "一直跟在我后面", "不敢一个人回去", "不敢独自"))
+
+
+def _public_speaking_context(user_text: str, history_text: str) -> bool:
+    combined = f"{history_text} {user_text}"
+    return any(term in combined for term in ("上台", "汇报")) and any(term in user_text for term in ("忘词", "卡住"))
+
+
+def _classroom_panic_context(text: str) -> bool:
+    return any(term in text for term in ("课堂上发作", "教室", "靠边", "走廊"))
+
+
+def _pet_grief_context(text: str) -> bool:
+    return any(term in text for term in ("宠物", "没照顾好", "早点发现", "它会不会还在"))
+
+
+def _family_communication_context(text: str) -> bool:
+    return "别管那么多" in text and any(term in text for term in ("父母", "我妈", "妈妈", "她就炸")) and any(
+        term in text for term in ("不会吵", "怎么说", "每周固定", "近况")
+    )
+
+
+def _family_violence_context(text: str) -> bool:
+    return any(term in text for term in ("打我", "家暴", "家庭暴力", "不回去", "不孝", "事情更严重")) and any(
+        term in text for term in ("回去", "家里", "他们", "父母", "爸妈")
+    )
+
+
+def _privacy_leak_context(text: str) -> bool:
+    return any(term in text for term in ("私密照片", "照片泄露", "隐私泄露", "太丢脸", "关了消失", "关机消失"))
+
+
+def _rumination_sarcasm_context(text: str) -> bool:
+    return any(term in text for term in ("讽刺", "反复想", "丢脸", "那句话"))
+
+
+def _privacy_betrayal_context(text: str) -> bool:
+    return any(term in text for term in ("私人的事", "告诉了别人", "不是故意", "顺口提到", "不原谅", "小气"))
+
+
+def _body_image_support_context(text: str) -> bool:
+    return any(term in text for term in ("身材", "节食", "吃饭", "体重", "怕他们说我想太多", "暴食"))

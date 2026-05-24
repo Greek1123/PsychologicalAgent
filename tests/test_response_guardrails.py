@@ -568,6 +568,92 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertIn("25 \u5206\u949f", reply)
         self.assertNotIn("\u6bcf\u5468\u56fa\u5b9a", reply)
 
+    def test_other_harm_retaliation_gets_deescalation_plan(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "可是我不去找他，我咽不下这口气。我觉得他就是欺负我。",
+            "我先不给你下结论，也不把问题说得很专业。",
+            conversation_history=[{"role": "user", "content": "我怕自己会伤害别人。"}],
+        )
+
+        self.assertIn("冲动方式", reply)
+        self.assertIn("辅导员", reply)
+        self.assertIn("保存证据", reply)
+
+    def test_family_career_conflict_gets_specific_plan_script(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "他们会说供我读大学就是希望我以后别那么辛苦。",
+            "我先不急着给你下结论。",
+            conversation_history=[{"role": "user", "content": "家里一直催我回县城工作，但我想去大城市试试。"}],
+        )
+
+        self.assertIn("具体计划", reply)
+        self.assertIn("大城市工作两年", reply)
+        self.assertIn("稳定岗位", reply)
+
+    def test_plagiarism_accusation_gets_evidence_response_structure(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "那我应该怎么办？不回应是不是显得心虚？",
+            "你可以慢慢来。",
+            conversation_history=[{"role": "user", "content": "比赛作品被质疑抄袭。"}],
+        )
+
+        self.assertIn("参考来源", reply)
+        self.assertIn("提交记录", reply)
+        self.assertIn("评委", reply)
+
+    def test_friend_repair_uncertainty_respects_boundary(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "如果她不接受怎么办？",
+            "我先不给你下结论。",
+            conversation_history=[{"role": "user", "content": "我和朋友吵架后想道歉修复。"}],
+        )
+
+        self.assertIn("她可能需要时间", reply)
+        self.assertIn("不想聊也没关系", reply)
+        self.assertIn("关系修复", reply)
+
+    def test_refusal_guilt_gets_boundary_sentence(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我怕他说我不够朋友。",
+            "你现在不是缺一个完美答案。",
+            conversation_history=[{"role": "user", "content": "同学让我帮他改PPT，但我自己也有作业，我很不会拒绝别人。"}],
+        )
+
+        self.assertIn("没法完整帮你改", reply)
+        self.assertIn("不够朋友", reply)
+        self.assertIn("保留了善意", reply)
+
+    def test_public_attack_gets_evidence_and_comment_boundary(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "学校表白墙有人匿名发我，还配了我朋友圈截图，评论里有人跟着骂。",
+            "你正在承受一段持续性的校园压力。",
+        )
+
+        self.assertIn("保存证据", reply)
+        self.assertIn("减少反复刷评论", reply)
+        self.assertIn("辅导员", reply)
+
+    def test_study_loneliness_gets_connection_plan(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我二战考研，每天租房复习，晚上回去也没人说话，像被世界剩下了。",
+            "睡不着会把压力放大。",
+        )
+
+        self.assertIn("长期孤独", reply)
+        self.assertIn("不是被世界剩下", reply)
+        self.assertIn("最小连接", reply)
+
+    def test_stalking_followup_prioritizes_concrete_safety(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我最近都不敢一个人回去。",
+            "一回到宿舍就烦，说明这个环境已经在消耗你了。",
+            conversation_history=[{"role": "user", "content": "我感觉被陌生人跟踪过。"}],
+        )
+
+        self.assertIn("不要独自", reply)
+        self.assertIn("同学陪", reply)
+        self.assertIn("有灯光", reply)
+
 
 if __name__ == "__main__":
     unittest.main()
