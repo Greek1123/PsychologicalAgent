@@ -47,7 +47,7 @@
 - 基础模型：`D:\llm_cache\modelscope\models\Qwen\Qwen3-4B-Instruct-2507`
 - 稳定推荐 LoRA：`D:\psychologicalAgent\training\ms_swift\outputs\refinement_pool_v5_peft\v0-20260520-215838\checkpoint-final`
 
-本轮额外训练的实验 LoRA 位于 `D:\psychologicalAgent\training\ms_swift\outputs\docx_targeted_patch_v1\checkpoint-final`。它能加载并运行，但短验证中对“害怕告诉辅导员”的隐私承诺仍不够明确，因此暂不替换为默认推荐模型；后续应先扩大隐私边界、危机边界和具体行动样本，再做正式 checkpoint 对比评估。
+本轮额外训练的实验 LoRA 位于 `D:\psychologicalAgent\training\ms_swift\outputs\docx_safety_patch_v3\checkpoint-final`。它基于 302 条过采样安全补丁数据训练，短验证中隐私边界和医疗边界明显优于 v1/v2；配合本地 checkpoint provider 的新版 system prompt 后，可用于下一轮安全场景实验。正式交给组员默认复现时仍优先使用稳定推荐 LoRA，待 v3 跑完整 checkpoint/DOCX 对比评估后再切换默认模型。
 
 ## 目前已经实现
 

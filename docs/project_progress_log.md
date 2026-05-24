@@ -277,3 +277,37 @@ checkpoint-final files: adapter_config.json, adapter_model.safetensors, tokenize
 1. 暂时继续把 `refinement_pool_v5_peft/v0-20260520-215838/checkpoint-final` 作为给组员的稳定 LoRA；`docx_targeted_patch_v1/checkpoint-final` 标记为实验补丁。
 2. 补充一批更明确的隐私边界样本，要求回复稳定包含“不需要透露身份信息”“不会主动告诉别人”“若出现明确危险才建议联系现实支持”等表达。
 3. 正式采用新 LoRA 前，应跑完整 checkpoint 场景评估，并与 `refinement_pool_v5_peft` 做同题对照；本轮长评测脚本生成较慢，未完成完整 checkpoint 对比。
+
+## 2026-05-24 DOCX 安全边界补充训练 v2/v3
+
+### 本次做了什么
+
+- 新增 `scripts/build_docx_safety_refinement_seed.py`，专门生成 DOCX 风格的安全边界补丁样本，覆盖显式隐私承诺、少追问、危机边界、医疗边界、上下文纠偏、宿舍边界、身份边界和普通聊天边界。
+- 生成 26 条高密度安全样本，并和上一轮 94 条目标补丁样本合成 120 条 v2 训练集。
+- 从稳定 LoRA `refinement_pool_v5_peft/v0-20260520-215838/checkpoint-final` 训练 `docx_safety_patch_v2`：120 条样本、3 epoch、360 steps、learning rate `2e-6`。
+- v2 短验证后发现隐私、危机、医疗边界仍偏软，于是构建 v3 过采样训练集：94 条基础样本 + 26 条安全样本重复 8 次，共 302 条。
+- 从稳定 LoRA 重新训练 `docx_safety_patch_v3`：302 条样本、2 epoch、604 steps、learning rate `8e-6`。
+- 补强 `LocalCheckpointLLMProvider` 的 system prompt，明确写入隐私、危机、医疗和用药边界，避免本地 checkpoint 裸生成时只做情绪安抚。
+
+### 验证结果
+
+```text
+docx_safety_patch_v2: checkpoint-final generated
+docx_safety_patch_v3: checkpoint-final generated
+关键单测: python -m pytest tests/test_agent.py tests/test_main.py
+结果: 16 passed
+```
+
+v3 裸推理验证中，隐私样例已经能输出“不主动联系辅导员、保护隐私边界”；少追问样例能尊重用户不想解释的边界。加入接近后端的 system prompt 后，隐私样例进一步稳定为“不主动联系学校、不透露给第三方，除非涉及人身安全”；医疗样例能提示不能仅凭症状判断，并建议校医院或医生排除身体原因。危机样例已有“先不要见对方或直接冲突”，但仍需要后端规则兜底补上“联系现实支持/校园安保/紧急电话”等更强动作。
+
+### 当前模型结论
+
+- 稳定推荐给组员复现：`training/ms_swift/outputs/refinement_pool_v5_peft/v0-20260520-215838/checkpoint-final`
+- 最新实验安全补丁：`training/ms_swift/outputs/docx_safety_patch_v3/checkpoint-final`
+- 当前不建议只靠 LoRA 处理危机安全；必须保留后端风险识别、guardrails 和最终回复兜底。
+
+### 下一步建议
+
+1. 用 v3 跑一轮完整 checkpoint 场景评估，并与稳定 LoRA 同题对照。
+2. 把危机场景继续固化到 `response_guardrails.py` 和 `final_reply_guardrails.py`，确保无论模型输出如何，最终回复都包含立即安全动作。
+3. 下一轮训练数据应增加多轮上下文样本，而不是继续堆单轮样本；目前模型对“同一句话不同上下文”的边界判断仍依赖后端策略层。
