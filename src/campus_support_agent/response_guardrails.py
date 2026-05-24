@@ -237,6 +237,21 @@ def _apply_priority_scenario_reply(
     if _is_self_harm_ambivalence_text(clean_user, history_text):
         return _self_harm_ambivalence_reply()
 
+    if _is_implicit_suicide_signal_text(clean_user, history_text):
+        return _implicit_suicide_signal_reply(clean_user, history_text)
+
+    if _is_hidden_debt_isolation_text(clean_user, history_text):
+        return _hidden_debt_isolation_reply()
+
+    if _is_paranoia_sleep_loss_text(clean_user, history_text):
+        return _paranoia_sleep_loss_reply()
+
+    if _is_elevated_impulsive_sleep_loss_text(clean_user, history_text):
+        return _elevated_impulsive_sleep_loss_reply(clean_user)
+
+    if _is_family_violence_direct_text(clean_user, history_text):
+        return _family_violence_direct_reply()
+
     if _is_modern_crisis_user_text(clean_user) or _is_crisis_user_text(clean_user):
         return _modern_crisis_support_reply()
 
@@ -332,6 +347,45 @@ def _apply_priority_scenario_reply(
 
     if _is_future_stuck_text(clean_user, history_text):
         return _future_stuck_reply()
+
+    if _is_parent_expectation_pressure_text(clean_user, history_text):
+        return _parent_expectation_pressure_reply()
+
+    if _is_parent_call_conflict_text(clean_user, history_text):
+        return _parent_call_conflict_reply()
+
+    if _is_teacher_criticism_shame_text(clean_user, history_text):
+        return _teacher_criticism_shame_reply()
+
+    if _is_internship_interview_failure_text(clean_user, history_text):
+        return _internship_interview_failure_reply()
+
+    if _is_peer_offer_comparison_text(clean_user, history_text):
+        return _peer_offer_comparison_reply()
+
+    if _is_night_masked_collapse_text(clean_user, history_text):
+        return _night_masked_collapse_reply()
+
+    if _is_circadian_phone_revenge_text(clean_user, history_text):
+        return _circadian_phone_revenge_reply()
+
+    if _is_appearance_checking_text(clean_user, history_text):
+        return _appearance_checking_reply()
+
+    if _is_weekend_loneliness_text(clean_user, history_text):
+        return _weekend_loneliness_reply()
+
+    if _is_perfectionism_assignment_text(clean_user, history_text):
+        return _perfectionism_assignment_reply()
+
+    if _is_misunderstood_anger_text(clean_user, history_text):
+        return _misunderstood_anger_reply()
+
+    if _is_professional_class_struggle_text(clean_user, history_text):
+        return _professional_class_struggle_reply()
+
+    if _is_emotional_masking_initial_text(clean_user, history_text):
+        return _emotional_masking_initial_reply()
 
     if _is_project_setback_text(clean_user, history_text) and (
         _is_too_short(clean_reply) or _has_weak_action_reply(clean_reply) or clean_reply.endswith(("对吗？", "对吗?"))
@@ -1027,6 +1081,311 @@ def _research_group_exclusion_reply() -> str:
         "\u5982\u679c\u4ed6\u4eec\u8fd8\u662f\u4e0d\u8ba9\u4f60\u53c2\u4e0e\uff0c\u4f60\u9700\u8981\u7684\u4e0d\u662f\u7ee7\u7eed\u731c\u81ea\u5df1\u662f\u4e0d\u662f\u4e0d\u591f\u597d\uff0c\u800c\u662f\u8ba9\u81ea\u5df1\u7684\u610f\u613f\u548c\u53ef\u627f\u62c5\u7684\u4efb\u52a1\u53d8\u5f97\u53ef\u89c1\u3002"
         "\u53ef\u4ee5\u53d1\u4e00\u6761\u5177\u4f53\u4fe1\u606f\uff1a\u201c\u6211\u60f3\u53c2\u4e0e\u8fd9\u90e8\u5206\uff0c\u6211\u53ef\u4ee5\u5148\u8d1f\u8d23\u6587\u732e\u6574\u7406/\u6570\u636e\u6e05\u7406/\u7ed3\u679c\u8bb0\u5f55\u4e2d\u7684\u4e00\u9879\uff0c\u4eca\u5929\u5148\u7ed9\u51fa\u4e00\u4e2a\u521d\u7a3f\u3002\u201d"
         "\u5982\u679c\u4ecd\u7136\u6ca1\u6709\u56de\u590d\uff0c\u5148\u4fdd\u7559\u6c9f\u901a\u8bb0\u5f55\u548c\u4f60\u5df2\u5c1d\u8bd5\u53c2\u4e0e\u7684\u8bc1\u636e\uff0c\u518d\u8003\u8651\u627e\u7ec4\u957f\u6216\u6307\u5bfc\u8001\u5e08\u7528\u4e8b\u5b9e\u8bf4\u660e\u5206\u5de5\u95ee\u9898\u3002"
+    )
+
+
+def _is_implicit_suicide_signal_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    direct_farewell = any(term in combined for term in ("以后大家不用找我了", "该说的话都说完了", "告别", "想消失"))
+    disappearance = any(term in combined for term in ("手机关机几天", "谁也别找我", "不想让任何人知道我在哪里", "在不在也没什么区别"))
+    giving_away = any(term in combined for term in ("收藏的东西送给朋友", "以前很舍不得", "突然觉得都无所谓"))
+    suspicious_calm = any(term in combined for term in ("把东西整理清楚", "整理清楚")) and any(term in combined for term in ("很崩溃", "不想活", "活着没意思", "交代"))
+    return direct_farewell or disappearance or giving_away or suspicious_calm
+
+
+def _implicit_suicide_signal_reply(user_text: str, history_text: str = "") -> str:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    if any(term in combined for term in ("手机关机", "谁也别找", "不知道我在哪里", "在不在也没什么区别")):
+        return (
+            "你说“不想让任何人知道我在哪里”和“在不在没区别”，这让我担心你可能处在危险状态。"
+            "请先不要关机或独自去别人找不到的地方。现在先联系一个可信的人、舍友、辅导员或家人，让对方知道你在哪里。"
+            "我也需要直接确认：你现在是否有伤害自己的想法，或者已经准备了具体方式？"
+        )
+    if any(term in combined for term in ("送给朋友", "无所谓", "舍不得")):
+        return (
+            "把以前很珍惜的东西突然送出去，同时觉得“都无所谓”，我会把它看作需要关注的信号。"
+            "请今晚先不要继续送东西或做重大决定，找一个舍友或朋友说：“我最近状态很空，能不能陪我待一会儿。”"
+            "明天联系学校心理中心或辅导员，把这些变化如实说出来。"
+        )
+    return (
+        "这听起来像告别式表达，我需要认真确认你的安全。"
+        "你说“以后大家不用找我了”或“该说的话都说完了”时，是否有想消失、伤害自己，或者不想继续活下去的念头？"
+        "在确认安全前，请先不要发布这条内容，先联系身边可信的人陪你待一会儿。"
+    )
+
+
+def _is_hidden_debt_isolation_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_debt = any(term in combined for term in ("借款平台", "利息", "贷款", "债务", "还钱"))
+    has_isolation = any(term in combined for term in ("不想让任何人知道", "一个人解决掉", "越算越喘不过气", "隐瞒"))
+    return has_debt and has_isolation
+
+
+def _hidden_debt_isolation_reply() -> str:
+    return (
+        "债务压力很容易把人逼到孤立里。你说“一个人解决掉”时，我需要先确认："
+        "你是指想自己处理债务，还是有过伤害自己、结束一切的念头？"
+        "债务本身也不要继续独自滚大，先暂停新增借款，整理平台、金额、利息和到期日，尽快找可信家人、辅导员或学校资助/法律援助渠道一起看方案。"
+    )
+
+
+def _is_paranoia_sleep_loss_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_fear = any(term in combined for term in ("都在盯着我", "在说我", "被监控", "发什么都有人知道"))
+    has_sleep_loss = any(term in combined for term in ("几晚没睡", "睡不好", "失眠"))
+    return has_fear and has_sleep_loss
+
+
+def _paranoia_sleep_loss_reply() -> str:
+    return (
+        "你现在一定很害怕，尤其连续睡不好会让大脑更难判断信息。"
+        "这里我不会直接确认别人是否真的在监控你，但我很重视你“害怕、失眠、觉得被盯着”的状态。"
+        "请尽快联系校医院、心理中心或正规医疗机构做专业评估，也可以先找辅导员或可信同学陪你去。今晚先避免继续独自查证和反复刷手机。"
+    )
+
+
+def _is_elevated_impulsive_sleep_loss_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_elevation = any(term in combined for term in ("睡三四个小时也不困", "脑子转得飞快", "终于要起飞", "状态特别好"))
+    has_impulse = any(term in combined for term in ("买了一堆", "冲动消费", "好几个项目", "冷静点", "他们不懂"))
+    followup = any(term in combined for term in ("你是说我有病吗", "有病吗"))
+    return (has_elevation and has_impulse) or followup
+
+
+def _elevated_impulsive_sleep_loss_reply(user_text: str = "") -> str:
+    if "有病" in user_text:
+        return (
+            "我不会给你下诊断，也不是在说你“有病”。"
+            "但睡眠显著减少却不困、兴奋、冲动消费和计划突然增多，这些状态值得专业评估。"
+            "你可以联系校医院、心理中心或精神科医生，如实描述这些变化；及早确认，比等到失控后补救更稳。"
+        )
+    return (
+        "状态变好本身不是问题，但连续睡很少仍然亢奋、冲动消费、同时开启很多项目，是需要谨慎的信号。"
+        "先不要急着证明别人不懂，今天先延迟重大决定：暂停继续购买课程和设备，把支付工具交给可信的人或设置限额，今晚优先补睡。"
+        "如果这种状态持续，建议尽快联系校医院或心理中心做专业评估。"
+    )
+
+
+def _is_family_violence_direct_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_violence = any(term in combined for term in ("喝酒后会摔东西", "会动手", "家暴", "暴力", "真的害怕"))
+    has_home = any(term in combined for term in ("家里", "放假回家", "我爸", "我妈", "家事"))
+    return has_violence and has_home
+
+
+def _family_violence_direct_reply() -> str:
+    return (
+        "这不是普通家事，这是会影响你安全的暴力环境。你害怕是合理的，家丑不可外扬不应该成为你独自承受危险的理由。"
+        "现在优先考虑假期住处和紧急联系人：能否留校、住同学或亲戚家，或者提前和辅导员说明家庭安全风险。"
+        "如果必须回家，也要先想好冲突升级时去哪里、联系谁、怎么离开。"
+    )
+
+
+def _is_parent_expectation_pressure_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_parent_context = any(term in combined for term in ("爸妈", "父母", "家里供我", "考研", "奖学金"))
+    has_pressure = any(term in combined for term in ("窒息", "对不起", "更优秀", "期待", "不敢停下来"))
+    return has_parent_context and has_pressure
+
+
+def _parent_expectation_pressure_reply() -> str:
+    return (
+        "你能理解父母的不容易，也感到自己的空间被期待压得很小。"
+        "这种矛盾很累，因为你不是不孝，也不是不努力，只是长期被“必须成功”包围。"
+        "现在可以先区分两类目标：哪些是你也认同的，哪些只是因为害怕让他们失望而背上的；"
+        "再选一个最小动作，比如今天只完成一项可控学习任务，而不是用整个人去证明价值。"
+    )
+
+
+def _is_parent_call_conflict_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_parent_context = any(term in combined for term in ("妈妈", "我妈", "父母", "爸妈", "爸爸", "我爸"))
+    has_call_context = any(term in combined for term in ("电话", "视频", "问东问西", "一接"))
+    has_conflict = any(term in combined for term in ("吵架", "吵起来", "一接电话", "控制", "问太多", "问得太细", "语气不好", "后悔", "翅膀硬"))
+    return has_parent_context and has_call_context and has_conflict
+
+
+def _parent_call_conflict_reply() -> str:
+    return (
+        "你们的对话像进入了固定循环：她越问越细，你越觉得被控制；你语气变重，她又觉得被伤害。"
+        "你不是不关心她，只是需要一点边界。后悔说明你也在意关系，但修复不等于下次继续忍到爆发。"
+        "下次可以提前说一句：“我知道你担心我，但细节问太多我会紧张，我每周固定和你说一次近况。”"
+    )
+
+
+def _is_teacher_criticism_shame_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_teacher_context = any(term in combined for term in ("老师", "课上", "全班", "当众", "作业"))
+    has_shame = any(term in combined for term in ("批评", "羞耻", "丢人", "不想去上课", "抬不起头"))
+    return has_teacher_context and has_shame
+
+
+def _teacher_criticism_shame_reply() -> str:
+    return (
+        "当众被批评会让人很羞耻，尤其是在全班面前，身体会自然想躲开下一次上课。"
+        "但老师指出的是作业问题，不是你整个人的价值。"
+        "先把注意力从“我很差”拉回到“哪一处能改”：格式、逻辑、材料里挑最容易的一项，"
+        "课后用一句具体问题去问老师或同学，比独自反复回放那一幕更能帮你恢复掌控感。"
+    )
+
+
+def _is_internship_interview_failure_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_interview = any(term in combined for term in ("面试", "项目细节", "基础问题"))
+    has_failure = any(term in combined for term in ("答不上来", "很菜", "太菜", "乱", "不会", "失败"))
+    return has_interview and has_failure
+
+
+def _internship_interview_failure_reply() -> str:
+    return (
+        "一次面试失败不等于你的项目是假的，也不等于你不适合这个方向，它更像一次压力测试。"
+        "先别把结论推到“我很菜”，把它拆成可补的材料：写下被问倒的三个问题，"
+        "每个问题补一段 2 分钟回答骨架，包括项目背景、你做了什么、遇到的问题和结果。"
+        "下一次面试前先练这三段，比泛泛地否定自己更有效。"
+    )
+
+
+def _is_peer_offer_comparison_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_offer_context = any(term in combined for term in ("offer", "大厂实习", "考研上岸", "朋友圈", "保研"))
+    has_comparison = any(term in combined for term in ("落后", "比较", "别人都往前走", "心里堵", "我还在原地"))
+    return has_offer_context and has_comparison
+
+
+def _peer_offer_comparison_reply() -> str:
+    return (
+        "朋友圈展示的是结果，不是完整过程，所以它很容易让你误以为只有自己还在原地。"
+        "比较带来的堵，不说明你真的失败了，而是在提醒你需要把注意力从别人的节点拉回自己的下一步。"
+        "今天只做一个小动作：更新一版简历、查两个岗位，或把考研/实习的下一周计划写成三件事。"
+        "让行动重新变具体，焦虑才不会一直停在“我落后了”。"
+    )
+
+
+def _is_night_masked_collapse_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_day_night = any(term in combined for term in ("白天正常", "白天还好", "晚上崩溃", "晚上想哭", "一到晚上", "夜里"))
+    has_masking = any(term in combined for term in ("装作没事", "撑着", "不想让别人担心", "一个人哭"))
+    return has_day_night and has_masking
+
+
+def _night_masked_collapse_reply() -> str:
+    return (
+        "白天强撑会消耗很多力气，晚上安静下来后情绪集中涌上来，并不说明你矫情。"
+        "能哭出来说明情绪在找出口。今晚先不要求自己想通，做一个安全过夜的小安排：洗脸、调暗灯、喝一口水，"
+        "给可信的人发一句“我今晚有点难受，不需要你马上解决，能不能陪我说几句”。"
+    )
+
+
+def _is_circadian_phone_revenge_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_sleep = any(term in combined for term in ("作息", "两三点睡", "凌晨", "早上起不来", "熬夜"))
+    has_phone_or_own_time = any(term in combined for term in ("刷手机", "短视频", "属于自己的时间", "报复性", "不想睡"))
+    return has_sleep and has_phone_or_own_time
+
+
+def _circadian_phone_revenge_reply() -> str:
+    return (
+        "晚上刷手机不一定是你自控力差，很多时候是在补偿白天没有属于自己的时间。"
+        "现在先不要求马上变成健康作息，可以把目标设小一点：保留 20 分钟真正属于自己的时间，"
+        "到点后把手机放到床外，睡觉时间只往前挪 15 分钟。先让身体看到一点可执行的改变。"
+    )
+
+
+def _is_appearance_checking_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_appearance = any(term in combined for term in ("脸", "身材", "照镜子", "原相机", "不好看", "长相"))
+    has_checking = any(term in combined for term in ("反复看", "一直看", "每天照镜子", "拍照", "网上那些人", "越看越", "很丑", "完全不信"))
+    return has_appearance and has_checking
+
+
+def _appearance_checking_reply() -> str:
+    return (
+        "这不只是爱美，而是外貌评价已经占用了太多注意力。"
+        "现在先不和自己争论到底好不好看，先观察一个更实际的问题：反复照镜子、看原相机之后，你是更安心还是更痛苦。"
+        "今天可以给检查行为设边界：照镜或看照片只停留一次，结束后马上做一件和外貌无关的小事，"
+        "把注意力从评价拉回生活本身。"
+    )
+
+
+def _is_weekend_loneliness_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_weekend = any(term in combined for term in ("周末", "宿舍没人", "一个人吃饭", "手机没人找", "没人约"))
+    has_lonely = any(term in combined for term in ("可有可无", "孤独", "被剩下", "很空", "没人需要我"))
+    return has_weekend and has_lonely
+
+
+def _weekend_loneliness_reply() -> str:
+    return (
+        "独处和孤独不一样，周末宿舍安静、一个人吃饭、手机没人响时，很容易把“现在没人找我”理解成“我可有可无”。"
+        "但这更像连接暂时变少了，不是你这个人没有位置。"
+        "先做一个最小连接：给一个低压力的人发一句近况，或去人多一点的地方吃饭、学习一小时。"
+        "目标不是立刻热闹起来，而是让自己不要整天只和孤独待在一起。"
+    )
+
+
+def _is_perfectionism_assignment_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_assignment = any(term in combined for term in ("作业", "论文", "PPT", "标题", "排版"))
+    has_perfectionism = any(term in combined for term in ("还可以更好", "完成比完美", "放手", "改很久", "不满意", "老师可能觉得", "不够好"))
+    return has_assignment and has_perfectionism
+
+
+def _perfectionism_assignment_reply() -> str:
+    return (
+        "追求完美背后可能是在避免被批评，但标准越高，行动越容易被拖慢。"
+        "可以先把“完美作业”换成“符合评分要求的作业”：列出三条评分要点，每条达到可提交就停。"
+        "如果还想继续改，先保存一个可提交版本，再额外给自己 20 分钟优化。"
+        "这样你不是降低要求，而是在给任务设置边界。"
+    )
+
+
+def _is_misunderstood_anger_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_misunderstood = any(term in combined for term in ("被误解", "委屈", "明明不是", "冤枉"))
+    has_anger = any(term in combined for term in ("想怼", "不怼不解气", "还回去", "气不过", "爆发"))
+    return has_misunderstood and has_anger
+
+
+def _misunderstood_anger_reply() -> str:
+    return (
+        "想怼回去，是因为你想把委屈还回去，这个冲动可以理解。"
+        "但如果目标是澄清和保护自己，直接爆发可能会让对方只看到你的情绪，看不到事实。"
+        "先把最想发的话写在备忘录里，不发；十分钟后改成事实版：发生了什么、哪里被误解、你希望怎么处理。"
+        "让愤怒服务目标，而不是替你做决定。"
+    )
+
+
+def _is_professional_class_struggle_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_class = any(term in combined for term in ("专业课", "老师讲太快", "老师讲快", "看代码", "代码"))
+    has_struggle = any(term in combined for term in ("基础差", "不敢问", "听不懂", "似懂非懂", "跟不上"))
+    return has_class and has_struggle
+
+
+def _professional_class_struggle_reply() -> str:
+    return (
+        "专业课似懂非懂很消耗人，尤其是代码和概念混在一起时，光听课不一定能真正暴露问题。"
+        "先别把它概括成“我基础差”，找一个具体断点：选一小段代码，只标出第一个不懂的变量、函数或逻辑。"
+        "然后把问题变成一句可问的话，例如“这里为什么先判断这个条件”。"
+        "问题越具体，越容易向同学、助教或老师开口。"
+    )
+
+
+def _is_emotional_masking_initial_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    if any(term in combined for term in ("想开点", "听完只是说", "听完只会说")):
+        return False
+    has_masking = any(term in combined for term in ("不说负面情绪", "报喜不报忧", "装得挺乐观", "挺乐观", "不想让别人担心"))
+    has_overload = any(term in combined for term in ("撑得久", "撑不住", "没人知道", "很累", "快不行"))
+    return has_masking and has_overload
+
+
+def _emotional_masking_initial_reply() -> str:
+    return (
+        "长期只展示没事的一面，会让人越来越孤单。"
+        "这不是你突然变脆弱，而是一个人承受太久了。"
+        "开口不需要一次讲完，也不需要把对方吓到；可以只说一句："
+        "“我最近其实有点撑不住，不需要你立刻解决，先听我说一会儿就好。”"
     )
 
 

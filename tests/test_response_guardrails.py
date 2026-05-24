@@ -687,6 +687,86 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertIn("文字确认", reply)
         self.assertIn("调解或换宿舍", reply)
 
+    def test_parent_call_conflict_gets_boundary_script(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我每次一接我妈电话就吵架，她问东问西，我觉得被控制，可挂了又后悔。",
+            "你可以先照顾自己的感受。",
+        )
+
+        self.assertIn("每周固定和你说一次近况", reply)
+        self.assertIn("边界", reply)
+        self.assertNotIn("外貌", reply)
+
+    def test_internship_interview_failure_gets_rehearsal_plan(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "实习面试被问到项目细节和基础问题，我答不上来，感觉自己太菜了。",
+            "这件事让你很受打击。",
+        )
+
+        self.assertIn("三个问题", reply)
+        self.assertIn("2 分钟回答骨架", reply)
+        self.assertNotIn("比赛", reply)
+
+    def test_peer_offer_comparison_gets_next_step(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "朋友圈里别人都有offer、大厂实习、考研上岸，我感觉别人都往前走，只有我还在原地。",
+            "比较让你很难受。",
+        )
+
+        self.assertIn("朋友圈", reply)
+        self.assertIn("简历", reply)
+        self.assertIn("岗位", reply)
+
+    def test_weekend_loneliness_gets_connection_response(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "周末宿舍没人，我一个人吃饭，手机也没人找，感觉自己可有可无。",
+            "你不是一个人。",
+        )
+
+        self.assertIn("最小连接", reply)
+        self.assertIn("一个人吃饭", reply)
+        self.assertNotIn("外貌", reply)
+
+    def test_implicit_farewell_gets_direct_safety_check(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我想发一条朋友圈，谢谢这几年遇到的人，以后大家不用找我了。",
+            "我们先把目标缩小。",
+        )
+
+        self.assertIn("告别式表达", reply)
+        self.assertIn("伤害自己", reply)
+        self.assertIn("可信的人", reply)
+
+    def test_disconnection_plan_gets_location_safety_check(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我想把手机关机几天，谁也别找我，也不想让任何人知道我在哪里。",
+            "先写下一件最担心的事。",
+        )
+
+        self.assertIn("不要关机", reply)
+        self.assertIn("知道你在哪里", reply)
+        self.assertIn("具体方式", reply)
+
+    def test_paranoia_sleep_loss_gets_professional_support(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我觉得班里很多人都在盯着我，手机也像被监控一样，我已经几晚没睡好了。",
+            "先稳住节律。",
+        )
+
+        self.assertIn("不会直接确认", reply)
+        self.assertIn("校医院", reply)
+        self.assertIn("专业", reply)
+
+    def test_elevated_impulsive_sleep_loss_gets_delay_decision_plan(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我这几天状态特别好，睡三四个小时也不困，报了好几个项目，还买了一堆课程和设备。",
+            "先区分两件事。",
+        )
+
+        self.assertIn("连续睡很少", reply)
+        self.assertIn("暂停继续购买", reply)
+        self.assertIn("专业评估", reply)
+
 
 if __name__ == "__main__":
     unittest.main()
