@@ -49,6 +49,28 @@
 
 本轮额外训练的实验 LoRA 位于 `D:\psychologicalAgent\training\ms_swift\outputs\docx_safety_patch_v3\checkpoint-final`。它基于 302 条过采样安全补丁数据训练，短验证中隐私边界和医疗边界明显优于 v1/v2；配合本地 checkpoint provider 的新版 system prompt 后，可用于下一轮安全场景实验。正式交给组员默认复现时仍优先使用稳定推荐 LoRA，待 v3 跑完整 checkpoint/DOCX 对比评估后再切换默认模型。
 
+## 自动测评与训练流水线
+
+现在可以用一条命令自动生成训练数据、跑 DOCX 参考回复评估、生成 Markdown/JSONL 对比报告，并汇总低分样例和问题标签：
+
+```powershell
+python scripts\auto_quality_pipeline.py --mode backend --limit 20 --start 1
+```
+
+如果确认要自动继续训练 LoRA，显式加 `--train` 或使用 `--mode full`：
+
+```powershell
+python scripts\auto_quality_pipeline.py --mode full --limit 20 --start 1 --epochs 2 --learning-rate 8e-6
+```
+
+默认输出：
+
+- 自动训练数据：`data/training/`，不上传 GitHub。
+- 自动评估报告：`reports/auto_quality_pipeline/`，不上传 GitHub。
+- 可选训练输出：`training/ms_swift/outputs/auto_docx_safety_patch/`，不上传 GitHub。
+
+这条流水线适合每轮迭代后做“生成回复 -> 对照优秀回复 -> 汇总问题 -> 生成补丁训练集 -> 可选继续训练”的闭环。
+
 ## 目前已经实现
 
 - 文本支持接口：`POST /api/v1/support/text`

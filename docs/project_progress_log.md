@@ -311,3 +311,38 @@ v3 裸推理验证中，隐私样例已经能输出“不主动联系辅导员�
 1. 用 v3 跑一轮完整 checkpoint 场景评估，并与稳定 LoRA 同题对照。
 2. 把危机场景继续固化到 `response_guardrails.py` 和 `final_reply_guardrails.py`，确保无论模型输出如何，最终回复都包含立即安全动作。
 3. 下一轮训练数据应增加多轮上下文样本，而不是继续堆单轮样本；目前模型对“同一句话不同上下文”的边界判断仍依赖后端策略层。
+
+## 2026-05-24 自动测评与训练流水线
+
+### 本次做了什么
+
+- 新增 `scripts/auto_quality_pipeline.py`，作为一条总控流水线，自动串起训练数据生成、DOCX 后端评估、Markdown/JSONL 报告生成、低分样例汇总和可选 LoRA 训练。
+- 流水线默认生成三份本地训练数据：94 条 targeted refinement、26 条 DOCX safety refinement、302 条安全样本过采样合并 SFT。
+- 流水线默认执行后端 mock 链路 DOCX 评估，并把结果写入 `reports/auto_quality_pipeline/`。
+- 如果显式传入 `--train` 或 `--mode full`，流水线会调用 `scripts/train_eval_behavior_patch_peft.py`，从稳定 LoRA 继续训练到 `training/ms_swift/outputs/auto_docx_safety_patch/`。
+- 更新 README，补充自动流水线的命令、输出目录和 GitHub 上传边界。
+
+### 验证结果
+
+```text
+python scripts\auto_quality_pipeline.py --mode backend --limit 5 --start 1
+```
+
+本次小样本验证结果：
+
+```text
+训练数据：94 + 26 -> 302 条过采样 SFT
+DOCX 总案例：100
+本次评估案例：5
+回复轮数：14
+平均启发式评分：79.64
+报告：reports/auto_quality_pipeline/20260524_145455_auto_quality_pipeline.md
+```
+
+低分样例主要集中在“小组作业被边缘化”的首轮回复，说明下一轮仍应继续加强复杂人际/小组协作场景中的具体行动建议。
+
+### 下一步建议
+
+1. 后续每次改后端策略后，先运行 `python scripts\auto_quality_pipeline.py --mode backend --limit 100 --start 1` 做完整后端 DOCX 对照。
+2. 只有当后端评估稳定后，再运行 `--mode full` 自动继续训练，避免把后端策略缺口错误地交给模型微调处理。
+3. 后续可扩展流水线，加入 checkpoint 对照评估，把稳定 LoRA 和实验 LoRA 的同题结果合并到同一份报告。
