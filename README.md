@@ -21,7 +21,7 @@
 
 当前一句话定位：项目已经不是单纯聊天机器人，而是一个后端能力较完整的“校园心理熵减与动态平衡 Agent 原型系统”；下一阶段应重点补齐产品化前端、真实语音能力、人工干预闭环和实验评估报告。
 
-最新对齐进展：已将 `docs/心理助手长对话模拟测试用例50例.docx` 和 `docs/心理助手长对话模拟测试用例_新增50例_含隐性高危场景.docx` 作为参考回复库接入评估流程。当前后端已针对期末复习崩溃、任务拖延堆积、小组作业边缘化、分手后反复联系、宿舍冷落/社交隔离、冲动伤人风险、亲密关系威胁、论文查重焦虑、被跟踪安全安排、匿名攻击、隐私背叛、家庭职业冲突等场景补充本地策略。2026-05-24 跑完整 100 例后，后端 mock 链路平均启发式评分约 69.05，`weak_action_specificity` 从本轮初始 16 降到 12，`misses_crisis_safety` 清零；评估报告默认作为本地产物生成到 `reports/`，不随 GitHub 仓库保存。
+最新对齐进展：已将 `docs/心理助手长对话模拟测试用例50例.docx` 和 `docs/心理助手长对话模拟测试用例_新增50例_含隐性高危场景.docx` 作为参考回复库接入评估流程。当前后端已针对期末复习崩溃、任务拖延堆积、小组作业边缘化、分手后反复联系、宿舍冷落/社交隔离、冲动伤人风险、亲密关系威胁、论文查重焦虑、被跟踪安全安排、匿名攻击、隐私背叛、家庭职业冲突等场景补充本地策略。2026-05-24 跑完整 100 例后，后端 mock 链路平均启发式评分约 69.05，`weak_action_specificity` 从本轮初始 16 降到 12，`misses_crisis_safety` 清零；评估报告默认作为本地产物生成到 `reports/`，不随 GitHub 仓库保存。同日完成一轮 94 条 DOCX 风格补丁 LoRA 续训，输出到 `training/ms_swift/outputs/docx_targeted_patch_v1/checkpoint-final`；短验证显示模型可加载并生成中文回复，但隐私承诺、危机兜底和低压具体行动仍应优先由后端策略层保证，模型训练主要用于提升自然度和泛化。
 
 ## 协作与进展记录
 
@@ -39,6 +39,15 @@
 以下内容已经作为本地/可再生成产物处理，不随仓库提交：`logs/`、`reports/`、`tmp*/`、`.pytest_cache/`、测试数据库 `test_*.db`、原始公开语料压缩包、`data/training/` 导出的训练集、`docs/model_evaluations/`、月度报告草稿和 Word 渲染缓存。需要重新评估或导出训练数据时，按 README 中对应脚本重新生成。
 
 本地运行配置和模型权重不上传 GitHub：`.env`、`.venv/`、`.idea/` 和 `training/ms_swift/outputs/` 保留在本机。给组员传递模型时，优先传 `training/ms_swift/outputs/` 里的 LoRA checkpoint 目录，以及它依赖的基础模型路径说明；不要把这些大文件提交到 GitHub。
+
+## 当前推荐模型
+
+给组员复现时，优先说明两类路径：
+
+- 基础模型：`D:\llm_cache\modelscope\models\Qwen\Qwen3-4B-Instruct-2507`
+- 稳定推荐 LoRA：`D:\psychologicalAgent\training\ms_swift\outputs\refinement_pool_v5_peft\v0-20260520-215838\checkpoint-final`
+
+本轮额外训练的实验 LoRA 位于 `D:\psychologicalAgent\training\ms_swift\outputs\docx_targeted_patch_v1\checkpoint-final`。它能加载并运行，但短验证中对“害怕告诉辅导员”的隐私承诺仍不够明确，因此暂不替换为默认推荐模型；后续应先扩大隐私边界、危机边界和具体行动样本，再做正式 checkpoint 对比评估。
 
 ## 目前已经实现
 
