@@ -21,7 +21,7 @@
 
 当前一句话定位：项目已经不是单纯聊天机器人，而是一个后端能力较完整的“校园心理熵减与动态平衡 Agent 原型系统”；下一阶段应重点补齐产品化前端、真实语音能力、人工干预闭环和实验评估报告。
 
-最新对齐进展：已将 `docs/心理助手长对话模拟测试用例50例.docx` 和 `docs/心理助手长对话模拟测试用例_新增50例_含隐性高危场景.docx` 作为参考回复库接入评估流程。当前后端已针对期末复习崩溃、任务拖延堆积、小组作业边缘化、分手后反复联系、宿舍冷落/社交隔离、冲动伤人风险、亲密关系威胁、论文查重焦虑、被跟踪安全安排、匿名攻击、隐私背叛、家庭职业冲突、父母沟通冲突、实习面试失败、同学 offer 对比、外貌反复检查、周末孤独、告别式表达、断联失联、送出重要物品、债务孤立、家庭暴力、疑似被监控、睡眠减少伴冲动消费、复发担心、性骚扰初始求助、兼职欠薪、代码事故恐慌等场景补充本地策略。2026-05-25 通过自动流水线跑完整 100 例后，后端 mock 链路平均启发式评分为 71.53，`flag_counts` 为空，`weak_action_specificity`、`misses_privacy_reassurance`、`misses_crisis_safety` 均保持清零；评估报告默认作为本地产物生成到 `reports/`，不随 GitHub 仓库保存。同日完成新一轮自动 LoRA 训练，输出到 `training/ms_swift/outputs/auto_docx_safety_patch/checkpoint-final`，8 条干净 checkpoint 场景小测通过且无 flags；模型训练主要用于提升自然度和泛化，隐私、危机、医疗边界仍由后端策略层兜底。
+最新对齐进展：已将 `docs/心理助手长对话模拟测试用例50例.docx` 和 `docs/心理助手长对话模拟测试用例_新增50例_含隐性高危场景.docx` 作为参考回复库接入评估流程。当前后端已针对期末复习崩溃、任务拖延堆积、小组作业边缘化、分手后反复联系、宿舍冷落/社交隔离、冲动伤人风险、亲密关系威胁、论文查重焦虑、被跟踪安全安排、匿名攻击、隐私背叛、家庭职业冲突、父母沟通冲突、实习面试失败、同学 offer 对比、外貌反复检查、周末孤独、告别式表达、断联失联、送出重要物品、债务孤立、家庭暴力、疑似被监控、睡眠减少伴冲动消费、复发担心、性骚扰初始求助、兼职欠薪、代码事故恐慌等场景补充本地策略。2026-05-25 通过自动流水线跑完整 100 例后，后端 mock 链路平均启发式评分为 71.53，`flag_counts` 为空，`weak_action_specificity`、`misses_privacy_reassurance`、`misses_crisis_safety` 均保持清零；评估报告默认作为本地产物生成到 `reports/`，不随 GitHub 仓库保存。同日新增 DOCX 低分参考蒸馏数据构建脚本，并完成参考蒸馏 LoRA 训练，输出到 `training/ms_swift/outputs/auto_docx_reference_distill_patch/checkpoint-final`，12 条干净 checkpoint 场景小测通过且无 flags；模型训练主要用于提升自然度和泛化，隐私、危机、医疗边界仍由后端策略层兜底。
 
 ## 协作与进展记录
 
@@ -47,7 +47,7 @@
 - 基础模型：`D:\llm_cache\modelscope\models\Qwen\Qwen3-4B-Instruct-2507`
 - 稳定推荐 LoRA：`D:\psychologicalAgent\training\ms_swift\outputs\refinement_pool_v5_peft\v0-20260520-215838\checkpoint-final`
 
-本轮额外训练的实验 LoRA 位于 `D:\psychologicalAgent\training\ms_swift\outputs\auto_docx_safety_patch\checkpoint-final`。它基于 302 条自动过采样安全/还原补丁数据，从稳定推荐 LoRA 继续训练 2 epoch，学习率 `6e-6`；8 条干净 checkpoint 场景小测全部通过且无 flags。正式交给组员默认复现时仍优先使用稳定推荐 LoRA；如果要试最新实验效果，可以同时传 `auto_docx_safety_patch/checkpoint-final` 做对照。
+本轮额外训练的实验 LoRA 位于 `D:\psychologicalAgent\training\ms_swift\outputs\auto_docx_reference_distill_patch\checkpoint-final`。它先从最新 DOCX 后端评估中抽取 `score <= 64` 的 68 个低分 turn，以文档优秀回复作为 SFT 目标，重复后得到 136 条参考蒸馏样本，并与 302 条安全/还原补丁样本合并为 438 条训练数据；训练从 `auto_docx_safety_patch/checkpoint-final` 继续进行 2 epoch，学习率 `4e-6`。12 条干净 checkpoint 场景小测全部通过且无 flags。正式交给组员默认复现时仍优先使用稳定推荐 LoRA；如果要试最新实验效果，可以同时传 `auto_docx_reference_distill_patch/checkpoint-final` 做对照。
 
 ## 自动测评与训练流水线
 

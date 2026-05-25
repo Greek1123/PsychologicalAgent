@@ -448,3 +448,52 @@ python -m pytest
 ### 当前判断
 
 后端 mock 链路继续小幅提升，并保持显式 flags 清零。新 LoRA 已训练完成且 checkpoint 文件完整，但目前只做了 8 条干净场景小测；要替代稳定推荐 LoRA，还需要跑完整 checkpoint 场景评估和 DOCX 同题对照。当前给组员的稳妥方案仍是：稳定 LoRA 作为默认，`auto_docx_safety_patch/checkpoint-final` 作为最新实验对照模型。
+
+## 2026-05-25 DOCX 低分参考蒸馏训练
+
+### 本次做了什么
+
+- 新增 `scripts/build_docx_reference_distill_dataset.py`，从 DOCX 后端评估 JSONL 中抽取低分 turn，并把文档中的 `reference_reply` 转成 ms-swift SFT 数据。
+- 数据构建逻辑：
+  - 输入：`reports/auto_quality_pipeline/backend_docx/20260525_110904_extracted_docx_reference_eval.jsonl`
+  - 阈值：`score <= 64`
+  - 保留最多 2 轮前文，前文 assistant 使用参考回复，避免把模型坏回复写进训练上下文。
+  - 低分参考样例：68 条
+  - 重复后 SFT 样例：136 条
+  - 与 302 条安全/还原补丁数据合并后：438 条
+- 训练新实验 LoRA：
+  - base adapter：`training/ms_swift/outputs/auto_docx_safety_patch/checkpoint-final`
+  - dataset：`data/training/docx_reference_distill/combined_docx_reference_patch_sft.jsonl`
+  - output：`training/ms_swift/outputs/auto_docx_reference_distill_patch/checkpoint-final`
+  - epochs：2
+  - learning rate：`4e-6`
+  - max length：896
+
+### 验证结果
+
+```text
+python scripts\build_docx_reference_distill_dataset.py ...
+records: 68
+sft_records: 136
+combined_records: 438
+
+python scripts\train_eval_behavior_patch_peft.py --adapter training/ms_swift/outputs/auto_docx_safety_patch/checkpoint-final --dataset data/training/docx_reference_distill/combined_docx_reference_patch_sft.jsonl --out-dir training/ms_swift/outputs/auto_docx_reference_distill_patch --epochs 2 --learning-rate 4e-6 --max-length 896
+checkpoint: training/ms_swift/outputs/auto_docx_reference_distill_patch/checkpoint-final
+
+python scripts\evaluate_clean_checkpoint_scenarios.py --checkpoint training/ms_swift/outputs/auto_docx_reference_distill_patch/checkpoint-final --limit 12 --temperature 0 --max-new-tokens 220
+scenarios: 12
+passed: 12
+flag_counts: {}
+
+python scripts\auto_quality_pipeline.py --mode backend --limit 100 --start 1
+average_score: 71.53
+flag_counts: {}
+report: reports/auto_quality_pipeline/20260525_113803_auto_quality_pipeline.md
+
+python -m pytest
+241 passed
+```
+
+### 当前判断
+
+这轮主要改善训练数据闭环和模型侧参考回复学习，不改变后端 mock 评估分数。`auto_docx_reference_distill_patch/checkpoint-final` 是当前最新实验模型；它通过了 12 条干净 checkpoint 场景小测，但仍需要完整 55 场景 checkpoint 评估和与稳定 LoRA 的 DOCX 同题人工对比，才能替换默认推荐模型。
