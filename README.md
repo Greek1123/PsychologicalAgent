@@ -25,6 +25,8 @@
 
 对比实验进展：新增 `scripts/compare_docx_backend_experiment.py`，可同题比较“无策略通用基线”和“当前后端策略层”。2026-05-25 完整 100 例对比结果为：通用基线平均分 67.92，存在 `weak_action_specificity=33`、`misses_crisis_safety=4`、`misses_privacy_reassurance=3`；当前后端策略层平均分 80.93，`flag_counts` 为空，低分样例为空，相对基线提升 13.01 分。该报告适合直接作为论文/答辩中“后端熵减策略层有效性”的实验支撑材料。
 
+动态平衡实验进展：新增 `scripts/export_docx_entropy_trajectories.py`，可把 DOCX 长对话逐轮导出为心理熵轨迹、风险等级、平衡状态、主导熵源、策略序列和动态调整状态。2026-05-25 完整 100 例导出结果为：299 个 turn，平均心理熵 14.77，风险分布为 low=236、medium=54、high=7、critical=2，平衡状态分布为 stable=290、fragile=7、crisis=2；高频策略包括 `supportive_listening`、`grounding_small_step`、`dorm_boundary_support`、`sleep_stabilization`、`safety_first`。该报告适合支撑“熵减与动态平衡”的多轮案例分析。
+
 ## 协作与进展记录
 
 后续每次由 Codex 继续开发或检查时，同步更新两类记录：
@@ -87,6 +89,20 @@ python scripts\compare_docx_backend_experiment.py --limit 100 --start 1
 
 报告包含总体均分、flags 对比、低分样例、按场景类别的均分，以及 baseline/backend 每轮回复和参考回复，方便后续整理实验表格。
 
+如果要导出长对话心理熵轨迹和动态平衡案例表，运行：
+
+```powershell
+python scripts\export_docx_entropy_trajectories.py --limit 100 --start 1
+```
+
+默认输出：
+
+- Markdown 轨迹报告：`reports/docx_entropy_trajectories/*_docx_entropy_trajectories.md`
+- JSON 完整轨迹：`reports/docx_entropy_trajectories/*_docx_entropy_trajectories.json`
+- turn 级 CSV：`reports/docx_entropy_trajectories/*_docx_entropy_trajectories.csv`
+
+报告包含每个案例的熵变化、风险分布、策略序列和逐轮表格，适合进一步制作折线图或答辩案例页。
+
 ## 目前已经实现
 
 - 文本支持接口：`POST /api/v1/support/text`
@@ -110,6 +126,7 @@ python scripts\compare_docx_backend_experiment.py --limit 100 --start 1
 - Word 参考用例对照评估：支持从 100 个长对话参考案例中抽取优秀回复，并生成后端回复对比报告
 - 后端参考用例自动评估：`scripts/evaluate_backend_docx_reference_cases.py` 可直接用当前后端 mock 链路逐轮跑 Word 案例
 - 后端策略层对比实验：`scripts/compare_docx_backend_experiment.py` 可生成通用基线 vs 当前后端策略层的 Markdown/JSON/CSV 报告
+- 长对话动态平衡导出：`scripts/export_docx_entropy_trajectories.py` 可生成心理熵轨迹、风险/平衡状态和策略序列报告
 - 结构化输出：情绪评估、压力源、保护因子、熵水平、平衡状态、支持计划、安全提示
 - 单元测试：覆盖文本低风险、危机分流、语音转写链路
 

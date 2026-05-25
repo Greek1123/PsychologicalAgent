@@ -2,6 +2,82 @@
 
 本文件用于记录 Codex 每次对项目的检查、修改、验证结果和下一步建议。运行时接口日志仍查看 `logs/app.log`。
 
+## 2026-05-25 DOCX 长对话心理熵轨迹导出
+
+### 本次做了什么
+
+- 新增 `scripts/export_docx_entropy_trajectories.py`，用两个 Word 测试文档中的长对话案例逐轮调用当前后端，并为每个案例使用独立 `session_id`，让会话记忆、熵轨迹和动态调整真实生效。
+- 每轮导出字段包括：风险等级、风险分、心理熵分数、熵等级、平衡状态、趋势 delta、主导熵源、状态画像、干预策略、动态调整状态、熵减目标、转介建议、本地策略和用户可见回复。
+- 输出 Markdown、JSON 和 CSV 三种格式：Markdown 用于论文/答辩说明，CSV 用于画折线图和统计图，JSON 用于后续自动生成案例分析。
+- 新增 `tests/test_docx_entropy_trajectories.py`，覆盖单案例摘要和全局分类汇总逻辑。
+
+### 导出结果
+
+```text
+命令：python scripts\export_docx_entropy_trajectories.py --limit 100 --start 1
+
+cases = 100
+turns = 299
+average_entropy = 14.77
+entropy_range = 10 - 37
+
+risk_counts = {
+  low: 236,
+  medium: 54,
+  high: 7,
+  critical: 2
+}
+
+balance_counts = {
+  stable: 290,
+  fragile: 7,
+  crisis: 2
+}
+
+top_strategies = {
+  supportive_listening: 124,
+  grounding_small_step: 43,
+  dorm_boundary_support: 31,
+  sleep_stabilization: 23,
+  future_uncertainty_grounding: 13,
+  group_work_visibility: 12,
+  family_boundary_sustainability: 10,
+  safety_first: 9
+}
+
+Markdown 报告：reports/docx_entropy_trajectories/20260525_174151_docx_entropy_trajectories.md
+JSON 轨迹：reports/docx_entropy_trajectories/20260525_174151_docx_entropy_trajectories.json
+CSV 明细：reports/docx_entropy_trajectories/20260525_174151_docx_entropy_trajectories.csv
+```
+
+### 分类结果摘要
+
+```text
+安全危机与隐性高危：36 turns，平均熵 16.78，峰值 30
+自我评价与身体状态：36 turns，平均熵 15.61，峰值 30
+家庭与照护压力：24 turns，平均熵 14.96，峰值 27
+人际关系与亲密关系：45 turns，平均熵 14.51，峰值 30
+其他校园压力：111 turns，平均熵 14.30，峰值 37
+学业任务与科研压力：47 turns，平均熵 13.83，峰值 23
+```
+
+### 验证结果
+
+```text
+python -m pytest tests/test_docx_entropy_trajectories.py
+2 passed
+```
+
+### 主要判断
+
+这层补上了“动态平衡”的实验可视证据：不只是给出单轮回复评分，还能展示每轮用户输入后，系统如何更新风险、心理熵、平衡状态、主导熵源和干预策略。后续论文/答辩可以选择 3 到 5 个案例，从 CSV 中画出折线图并配合策略序列表，说明系统如何做多轮状态追踪与熵减干预。
+
+### 下一步建议
+
+1. 从轨迹报告中挑选一个学业压力、一个隐性高危、一个人际/家庭案例，做成答辩案例页。
+2. 进一步导出 `entropy_score` 与回复质量分数的联合表，分析“安全高风险场景不一定高熵但必须高优先级”的设计理由。
+3. 如果前端组员需要演示数据，可以把 JSON 轨迹文件转换成前端 mock 数据。
+
 ## 2026-05-25 DOCX 后端策略层对比实验
 
 ### 本次做了什么
