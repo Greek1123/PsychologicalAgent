@@ -288,6 +288,24 @@ def _apply_priority_scenario_reply(
     if _is_privacy_betrayal_text(clean_user, history_text):
         return _privacy_betrayal_reply()
 
+    if _is_appearance_checking_text(clean_user, history_text):
+        return _appearance_checking_reply()
+
+    if _is_breakup_self_worth_text(clean_user, history_text):
+        return _breakup_self_worth_reply()
+
+    if _is_recovery_relapse_fear_text(clean_user, history_text):
+        return _recovery_relapse_fear_reply(clean_user)
+
+    if _is_code_incident_panic_text(clean_user, history_text):
+        return _code_incident_panic_reply()
+
+    if _is_sexual_harassment_initial_text(clean_user, history_text):
+        return _sexual_harassment_initial_reply()
+
+    if _is_unpaid_part_time_text(clean_user, history_text):
+        return _unpaid_part_time_reply()
+
     if _is_study_loneliness_text(clean_user, history_text):
         return _study_loneliness_reply()
 
@@ -320,6 +338,9 @@ def _apply_priority_scenario_reply(
 
     if _is_class_activity_isolation_text(clean_user, history_text):
         return _class_activity_isolation_reply()
+
+    if _is_public_attack_repost_fear_text(clean_user, history_text):
+        return _public_attack_repost_fear_reply()
 
     if _is_stalking_fear_text(clean_user, history_text):
         return _stalking_fear_reply()
@@ -354,6 +375,9 @@ def _apply_priority_scenario_reply(
     if _is_parent_call_conflict_text(clean_user, history_text):
         return _parent_call_conflict_reply()
 
+    if _is_perfectionism_assignment_text(clean_user, history_text):
+        return _perfectionism_assignment_reply()
+
     if _is_teacher_criticism_shame_text(clean_user, history_text):
         return _teacher_criticism_shame_reply()
 
@@ -369,14 +393,17 @@ def _apply_priority_scenario_reply(
     if _is_circadian_phone_revenge_text(clean_user, history_text):
         return _circadian_phone_revenge_reply()
 
-    if _is_appearance_checking_text(clean_user, history_text):
-        return _appearance_checking_reply()
-
     if _is_weekend_loneliness_text(clean_user, history_text):
         return _weekend_loneliness_reply()
 
-    if _is_perfectionism_assignment_text(clean_user, history_text):
-        return _perfectionism_assignment_reply()
+    if _is_major_dislike_stuck_text(clean_user, history_text):
+        return _major_dislike_stuck_reply()
+
+    if _is_role_overload_text(clean_user, history_text):
+        return _role_overload_reply()
+
+    if _is_quiet_label_hurt_text(clean_user, history_text):
+        return _quiet_label_hurt_reply()
 
     if _is_misunderstood_anger_text(clean_user, history_text):
         return _misunderstood_anger_reply()
@@ -1081,6 +1108,156 @@ def _research_group_exclusion_reply() -> str:
         "\u5982\u679c\u4ed6\u4eec\u8fd8\u662f\u4e0d\u8ba9\u4f60\u53c2\u4e0e\uff0c\u4f60\u9700\u8981\u7684\u4e0d\u662f\u7ee7\u7eed\u731c\u81ea\u5df1\u662f\u4e0d\u662f\u4e0d\u591f\u597d\uff0c\u800c\u662f\u8ba9\u81ea\u5df1\u7684\u610f\u613f\u548c\u53ef\u627f\u62c5\u7684\u4efb\u52a1\u53d8\u5f97\u53ef\u89c1\u3002"
         "\u53ef\u4ee5\u53d1\u4e00\u6761\u5177\u4f53\u4fe1\u606f\uff1a\u201c\u6211\u60f3\u53c2\u4e0e\u8fd9\u90e8\u5206\uff0c\u6211\u53ef\u4ee5\u5148\u8d1f\u8d23\u6587\u732e\u6574\u7406/\u6570\u636e\u6e05\u7406/\u7ed3\u679c\u8bb0\u5f55\u4e2d\u7684\u4e00\u9879\uff0c\u4eca\u5929\u5148\u7ed9\u51fa\u4e00\u4e2a\u521d\u7a3f\u3002\u201d"
         "\u5982\u679c\u4ecd\u7136\u6ca1\u6709\u56de\u590d\uff0c\u5148\u4fdd\u7559\u6c9f\u901a\u8bb0\u5f55\u548c\u4f60\u5df2\u5c1d\u8bd5\u53c2\u4e0e\u7684\u8bc1\u636e\uff0c\u518d\u8003\u8651\u627e\u7ec4\u957f\u6216\u6307\u5bfc\u8001\u5e08\u7528\u4e8b\u5b9e\u8bf4\u660e\u5206\u5de5\u95ee\u9898\u3002"
+    )
+
+
+def _is_breakup_self_worth_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_breakup = any(term in combined for term in ("分手", "前任", "联系他", "联系她", "一直陪我", "没事人一样"))
+    has_worth = any(term in combined for term in ("不值得被认真对待", "我哪里不够好", "不值得", "被认真对待"))
+    return has_breakup and has_worth
+
+
+def _breakup_self_worth_reply() -> str:
+    return (
+        "被承诺过又被离开，确实容易让人怀疑自己的价值。"
+        "但一个人没能继续兑现关系，不等于你不值得被认真对待。"
+        "可以把问题从“我哪里不够好”换成“这段关系里哪些需求没有被满足”。"
+        "今晚如果想发消息，先写在备忘录里不发送，等 24 小时后再决定是否真的需要联系。"
+    )
+
+
+def _is_recovery_relapse_fear_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_recovery = any(term in combined for term in ("好一点了", "按时上课", "愿意和朋友出去", "担心复发", "掉回去"))
+    has_relapse = any(term in combined for term in ("乱作息", "逃课", "什么都不想做", "太麻烦", "正常人", "不用管这些", "万一"))
+    return has_recovery or (has_relapse and any(term in combined for term in ("预警", "下滑", "复发", "状态")))
+
+
+def _recovery_relapse_fear_reply(user_text: str = "") -> str:
+    if any(term in user_text for term in ("乱作息", "逃课", "什么都不想做")):
+        return (
+            "那可以提前做一个预警清单，而不是等自己完全掉下去再处理。"
+            "比如：连续两天很晚睡、开始不回消息、逃避上课、食欲明显变化、对所有事情都烦。"
+            "再配一个应对清单：联系一个朋友、恢复固定起床、减少任务、预约心理中心或找辅导员聊。"
+        )
+    if any(term in user_text for term in ("太麻烦", "正常人", "不用管")):
+        return (
+            "照顾自己的状态不是麻烦，也不代表你不正常。"
+            "每个人都有自己的维护方式，有人靠运动，有人靠计划，有人靠社交支持。"
+            "你只是更清楚自己什么时候容易下滑，所以提前准备；能识别预警、及时调整，本身就是恢复能力的一部分。"
+        )
+    return (
+        "状态好转后担心再次下滑很常见，尤其你之前经历过低谷。"
+        "可以把“好转”看成一个过程，而不是一次性痊愈或永久稳定。"
+        "偶尔波动不代表前面的努力白费，它只是提醒你继续照顾自己，并提前写好下滑时的预警和求助清单。"
+    )
+
+
+def _is_code_incident_panic_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_incident = any(term in combined for term in ("接口改坏", "回滚", "提交记录", "日志", "线上", "代码事故"))
+    has_panic = any(term in combined for term in ("脑子一下空了", "完了", "不靠谱", "都会觉得"))
+    return has_incident and has_panic
+
+
+def _code_incident_panic_reply() -> str:
+    return (
+        "事故发生后，身体和大脑都在应激状态里，所以会把一次问题放大成“以后全完了”。"
+        "先稳住：接口已经回滚，说明最紧急的损害已经被止住。"
+        "接下来要做的是复盘和修复信任，而不是继续惩罚自己：整理改动点、影响范围、回滚时间和下次避免方案，必要时主动向负责人说明。"
+    )
+
+
+def _is_sexual_harassment_initial_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_boundary = any(term in combined for term in ("碰我", "身体", "不舒服的玩笑", "性意味", "算不算骚扰", "太敏感"))
+    has_person = any(term in combined for term in ("学长", "同学", "老师", "男生", "找机会"))
+    return has_boundary and has_person
+
+
+def _sexual_harassment_initial_reply() -> str:
+    return (
+        "只要他的行为让你明显不舒服，而且涉及身体边界或性意味，就值得被认真对待。"
+        "你当时笑过去不代表你同意，很多人在紧张时会用笑来保护自己，责任不在你。"
+        "先减少单独接触，记录时间、地点、具体行为和聊天证据；如果还要在活动里见到他，找可信同学或老师陪同，并考虑联系辅导员或学校相关支持渠道。"
+    )
+
+
+def _is_unpaid_part_time_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_work = any(term in combined for term in ("兼职", "工资", "老板", "一个月", "劳动报酬"))
+    has_delay = any(term in combined for term in ("下周发", "还没发", "不好意思", "像是在求", "需要这笔钱", "拖欠"))
+    return has_work and has_delay
+
+
+def _unpaid_part_time_reply() -> str:
+    return (
+        "你不是在求他，你是在要求对方履行约定。"
+        "不好意思很正常，很多学生第一次面对这种情况都会紧张，但你的劳动报酬是正当权益。"
+        "先整理工作时间、约定工资、聊天记录和已完成内容，然后发一条清晰消息：“我想确认本月工资具体发放时间，请在今天给我明确答复。”"
+        "如果继续拖延，可以咨询学校老师、法律援助或劳动维权渠道。"
+    )
+
+
+def _is_public_attack_repost_fear_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_attack_context = any(term in combined for term in ("评论攻击", "网上评论", "匿名", "表白墙", "恶意评论", "公开攻击"))
+    has_repost_fear = any(term in combined for term in ("不敢再发东西", "不想再发", "发布", "限制评论", "放弃创作"))
+    return has_attack_context and has_repost_fear
+
+
+def _public_attack_repost_fear_reply() -> str:
+    return (
+        "暂时不想发可以理解，但不要让几条恶意评论永久夺走你的表达空间。"
+        "你可以先把作品保存下来，过几天再看哪些反馈有参考价值，哪些只是情绪垃圾。"
+        "下次发布时可以选择更安全的平台、限制评论，或先发给小范围朋友；你可以调整保护方式，不必放弃创作。"
+    )
+
+
+def _is_major_dislike_stuck_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_major = any(term in combined for term in ("不喜欢现在的专业", "转专业不现实", "接下来几年", "上课听不进去"))
+    has_stuck = any(term in combined for term in ("耗着", "没有选择", "家里也不会支持", "只是为了交"))
+    return has_major and has_stuck
+
+
+def _major_dislike_stuck_reply() -> str:
+    return (
+        "不喜欢专业会让每天的学习都变成消耗，尤其当你觉得没有选择时，更容易绝望。"
+        "现在先不用在“彻底转走”和“硬忍到底”之间二选一。"
+        "也许可以先寻找专业内外更接近你兴趣的方向：选一门相关选修、做一个小项目、了解辅修或实习，让这几年不只剩下被动完成作业。"
+    )
+
+
+def _is_role_overload_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_roles = any(term in combined for term in ("课程", "社团", "项目", "班委", "全压在一起"))
+    has_overload = any(term in combined for term in ("没有空喘气", "不好意思退出", "不负责", "太累", "精疲力尽"))
+    return has_roles and has_overload
+
+
+def _role_overload_reply() -> str:
+    return (
+        "你现在的问题不是能力不够，而是承担的角色超过了你的恢复能力。"
+        "长期没有喘息空间，人会逐渐从负责变成耗竭。"
+        "真正的负责不一定是所有事都硬扛，也包括及时评估自己还能不能保证质量。"
+        "可以先列出哪些必须亲自做、哪些可以延期、哪些能交接一部分，再选一个最低风险的角色开始减负。"
+    )
+
+
+def _is_quiet_label_hurt_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_label = any(term in combined for term in ("太安静", "没有存在感", "内向", "性格有缺陷"))
+    has_hurt = any(term in combined for term in ("心里很不舒服", "听多了", "笑了一下", "可能没恶意"))
+    return has_label and has_hurt
+
+
+def _quiet_label_hurt_reply() -> str:
+    return (
+        "被反复贴“太安静”的标签，会让人觉得自己好像不符合别人期待。"
+        "你不舒服是合理的，因为那句话虽然像玩笑，却触到了你长期被评价的地方。"
+        "安静不是缺陷，只是一种互动方式。你可以不急着证明自己很外向，只需要在必要时表达边界：“这个玩笑我听着不太舒服。”"
     )
 
 

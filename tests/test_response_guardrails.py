@@ -767,6 +767,48 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertIn("暂停继续购买", reply)
         self.assertIn("专业评估", reply)
 
+    def test_breakup_self_worth_gets_no_contact_buffer(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "他以前说过会一直陪我，现在却像没事人一样。我会想是不是我不值得被认真对待。",
+            "先坐下喝口水。",
+            conversation_history=[{"role": "user", "content": "分手后我总想联系前任。"}],
+        )
+
+        self.assertIn("不等于你不值得被认真对待", reply)
+        self.assertIn("备忘录", reply)
+        self.assertIn("24 小时", reply)
+
+    def test_recovery_relapse_fear_gets_warning_list(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我怕我一放松，就又乱作息、逃课、什么都不想做。",
+            "你可以先照顾自己。",
+            conversation_history=[{"role": "user", "content": "这段时间我好像比之前好一点了，但担心复发。"}],
+        )
+
+        self.assertIn("预警清单", reply)
+        self.assertIn("逃避上课", reply)
+        self.assertIn("预约心理中心", reply)
+
+    def test_sexual_harassment_initial_gets_boundary_validation(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "有个学长总是找机会碰我，还开让我不舒服的玩笑。我不知道这算不算骚扰，还是我太敏感。",
+            "先稳住节律。",
+        )
+
+        self.assertIn("不代表你同意", reply)
+        self.assertIn("责任不在你", reply)
+        self.assertIn("辅导员", reply)
+
+    def test_unpaid_part_time_gets_wage_rights_script(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我做了一个月兼职，老板一直说下周发工资，到现在还没发。我每次问都很不好意思，像是在求他一样。",
+            "先把今天最担心的事情写下来。",
+        )
+
+        self.assertIn("不是在求他", reply)
+        self.assertIn("劳动报酬", reply)
+        self.assertIn("明确答复", reply)
+
 
 if __name__ == "__main__":
     unittest.main()

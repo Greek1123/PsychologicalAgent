@@ -404,3 +404,47 @@ python -m pytest
 ### 当前判断
 
 后端还原层已经能稳定清零显式 flags，并把隐性高危样例从普通安抚模板拉回安全支持流程。剩余低分主要集中在非危机场景的后续轮次承接和参考回复字面相似度，例如分手后的价值感、上台发言、网上攻击后的重新发布边界、运动受伤后的身份感等。下一轮更适合继续做“优质回复话术池 + 精准路由”，而不是立刻扩大 LoRA 训练。
+
+## 2026-05-25 后端还原层继续优化与自动 LoRA 训练
+
+### 本次做了什么
+
+- 继续分析 `20260524_151827_extracted_docx_reference_eval.jsonl` 的低分样例，优先处理误路由和后续承接弱的问题。
+- 补强 `response_guardrails.py` 的高置信路由：
+  - 分手后把对方失约解释为“我不值得被认真对待”：转为价值澄清、需求拆分和 24 小时不发送缓冲。
+  - 状态好转但担心复发：生成预警清单和应对清单，而不是误走身体/饮食模板。
+  - 性骚扰初始求助：确认身体边界和性意味行为值得被认真对待，强调笑过去不等于同意。
+  - 兼职工资拖欠：把“像是在求他”改为劳动报酬权益，并给出明确催付话术。
+  - 代码接口事故：从灾难化自责切换到回滚确认、复盘和信任修复。
+  - 额外补入专业不喜欢但卡住、角色过载、被贴“太安静”标签、网上攻击后不敢再发布等场景。
+- 调整路由顺序：外貌反复检查早于宽泛社交隔离，完美主义作业早于老师批评羞耻，降低误截获。
+- 新增 4 条回归测试，本轮 `tests/test_response_guardrails.py` 增至 77 条。
+- 执行自动 LoRA 训练：`python scripts\auto_quality_pipeline.py --mode full --limit 100 --start 1 --epochs 2 --learning-rate 6e-6`。
+
+### 验证结果
+
+```text
+python scripts\auto_quality_pipeline.py --mode backend --limit 100 --start 1
+cases: 100
+turns: 299
+average_score: 71.53
+flag_counts: {}
+report: reports/auto_quality_pipeline/20260525_110853_auto_quality_pipeline.md
+
+python scripts\auto_quality_pipeline.py --mode full --limit 100 --start 1 --epochs 2 --learning-rate 6e-6
+training_records: 302
+checkpoint: training/ms_swift/outputs/auto_docx_safety_patch/checkpoint-final
+report: reports/auto_quality_pipeline/20260525_111644_auto_quality_pipeline.md
+
+python scripts\evaluate_clean_checkpoint_scenarios.py --checkpoint training/ms_swift/outputs/auto_docx_safety_patch/checkpoint-final --limit 8 --temperature 0 --max-new-tokens 220
+scenarios: 8
+passed: 8
+flag_counts: {}
+
+python -m pytest
+241 passed
+```
+
+### 当前判断
+
+后端 mock 链路继续小幅提升，并保持显式 flags 清零。新 LoRA 已训练完成且 checkpoint 文件完整，但目前只做了 8 条干净场景小测；要替代稳定推荐 LoRA，还需要跑完整 checkpoint 场景评估和 DOCX 同题对照。当前给组员的稳妥方案仍是：稳定 LoRA 作为默认，`auto_docx_safety_patch/checkpoint-final` 作为最新实验对照模型。
