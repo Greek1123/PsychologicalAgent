@@ -1029,6 +1029,16 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertIn("不代表你蠢", reply)
         self.assertIn("即使紧张也能讲完", reply)
 
+    def test_response_guardrail_eating_restriction_not_class_activity(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "最近拍照我觉得自己胖得很明显，已经连续几天只吃很少的东西，今天上楼梯都有点发晕。",
+            "你去了活动，却没有感到被接纳。",
+        )
+
+        self.assertIn("基本进食", reply)
+        self.assertIn("头晕", reply)
+        self.assertNotIn("活动", reply)
+
 
 if __name__ == "__main__":
     unittest.main()

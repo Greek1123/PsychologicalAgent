@@ -363,6 +363,9 @@ def _apply_priority_scenario_reply(
     if _is_pet_grief_text(clean_user, history_text):
         return _pet_grief_reply()
 
+    if _is_eating_restriction_dizzy_text(clean_user, history_text):
+        return _eating_restriction_dizzy_reply()
+
     if _is_class_activity_isolation_text(clean_user, history_text):
         return _class_activity_isolation_reply()
 
@@ -2090,6 +2093,8 @@ def _pet_grief_reply() -> str:
 
 def _is_class_activity_isolation_text(user_text: str, history_text: str = "") -> bool:
     combined = f"{history_text} {user_text}".replace(" ", "")
+    if any(term in combined for term in ("身材", "胖", "节食", "吃很少", "吃饭", "头晕", "发晕", "体重")):
+        return False
     return any(term in combined for term in ("\u73ed\u7ea7\u6d3b\u52a8", "\u6ca1\u4eba\u642d\u7406", "\u6ca1\u6709\u5b58\u5728\u611f", "\u62cd\u7167", "\u5f88\u591a\u4f59"))
 
 
@@ -2098,6 +2103,21 @@ def _class_activity_isolation_reply() -> str:
         "\u4f60\u53bb\u4e86\u6d3b\u52a8\uff0c\u5374\u6ca1\u6709\u611f\u5230\u88ab\u63a5\u7eb3\uff0c\u8fd9\u79cd\u843d\u5dee\u786e\u5b9e\u4f1a\u5f88\u4f24\u4eba\u3002"
         "\u8fd9\u4e0d\u662f\u4f60\u77eb\u60c5\uff1a\u4eba\u5728\u96c6\u4f53\u91cc\u88ab\u5ffd\u89c6\uff0c\u6709\u65f6\u5019\u4f1a\u6bd4\u4e00\u4e2a\u4eba\u5f85\u7740\u66f4\u5b64\u5355\u3002"
         "\u5148\u4e0d\u628a\u4eca\u5929\u7684\u4f53\u9a8c\u4e0a\u5347\u6210\u201c\u6211\u6c38\u8fdc\u6ca1\u4f4d\u7f6e\u201d\u3002\u4e0b\u6b21\u53ef\u4ee5\u9009\u4e00\u4e2a\u4f4e\u538b\u529b\u5165\u53e3\uff1a\u63d0\u524d\u7ea6\u4e00\u4e2a\u540c\u5b66\u540c\u884c\uff0c\u6216\u53ea\u4e3b\u52a8\u53c2\u4e0e\u4e00\u4e2a\u5c0f\u4efb\u52a1\uff0c\u4e0d\u8981\u8981\u6c42\u81ea\u5df1\u4e00\u6b21\u878d\u5165\u6240\u6709\u4eba\u3002"
+    )
+
+
+def _is_eating_restriction_dizzy_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("身材", "胖", "体重", "拍照")) and any(
+        term in combined for term in ("吃很少", "节食", "不敢吃", "发晕", "头晕", "吃饭")
+    )
+
+
+def _eating_restriction_dizzy_reply() -> str:
+    return (
+        "你现在的焦虑已经影响到基本进食和身体状态了，头晕是需要重视的信号。"
+        "这里不建议继续用更严格的控制来换安心，因为这会让身体和情绪都更不稳定。"
+        "你的价值也不应该被一张照片完全决定。"
     )
 
 

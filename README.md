@@ -27,6 +27,8 @@
 
 动态平衡实验进展：新增 `scripts/export_docx_entropy_trajectories.py`，可把 DOCX 长对话逐轮导出为心理熵轨迹、风险等级、平衡状态、主导熵源、策略序列和动态调整状态。2026-05-25 完整 100 例导出结果为：299 个 turn，平均心理熵 14.77，风险分布为 low=236、medium=54、high=7、critical=2，平衡状态分布为 stable=290、fragile=7、crisis=2；高频策略包括 `supportive_listening`、`grounding_small_step`、`dorm_boundary_support`、`sleep_stabilization`、`safety_first`。该报告适合支撑“熵减与动态平衡”的多轮案例分析。
 
+手动抽检进展：新增 `scripts/run_manual_reply_check.py`，用于固定运行 8 组代表性后端对话，并记录“输入问题、系统回复、风险等级、心理熵、策略、动态状态”。2026-05-25 抽检生成 8 个场景 / 18 轮记录，输出到 `reports/manual_reply_checks/20260525_190154_manual_reply_check.md`、`.csv`、`.json`。抽检中发现并修复了“拍照 + 身材/节食/头晕”被误路由到班级活动孤立回复的问题；修复后全量测试 267 passed，DOCX 后端 100 例仍保持平均分 80.93、flags 为空、低分样例为空。
+
 ## 协作与进展记录
 
 后续每次由 Codex 继续开发或检查时，同步更新两类记录：
@@ -103,6 +105,20 @@ python scripts\export_docx_entropy_trajectories.py --limit 100 --start 1
 
 报告包含每个案例的熵变化、风险分布、策略序列和逐轮表格，适合进一步制作折线图或答辩案例页。
 
+如果要做一组人工可读的固定回复抽检，运行：
+
+```powershell
+python scripts\run_manual_reply_check.py
+```
+
+默认输出：
+
+- Markdown 抽检记录：`reports/manual_reply_checks/*_manual_reply_check.md`
+- CSV 明细：`reports/manual_reply_checks/*_manual_reply_check.csv`
+- JSON 明细：`reports/manual_reply_checks/*_manual_reply_check.json`
+
+这份记录会保存每一轮“我输入的问题”和“系统回复”，适合人工逐条检查回复质量。
+
 ## 目前已经实现
 
 - 文本支持接口：`POST /api/v1/support/text`
@@ -127,6 +143,7 @@ python scripts\export_docx_entropy_trajectories.py --limit 100 --start 1
 - 后端参考用例自动评估：`scripts/evaluate_backend_docx_reference_cases.py` 可直接用当前后端 mock 链路逐轮跑 Word 案例
 - 后端策略层对比实验：`scripts/compare_docx_backend_experiment.py` 可生成通用基线 vs 当前后端策略层的 Markdown/JSON/CSV 报告
 - 长对话动态平衡导出：`scripts/export_docx_entropy_trajectories.py` 可生成心理熵轨迹、风险/平衡状态和策略序列报告
+- 手动回复抽检：`scripts/run_manual_reply_check.py` 可固定运行代表性问题并保存逐轮问题/回复记录
 - 结构化输出：情绪评估、压力源、保护因子、熵水平、平衡状态、支持计划、安全提示
 - 单元测试：覆盖文本低风险、危机分流、语音转写链路
 

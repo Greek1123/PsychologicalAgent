@@ -2,6 +2,60 @@
 
 本文件用于记录 Codex 每次对项目的检查、修改、验证结果和下一步建议。运行时接口日志仍查看 `logs/app.log`。
 
+## 2026-05-25 手动回复抽检记录
+
+### 本次做了什么
+
+- 按用户要求实际运行当前后端，并把“我输入的问题”和“系统获得的回复”保存成可人工检查的记录。
+- 新增 `scripts/run_manual_reply_check.py`，固定运行 8 个代表性场景、18 轮多轮对话：
+  - 期末复习焦虑
+  - 小组作业被边缘化
+  - 父母离婚后情绪中间人
+  - 身材焦虑与极端节食
+  - 账号交接隐性高危
+  - 危险地点吹风
+  - 代码事故恐慌
+  - 运动受伤后身份感丧失
+- 每轮记录包含：输入问题、系统回复、风险等级、心理熵、平衡状态、趋势、主导熵源、策略、动态状态、转介建议。
+- 抽检中发现一个误路由：`拍照` 触发了“班级活动孤立”模板，导致身材焦虑与节食第一轮回复错误。已修复为：如果同时出现身材、胖、吃很少、头晕、发晕、体重等词，优先进入进食/身体状态支持，不再触发活动孤立模板。
+
+### 输出文件
+
+```text
+Markdown：reports/manual_reply_checks/20260525_190154_manual_reply_check.md
+CSV：reports/manual_reply_checks/20260525_190154_manual_reply_check.csv
+JSON：reports/manual_reply_checks/20260525_190154_manual_reply_check.json
+```
+
+### 修复后的关键抽检
+
+```text
+输入：
+最近拍照我觉得自己胖得很明显，已经连续几天只吃很少的东西，今天上楼梯都有点发晕。
+
+回复：
+你现在的焦虑已经影响到基本进食和身体状态了，头晕是需要重视的信号。这里不建议继续用更严格的控制来换安心，因为这会让身体和情绪都更不稳定。你的价值也不应该被一张照片完全决定。
+```
+
+### 验证结果
+
+```text
+python -m pytest tests/test_response_guardrails.py tests/test_docx_entropy_trajectories.py
+101 passed
+
+python -m pytest
+267 passed
+
+python scripts\auto_quality_pipeline.py --mode backend --limit 100 --start 1
+average_score = 80.93
+flag_counts = {}
+low_score_examples = []
+```
+
+### 主要判断
+
+这次人工抽检是必要的：自动评分能保证总体指标，但人工逐条看回复能发现“语义触发词过宽”的问题。当前已把该问题修复，并保留了可重复运行的抽检脚本，后续每次改策略层都可以先跑这 8 组样例做快速人工审查。
+
 ## 2026-05-25 DOCX 长对话心理熵轨迹导出
 
 ### 本次做了什么
