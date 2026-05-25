@@ -297,6 +297,33 @@ def _apply_priority_scenario_reply(
     if _is_recovery_relapse_fear_text(clean_user, history_text):
         return _recovery_relapse_fear_reply(clean_user)
 
+    if _is_overseas_application_rejection_text(clean_user, history_text):
+        return _overseas_application_rejection_reply(clean_user)
+
+    if _is_alcohol_blackout_shame_text(clean_user, history_text):
+        return _alcohol_blackout_shame_reply(clean_user)
+
+    if _is_sports_injury_identity_loss_text(clean_user, history_text):
+        return _sports_injury_identity_loss_reply(clean_user)
+
+    if _is_caregiving_role_conflict_text(clean_user, history_text):
+        return _caregiving_role_conflict_reply(clean_user)
+
+    if _is_long_distance_silence_text(clean_user, history_text):
+        return _long_distance_silence_reply()
+
+    if _is_other_self_harm_trigger_text(clean_user, history_text):
+        return _other_self_harm_trigger_reply()
+
+    if _is_graduation_choice_overload_text(clean_user, history_text):
+        return _graduation_choice_overload_reply()
+
+    if _is_binge_shame_text(clean_user, history_text):
+        return _binge_shame_reply()
+
+    if _is_insomnia_numbness_safety_text(clean_user, history_text):
+        return _insomnia_numbness_safety_reply()
+
     if _is_code_incident_panic_text(clean_user, history_text):
         return _code_incident_panic_reply()
 
@@ -1151,6 +1178,172 @@ def _recovery_relapse_fear_reply(user_text: str = "") -> str:
         "状态好转后担心再次下滑很常见，尤其你之前经历过低谷。"
         "可以把“好转”看成一个过程，而不是一次性痊愈或永久稳定。"
         "偶尔波动不代表前面的努力白费，它只是提醒你继续照顾自己，并提前写好下滑时的预警和求助清单。"
+    )
+
+
+def _is_overseas_application_rejection_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_application = any(term in combined for term in ("申请", "拒信", "学校发拒信", "留学", "不敢告诉同学"))
+    has_loss = any(term in combined for term in ("不适合去更好的地方", "看到邮件", "准备了那么久", "结果不理想", "都知道我在申请"))
+    return has_application and has_loss
+
+
+def _overseas_application_rejection_reply(user_text: str = "") -> str:
+    if any(term in user_text for term in ("不敢告诉", "同学", "都知道")):
+        return (
+            "你可以选择简短说明，不必公开复盘：“这次结果不理想，我准备再看下一步方案。”"
+            "失败不是羞耻事件，只是你不需要把最脆弱的部分交给所有人围观。"
+            "真正需要细聊的人可以少一点，先选一个可靠的人说真实感受，其他人只给事实版本就够了。"
+        )
+    return (
+        "拒信会让人很容易把一个结果解释成对整个人的判决。"
+        "但申请结果受很多因素影响：名额、方向匹配、文书、推荐、项目偏好。"
+        "它说明这次没有匹配成功，不等于你不适合更大的世界。"
+        "现在先不要急着否定全部准备，可以等情绪降一点后复盘下一步：补申、换项目、延期还是转向其他路径。"
+    )
+
+
+def _is_alcohol_blackout_shame_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_alcohol = any(term in combined for term in ("喝多", "断片", "不喝", "喝了才敢放松", "喝酒"))
+    has_shame_or_risk = any(term in combined for term in ("丢脸", "朋友细节", "他们笑我", "根本放松不了", "冒犯", "道歉"))
+    return has_alcohol and has_shame_or_risk
+
+
+def _alcohol_blackout_shame_reply(user_text: str = "") -> str:
+    if any(term in user_text for term in ("问朋友", "细节", "笑我")):
+        return (
+            "可以找最可信的一个朋友确认：“昨晚我喝多断片了，如果有冒犯或需要道歉的地方请告诉我。”"
+            "这比自己反复脑补更稳，也能把需要补救的事和羞耻感分开。"
+            "之后给自己设饮酒边界：不空腹、不混酒、固定上限，并和朋友约定提醒。"
+        )
+    if any(term in user_text for term in ("不喝", "放松不了")):
+        return (
+            "这说明你需要替代的放松方式，而不是只靠酒精关闭压力。"
+            "可以先试一周，把最想喝的时段换成散步、热水澡、和朋友正常聊天，或者做一个低刺激的固定放松流程。"
+            "如果你发现很难控制饮酒量，建议找心理中心或校医院做专业支持。"
+        )
+    return (
+        "你现在的羞耻和担心很强，但先把事情分开：一是昨晚是否有需要补救的具体行为，二是你最近靠喝酒放松已经开始带来风险。"
+        "断片是需要重视的身体和安全信号，不是简单“丢脸”。"
+        "今天先别靠脑补惩罚自己，等状态稳定后向可信朋友确认事实，再决定是否需要道歉或设新的饮酒边界。"
+    )
+
+
+def _is_sports_injury_identity_loss_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_sport = any(term in combined for term in ("打球", "篮球", "受伤", "医生说要休", "回不去了"))
+    has_identity = any(term in combined for term in ("什么都不是", "最确定的东西", "社团", "比赛", "身份感", "以后回不去"))
+    return has_sport and has_identity
+
+
+def _sports_injury_identity_loss_reply(user_text: str = "") -> str:
+    if any(term in user_text for term in ("回不去", "以后")):
+        return (
+            "这个怕是真实的。你可以和医生或康复师确认可恢复范围，不要靠脑补最坏结果折磨自己。"
+            "同时慢慢建立第二身份：学生、朋友、组织者、技术分析者。"
+            "篮球很重要，但你不只等于能不能上场；恢复期也可以保留和球队、朋友、训练知识的连接。"
+        )
+    return (
+        "你失去的不只是运动本身，还有身份感、社交圈和掌控感。难受是合理的。"
+        "先不用急着说“还有别的爱好”，因为篮球对你确实很重要。"
+        "现在可以先把恢复拆成两个轨道：按医生建议保护身体，同时保留一点和篮球有关但不伤身的连接，比如看战术、做记录、参与组织。"
+    )
+
+
+def _is_caregiving_role_conflict_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_illness = any(term in combined for term in ("亲人重病", "医院", "照护", "照顾", "家里的事", "老师说"))
+    has_conflict = any(term in combined for term in ("不孝", "课程挂掉", "不敢跟老师说", "申请延期", "待在医院", "一回学校"))
+    return has_illness and has_conflict
+
+
+def _caregiving_role_conflict_reply(user_text: str = "") -> str:
+    if any(term in user_text for term in ("老师", "不敢")):
+        return (
+            "可以只说必要事实，不必倾诉全部细节：“近期家中有重病亲属需要照护，我的实验/作业可能受影响，想申请一次延期或调整提交方式。”"
+            "求助不是利用同情，而是在特殊时期维护基本运转。"
+            "如果直接找任课老师压力太大，可以先和辅导员说明，让他帮你判断哪些课程需要提前沟通。"
+        )
+    return (
+        "这像是在两个责任之间被拉扯。可以先做一个现实分工表：哪些时段必须你在，哪些可以由亲戚轮换，哪些学校任务可以申请延期或说明情况。"
+        "把责任具体化，才不会变成“我必须什么都扛”。"
+        "你在学校处理课程，不等于不孝；照护也需要可持续的安排。"
+    )
+
+
+def _is_long_distance_silence_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("异地", "对象", "一天不回消息", "在线没回", "盯着手机")) and any(
+        term in combined for term in ("忙", "解释", "心里一沉", "确定感")
+    )
+
+
+def _long_distance_silence_reply() -> str:
+    return (
+        "你需要的不是每分钟陪伴，而是基本回应和确定感。"
+        "异地关系里，沉默会被放大成很多猜测；你的焦虑有关系背景，不是无理取闹。"
+        "可以等情绪稍微稳一点后说清楚具体需求：“忙可以理解，但希望你忙前或忙后给一句说明，不要让我整天盯着手机猜。”"
+    )
+
+
+def _is_other_self_harm_trigger_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_other_risk = any(term in combined for term in ("她真的出事", "他真的出事", "自伤信息", "朋友的信息", "怕她真的"))
+    has_triggered = any(term in combined for term in ("心跳很快", "手在抖", "没有具体要做什么", "被触发", "动态"))
+    return has_other_risk and has_triggered
+
+
+def _other_self_harm_trigger_reply() -> str:
+    return (
+        "先让一个可信的人知道你现在也被触发了。"
+        "然后把朋友的信息转给能联系到她的人：家人、室友、辅导员、老师，必要时报警或联系急救。"
+        "不要一个人承担救援责任，也不要独自反复看她的动态；你可以关掉页面，找人一起处理。"
+    )
+
+
+def _is_graduation_choice_overload_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("马上毕业", "考研", "考公", "找工作", "经验帖")) and any(
+        term in combined for term in ("越刷越乱", "都有方向", "都有人后悔", "完美答案")
+    )
+
+
+def _graduation_choice_overload_reply() -> str:
+    return (
+        "你现在不是没有努力，而是信息太多，导致决策系统过载。"
+        "毕业选择看起来像决定一生，但更实际的做法是把它拆成可测试的阶段，而不是一次性选出完美答案。"
+        "先暂停刷经验帖，给三条路各写一列：成本、准备周期、你已有资源；再选一个两周内能验证的小动作。"
+    )
+
+
+def _is_binge_shame_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_binge = any(term in combined for term in ("暴食", "连嘴都管不住", "吃了很多", "管不住嘴"))
+    has_shame = any(term in combined for term in ("没用", "羞耻", "责骂", "很废"))
+    return has_binge and has_shame
+
+
+def _binge_shame_reply() -> str:
+    return (
+        "把它叫作“没用”会让羞耻更强。可以换成观察：昨晚暴食前发生了什么？是压力、孤独、熬夜，还是白天吃太少？"
+        "找到触发点比责骂自己更有用。"
+        "今天尽量恢复正常三餐，不要用极端限制修正；如果这种循环反复出现，可以找校医院或心理中心一起做更稳定的饮食和情绪支持。"
+    )
+
+
+def _is_insomnia_numbness_safety_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    has_insomnia = any(term in combined for term in ("快一周睡得很差", "连续失眠", "睡不着", "白天像飘着"))
+    has_numbness = any(term in combined for term in ("没什么感觉", "醒不醒好像都差不多", "无所谓", "麻木"))
+    return has_insomnia and has_numbness
+
+
+def _insomnia_numbness_safety_reply() -> str:
+    return (
+        "你这句话里有很强的疲惫和麻木感，我需要认真确认你的安全。"
+        "你说“醒不醒都差不多”时，是单纯形容累到麻木，还是有过不想继续活着、想伤害自己的念头？"
+        "如果这种念头存在，今晚先不要一个人待着，请联系舍友、朋友、辅导员或当地紧急支持；同时连续睡眠很差也值得尽快去校医院或正规医疗机构评估。"
     )
 
 

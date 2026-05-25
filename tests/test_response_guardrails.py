@@ -809,6 +809,226 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertIn("劳动报酬", reply)
         self.assertIn("明确答复", reply)
 
+    def test_overseas_application_rejection_gets_result_reframe(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我申请的学校发拒信了。准备了那么久，突然觉得自己可能就不适合去更好的地方。",
+            "先稳住节律。",
+        )
+
+        self.assertIn("不等于你不适合更大的世界", reply)
+        self.assertIn("方向匹配", reply)
+        self.assertIn("下一步", reply)
+
+    def test_alcohol_blackout_gets_risk_and_repair_split(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "昨晚聚会我喝多了，今天醒来完全断片，觉得自己很丢脸。我最近压力大，每次喝了才敢放松。",
+            "我没有足够证据证明这是攻击。",
+        )
+
+        self.assertIn("断片", reply)
+        self.assertIn("需要补救", reply)
+        self.assertIn("饮酒边界", reply)
+
+    def test_sports_injury_gets_identity_loss_support(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我打球受伤了，医生说要休很久。篮球本来是我最确定的东西，现在突然停了，我觉得自己什么都不是。",
+            "没进决赛已经很失落。",
+        )
+
+        self.assertIn("身份感", reply)
+        self.assertIn("篮球", reply)
+        self.assertIn("不伤身", reply)
+
+    def test_insomnia_numbness_gets_safety_check(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我已经快一周睡得很差了，白天像飘着一样。睡不着也无所谓，醒不醒好像都差不多。",
+            "今晚先放低屏幕亮度。",
+        )
+
+        self.assertIn("确认你的安全", reply)
+        self.assertIn("不想继续活着", reply)
+        self.assertIn("校医院", reply)
+
+    def test_other_self_harm_trigger_gets_handoff_plan(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我没有具体要做什么，但心跳很快，手在抖。我怕她真的出事。",
+            "回到宿舍就烦。",
+            conversation_history=[{"role": "user", "content": "我看到朋友发了自伤信息。"}],
+        )
+
+        self.assertIn("不要一个人承担救援责任", reply)
+        self.assertIn("辅导员", reply)
+        self.assertIn("急救", reply)
+
+    def test_final_guardrail_does_not_override_parent_call_with_body_image(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我每次和我妈打电话都会吵起来。她问我学习、问我吃饭、问我和谁出去，我知道她关心我，但她问得太细。",
+            "你们的对话像进入了固定循环：她越问越细，你越觉得被控制。",
+        )
+
+        self.assertIn("固定循环", reply)
+        self.assertIn("边界", reply)
+        self.assertNotIn("体重焦虑", reply)
+
+    def test_final_guardrail_handles_application_rejection_without_generic_fallback(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我申请的学校发拒信了，准备了那么久，突然觉得自己可能就不适合去更好的地方。",
+            "你正在承受一段持续性的校园压力，当前最重要的是先稳住节律。",
+        )
+
+        self.assertIn("拒信", reply)
+        self.assertIn("不等于你不适合更大的世界", reply)
+
+    def test_final_guardrail_routes_teacher_humiliation_followup(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我怕他更讨厌我。",
+            "现在优先级可以先放在最近截止的任务上。",
+            conversation_history=[{"role": "user", "content": "老师当着全班说我的作业像没脑子写的。"}],
+        )
+
+        self.assertIn("助教", reply)
+        self.assertIn("我没脑子", reply)
+        self.assertNotIn("实验报告", reply)
+
+    def test_final_guardrail_online_attack_refresh_not_publish_reply(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我忍不住想刷新，想看有没有人帮我说话。",
+            "暂时不想发可以理解。",
+            conversation_history=[{"role": "user", "content": "我被网上评论攻击了。"}],
+        )
+
+        self.assertIn("不断刷新", reply)
+        self.assertIn("评论通知", reply)
+        self.assertNotIn("永久夺走你的表达空间", reply)
+
+    def test_final_guardrail_weekend_loneliness_no_reply_has_backup_plan(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果没人回我，我可能更难受。",
+            "独处和孤独不一样。",
+            conversation_history=[{"role": "user", "content": "周末宿舍没人，我一个人吃饭，感觉可有可无。"}],
+        )
+
+        self.assertIn("两个方案", reply)
+        self.assertIn("不依赖他人的外出计划", reply)
+        self.assertIn("不会完全押在别人是否回复上", reply)
+
+    def test_final_guardrail_group_assignment_initial_matches_reference(self) -> None:
+        reply = finalize_user_visible_reply(
+            "小组作业让我很憋屈，后来他们在群里自己定了方案，很多事情都没问我，我现在像个挂名成员。",
+            "你现在卡住的不只是小组关系。",
+        )
+
+        self.assertIn("不是单纯的玻璃心", reply)
+        self.assertIn("你想参与", reply)
+        self.assertIn("保护你的贡献", reply)
+
+    def test_final_guardrail_group_assignment_no_response_gives_visible_contribution(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果他们还是不理我怎么办？",
+            "你可以先把你的诉求表达清楚。",
+            conversation_history=[{"role": "user", "content": "小组作业里我怕最后老师觉得我没贡献。"}],
+        )
+
+        self.assertIn("保留聊天记录", reply)
+        self.assertIn("可见成果", reply)
+        self.assertIn("工作被看见", reply)
+
+    def test_final_guardrail_research_group_still_excluded_routes_to_second_growth_line(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果他们还是不让我参与呢？",
+            "她们没有叫你一起吃饭。",
+            conversation_history=[{"role": "user", "content": "科研小组里师兄总说我基础差，只让我做杂活。"}],
+        )
+
+        self.assertIn("第二条成长线", reply)
+        self.assertIn("课程项目", reply)
+        self.assertNotIn("一起吃饭", reply)
+
+    def test_final_guardrail_pet_grief_guilt_reduces_self_blame(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我会想是不是我哪里没照顾好它。如果我早点发现不对，它会不会还在。",
+            "它对你来说不是只是宠物。",
+            conversation_history=[{"role": "user", "content": "我的宠物离开了，我一直很难接受。"}],
+        )
+
+        self.assertIn("如果当初", reply)
+        self.assertIn("不完全由你控制", reply)
+        self.assertIn("曾经照顾它", reply)
+
+    def test_final_guardrail_friend_repair_uncertainty_respects_boundary(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果她不接受怎么办？",
+            "修复不需要一次把所有问题解决。",
+            conversation_history=[{"role": "user", "content": "我和朋友吵架后想道歉修复。"}],
+        )
+
+        self.assertIn("她可能需要时间", reply)
+        self.assertIn("我尊重你现在不想聊", reply)
+        self.assertIn("双方慢慢重新建立安全感", reply)
+
+    def test_final_guardrail_other_harm_approach_uses_stop_instruction(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我现在已经走到楼下了，还是很想过去。",
+            "你想维护尊严、咽不下这口气。",
+            conversation_history=[{"role": "user", "content": "他在群里羞辱我，我想去找那个人算账。"}],
+        )
+
+        self.assertIn("现在停下", reply)
+        self.assertIn("相反方向走", reply)
+        self.assertIn("不可逆的事", reply)
+
+    def test_final_guardrail_code_incident_review_block_gives_four_line_template(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我现在手都发抖，根本写不出复盘。",
+            "事故发生后，身体和大脑都在应激状态里。",
+            conversation_history=[{"role": "user", "content": "我今天把一个接口改坏了，最后回滚了，日志里有我的提交记录。"}],
+        )
+
+        self.assertIn("四行模板", reply)
+        self.assertIn("变更内容", reply)
+        self.assertIn("可追踪", reply)
+
+    def test_final_guardrail_thesis_late_night_sets_hard_boundary(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我今晚可能还是会忍不住改到很晚。",
+            "可以设置一个有限检查流程。",
+            conversation_history=[{"role": "user", "content": "我的论文马上要查重，我很担心重复率。"}],
+        )
+
+        self.assertIn("硬边界", reply)
+        self.assertIn("参考文献、引注和格式", reply)
+        self.assertIn("清醒的大脑", reply)
+
+    def test_final_guardrail_project_defense_blank_uses_anchor_checklist(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我还是怕现场脑子空。",
+            "没进决赛已经很失落。",
+            conversation_history=[{"role": "user", "content": "我们心理助手项目马上答辩了，生成回复部分用了大模型 API，我怕评委问核心创新。"}],
+        )
+
+        self.assertIn("核心定位一句话", reply)
+        self.assertIn("技术路线三层", reply)
+        self.assertNotIn("没进决赛", reply)
+
+    def test_final_guardrail_divorced_parent_mediator_identifies_role_overload(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我爸妈离婚以后，他们都找我说对方的坏话。我妈说她只有我了，我爸说我不能不理解他。",
+            "不吵不等于完全放弃自己。",
+        )
+
+        self.assertIn("超出孩子角色", reply)
+        self.assertIn("不是你冷血", reply)
+        self.assertIn("不该全压在你身上", reply)
+
+    def test_final_guardrail_public_speaking_initial_matches_reference(self) -> None:
+        reply = finalize_user_visible_reply(
+            "下周我要做课堂展示，想到站上去就紧张，最怕讲到一半忘词，觉得自己很蠢。",
+            "你可以提前准备一句救场话。",
+        )
+
+        self.assertIn("不代表你蠢", reply)
+        self.assertIn("即使紧张也能讲完", reply)
+
 
 if __name__ == "__main__":
     unittest.main()
