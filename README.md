@@ -23,6 +23,8 @@
 
 最新对齐进展：已将 `docs/心理助手长对话模拟测试用例50例.docx` 和 `docs/心理助手长对话模拟测试用例_新增50例_含隐性高危场景.docx` 作为参考回复库接入评估流程。当前后端已针对期末复习崩溃、任务拖延堆积、小组作业边缘化、分手后反复联系、宿舍冷落/社交隔离、冲动伤人风险、亲密关系威胁、论文查重焦虑、被跟踪安全安排、匿名攻击、隐私背叛、家庭职业冲突、父母沟通冲突、代码事故恐慌、科研/答辩/比赛压力、照护压力、关系耗竭、家庭暴力、隐性轻生信号、危险地点、断联失联、送出重要物品、账号交接、运动受伤身份感等场景补充本地策略。2026-05-25 最新自动流水线跑完整 100 例后，后端 mock 链路平均启发式评分提升到 80.93，`flag_counts` 为空，`low_score_examples` 为空；评估报告默认作为本地产物生成到 `reports/`，不随 GitHub 仓库保存。本轮达标主要来自后端最终回复层和安全路由修复；LoRA 训练仍作为自然度和泛化增强手段，隐私、危机、医疗边界继续由后端策略层兜底。
 
+对比实验进展：新增 `scripts/compare_docx_backend_experiment.py`，可同题比较“无策略通用基线”和“当前后端策略层”。2026-05-25 完整 100 例对比结果为：通用基线平均分 67.92，存在 `weak_action_specificity=33`、`misses_crisis_safety=4`、`misses_privacy_reassurance=3`；当前后端策略层平均分 80.93，`flag_counts` 为空，低分样例为空，相对基线提升 13.01 分。该报告适合直接作为论文/答辩中“后端熵减策略层有效性”的实验支撑材料。
+
 ## 协作与进展记录
 
 后续每次由 Codex 继续开发或检查时，同步更新两类记录：
@@ -71,6 +73,20 @@ python scripts\auto_quality_pipeline.py --mode full --limit 20 --start 1 --epoch
 
 这条流水线适合每轮迭代后做“生成回复 -> 对照优秀回复 -> 汇总问题 -> 生成补丁训练集 -> 可选继续训练”的闭环。
 
+如果要生成论文/答辩用的策略层对比实验报告，运行：
+
+```powershell
+python scripts\compare_docx_backend_experiment.py --limit 100 --start 1
+```
+
+默认输出：
+
+- Markdown 实验报告：`reports/docx_backend_comparison/*_docx_backend_comparison.md`
+- JSON 完整结果：`reports/docx_backend_comparison/*_docx_backend_comparison.json`
+- turn 级 CSV：`reports/docx_backend_comparison/*_turn_level_comparison.csv`
+
+报告包含总体均分、flags 对比、低分样例、按场景类别的均分，以及 baseline/backend 每轮回复和参考回复，方便后续整理实验表格。
+
 ## 目前已经实现
 
 - 文本支持接口：`POST /api/v1/support/text`
@@ -93,6 +109,7 @@ python scripts\auto_quality_pipeline.py --mode full --limit 20 --start 1 --epoch
 - 风格对齐模板：支持生成 `style_dpo` 偏好标注模板
 - Word 参考用例对照评估：支持从 100 个长对话参考案例中抽取优秀回复，并生成后端回复对比报告
 - 后端参考用例自动评估：`scripts/evaluate_backend_docx_reference_cases.py` 可直接用当前后端 mock 链路逐轮跑 Word 案例
+- 后端策略层对比实验：`scripts/compare_docx_backend_experiment.py` 可生成通用基线 vs 当前后端策略层的 Markdown/JSON/CSV 报告
 - 结构化输出：情绪评估、压力源、保护因子、熵水平、平衡状态、支持计划、安全提示
 - 单元测试：覆盖文本低风险、危机分流、语音转写链路
 

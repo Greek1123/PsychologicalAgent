@@ -2,6 +2,71 @@
 
 本文件用于记录 Codex 每次对项目的检查、修改、验证结果和下一步建议。运行时接口日志仍查看 `logs/app.log`。
 
+## 2026-05-25 DOCX 后端策略层对比实验
+
+### 本次做了什么
+
+- 新增 `scripts/compare_docx_backend_experiment.py`，把两个 Word 测试文档作为固定实验集，自动生成“无策略通用基线 vs 当前后端策略层”的同题对比报告。
+- 实验脚本复用现有 `compare_reply` 评分函数和 DOCX 解析逻辑，保证与前一阶段 80 分评估口径一致。
+- 输出 Markdown、JSON、JSONL 和 turn 级 CSV，便于后续放入论文、答辩 PPT 或人工复核表。
+- 增加按场景类别汇总：安全危机与隐性高危、学业任务与科研压力、人际关系与亲密关系、家庭与照护压力、自我评价与身体状态、其他校园压力。
+- 新增 `tests/test_compare_docx_backend_experiment.py`，覆盖分类和汇总逻辑。
+
+### 对比实验结果
+
+```text
+命令：python scripts\compare_docx_backend_experiment.py --limit 100 --start 1
+
+generic_baseline:
+  average_score = 67.92
+  flag_counts = {
+    weak_action_specificity: 33,
+    misses_crisis_safety: 4,
+    misses_privacy_reassurance: 3
+  }
+
+backend_strategy:
+  average_score = 80.93
+  flag_counts = {}
+  low_score_examples = []
+
+策略层提升：+13.01
+Markdown 报告：reports/docx_backend_comparison/20260525_140033_docx_backend_comparison.md
+JSON 结果：reports/docx_backend_comparison/20260525_140033_docx_backend_comparison.json
+CSV 明细：reports/docx_backend_comparison/20260525_140033_turn_level_comparison.csv
+```
+
+### 分类结果摘要
+
+```text
+学业任务与科研压力：baseline 66.11 -> backend 84.17
+安全危机与隐性高危：baseline 68.14 -> backend 83.42
+自我评价与身体状态：baseline 67.50 -> backend 84.33
+家庭与照护压力：baseline 68.17 -> backend 80.71
+人际关系与亲密关系：baseline 67.64 -> backend 79.18
+其他校园压力：baseline 68.81 -> backend 78.41
+```
+
+### 验证结果
+
+```text
+python -m pytest tests/test_compare_docx_backend_experiment.py
+2 passed
+
+python -m pytest
+264 passed
+```
+
+### 主要判断
+
+这层已经能直接支撑论文/答辩里的“消融/对比实验”：通用心理支持回复能给出基础安慰，但在具体校园动作、隐性高危安全确认、隐私边界和多轮承接上不足；当前后端策略层把平均分从 67.92 提升到 80.93，并清空主要问题标签，说明“熵减策略层 + 安全路由 + 最终回复约束”是项目的有效技术贡献。
+
+### 下一步建议
+
+1. 从 CSV 中挑 3 到 5 个典型案例，整理成答辩 PPT 的 qualitative case study。
+2. 给动态平衡层再做一个“多轮熵值/策略变化轨迹导出脚本”，和这份对比实验形成互补。
+3. 前端组员完成页面后，用同样案例录制演示，展示后端输出的风险、熵源、策略和回复如何同步变化。
+
 ## 2026-05-25 DOCX 后端对齐冲刺到 80 分
 
 ### 本次做了什么
