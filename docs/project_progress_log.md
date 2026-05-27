@@ -2,6 +2,32 @@
 
 本文件用于记录 Codex 每次对项目的检查、修改、验证结果和下一步建议。运行时接口日志仍查看 `logs/app.log`。
 
+## 2026-05-27 人工干预队列闭环
+
+### 本次做了什么
+
+- 在已有 `GET /api/v1/analytics/care-queue` 的基础上补齐人工处理闭环。
+- 新增 SQLite 表 `human_interventions`，记录人工处理状态、处理人、备注、下一步动作和标签。
+- 新增接口：
+  - `POST /api/v1/sessions/{session_id}/human-interventions`
+  - `GET /api/v1/sessions/{session_id}/human-interventions`
+- 支持人工状态：`acknowledged`、`in_progress`、`escalated`、`resolved`、`closed`。
+- `GET /api/v1/analytics/care-queue` 新增 `include_resolved` 参数；默认隐藏已 `resolved/closed` 的会话，审计时可显式带上。
+- `GET /api/v1/sessions/{session_id}/analysis` 现在返回 `human_interventions` 和 `latest_human_intervention`。
+- 前端 contract 已加入 care queue 和 human intervention 接口说明。
+- 同步更新 `README.md` 和 `docs/care_queue.md`。
+
+### 验证结果
+
+```text
+python -m pytest tests/test_storage.py tests/test_main.py
+15 passed
+```
+
+### 主要判断
+
+这一层把系统从“发现需要关注的人”推进到“可以被人工接手并关闭队列项”。它还不是完整咨询师工作台，但后端已经有了工作台需要的状态流：入队、确认、处理中、升级、解决、关闭。
+
 ## 2026-05-27 前端交接契约层
 
 ### 本次做了什么

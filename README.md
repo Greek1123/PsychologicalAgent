@@ -29,6 +29,7 @@
 
 手动抽检进展：新增 `scripts/run_manual_reply_check.py`，用于固定运行代表性后端对话，并记录“输入问题、系统回复、风险等级、心理熵、策略、动态状态”。2026-05-27 已扩展到 12 个场景 / 27 轮，并加入 expected/forbidden 关键词自动检查，最新记录输出到 `reports/manual_reply_checks/20260527_191548_manual_reply_check.md`、`.csv`、`.json`，全部 PASS。抽检中继续修复了暗恋/表白后续轮次被好友疏远或隐私模板抢走的问题；修复后全量测试 269 passed，DOCX 后端 100 例平均分提升到 81.04，`flag_counts` 为空，`low_score_examples` 为空。
 前端交付层进展：2026-05-27 新增 `GET /api/v1/frontend/contract`，前端组员可以先请求这个接口确认当前推荐接入方式。学生端优先展示 `reply_text`、必要安全提示和可选的 `entropy_reduction.core_actions`；研究/管理面板再展示 `risk`、`entropy`、`state_profile`、`intervention_strategy`、`dynamic_adjustment`、`referral_decision`、`multimodal_signal` 和 `system_flags`。
+人工干预闭环进展：2026-05-27 在已有 `GET /api/v1/analytics/care-queue` 的基础上新增人工处理记录接口 `POST /api/v1/sessions/{session_id}/human-interventions` 和 `GET /api/v1/sessions/{session_id}/human-interventions`。咨询师/辅导员端现在可以把队列项标记为 `acknowledged`、`in_progress`、`escalated`、`resolved` 或 `closed`；默认 care queue 会隐藏已 `resolved/closed` 的会话，需要审计时加 `include_resolved=true`。
 
 ## 协作与进展记录
 
@@ -518,6 +519,28 @@ curl "http://127.0.0.1:8000/api/v1/frontend/contract"
 2. 语音页再接 `POST /api/v1/support/audio`，如果返回 `multimodal_signal`，可以在调试面板展示音频证据。
 3. 研究/管理面板展示 `risk`、`entropy`、`state_profile`、`intervention_strategy`、`dynamic_adjustment`、`referral_decision` 和 `system_flags`。
 4. 普通学生端默认隐藏 `hidden_clinical_goal`、`backend_reason`、`backend_actions` 和 `system_flags.reasons`。
+
+### 人工干预队列
+
+查看当前需要人工关注的会话：
+
+```powershell
+curl "http://127.0.0.1:8000/api/v1/analytics/care-queue"
+```
+
+标记人工处理状态：
+
+```powershell
+curl -X POST "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/human-interventions" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"response_id\":\"support_xxx\",\"status\":\"acknowledged\",\"handler_id\":\"counselor-001\",\"note\":\"已查看高优先级队列，准备线下跟进。\",\"next_action\":\"same_day_checkin\",\"tags\":[\"manual_followup\"]}"
+```
+
+查看处理记录：
+
+```powershell
+curl "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/human-interventions"
+```
 
 ### 文本输入
 

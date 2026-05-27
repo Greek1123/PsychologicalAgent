@@ -10,6 +10,20 @@ Query parameters:
 
 - `limit`: maximum number of queue items. Default: `100`.
 - `include_low_priority`: whether to include ordinary observation sessions. Default: `false`.
+- `include_resolved`: whether to include sessions already marked `resolved` or `closed` by a human handler. Default: `false`.
+
+Human handling APIs:
+
+- `POST /api/v1/sessions/{session_id}/human-interventions`
+- `GET /api/v1/sessions/{session_id}/human-interventions`
+
+Supported human intervention statuses:
+
+- `acknowledged`
+- `in_progress`
+- `escalated`
+- `resolved`
+- `closed`
 
 Example response:
 
@@ -36,9 +50,28 @@ Example response:
       "outcome_status": "needs_human_followup",
       "recommended_action": "recommend_human_followup",
       "latest_entropy_score": 72,
-      "risk_level": "high"
+      "risk_level": "high",
+      "evidence": {
+        "human_intervention": {
+          "status": "acknowledged",
+          "handler_id": "counselor-001"
+        }
+      }
     }
   ]
+}
+```
+
+Example human intervention request:
+
+```json
+{
+  "response_id": "support_xxx",
+  "status": "acknowledged",
+  "handler_id": "counselor-001",
+  "note": "已查看高优先级队列，准备线下跟进。",
+  "next_action": "contact_student_with_low_pressure_checkin",
+  "tags": ["manual_followup", "same_day_review"]
 }
 ```
 
@@ -52,3 +85,5 @@ Example response:
 ## Project Meaning
 
 This module makes the system operational. Instead of only reporting analysis fields, it produces a current worklist for follow-up, dashboard display, and future human-in-the-loop workflows.
+
+With human intervention records, the queue is now a closed loop: a session can enter the queue through risk, entropy trend, referral, or strategy deterioration, then a counselor can acknowledge, escalate, resolve, or close it. Resolved and closed sessions are hidden from the open queue by default, while still available for audit with `include_resolved=true`.

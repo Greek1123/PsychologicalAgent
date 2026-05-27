@@ -192,6 +192,21 @@ class SQLiteSessionStore:
 
                 CREATE INDEX IF NOT EXISTS idx_feedback_session
                 ON intervention_feedback (session_id, id);
+
+                CREATE TABLE IF NOT EXISTS human_interventions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    response_id TEXT,
+                    status TEXT NOT NULL,
+                    handler_id TEXT,
+                    note TEXT,
+                    next_action TEXT,
+                    tags_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_human_intervention_session
+                ON human_interventions (session_id, id);
                 """
             )
         logger.info("SQLite session store initialized at %s", self.db_path)
@@ -443,6 +458,91 @@ class SQLiteSessionStore:
             for row in rows
         ]
 
+    def append_human_intervention(
+        self,
+        *,
+        session_id: str,
+        response_id: str | None,
+        status: str,
+        handler_id: str | None = None,
+        note: str | None = None,
+        next_action: str | None = None,
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        clean_tags = [str(tag).strip() for tag in (tags or []) if str(tag).strip()]
+        clean_note = note.strip() if isinstance(note, str) and note.strip() else None
+        clean_next_action = next_action.strip() if isinstance(next_action, str) and next_action.strip() else None
+        clean_handler_id = handler_id.strip() if isinstance(handler_id, str) and handler_id.strip() else None
+        clean_response_id = response_id.strip() if isinstance(response_id, str) and response_id.strip() else None
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO human_interventions (
+                    session_id,
+                    response_id,
+                    status,
+                    handler_id,
+                    note,
+                    next_action,
+                    tags_json
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    session_id,
+                    clean_response_id,
+                    status,
+                    clean_handler_id,
+                    clean_note,
+                    clean_next_action,
+                    json.dumps(clean_tags, ensure_ascii=False),
+                ),
+            )
+            row = connection.execute(
+                """
+                SELECT id, session_id, response_id, status, handler_id, note,
+                       next_action, tags_json, created_at
+                FROM human_interventions
+                WHERE id = ?
+                """,
+                (cursor.lastrowid,),
+            ).fetchone()
+        logger.info("Stored human intervention session_id=%s status=%s", session_id, status)
+        return _human_intervention_row_to_dict(row)
+
+    def get_human_interventions(self, session_id: str, *, limit: int | None = None) -> list[dict[str, Any]]:
+        query = """
+            SELECT id, session_id, response_id, status, handler_id, note,
+                   next_action, tags_json, created_at
+            FROM human_interventions
+            WHERE session_id = ?
+            ORDER BY id ASC
+        """
+        params: list[Any] = [session_id]
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+        with self._connect() as connection:
+            rows = connection.execute(query, tuple(params)).fetchall()
+        return [_human_intervention_row_to_dict(row) for row in rows]
+
+    def get_latest_human_interventions_by_session(self) -> dict[str, dict[str, Any]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT h.id, h.session_id, h.response_id, h.status, h.handler_id,
+                       h.note, h.next_action, h.tags_json, h.created_at
+                FROM human_interventions AS h
+                INNER JOIN (
+                    SELECT session_id, MAX(id) AS latest_id
+                    FROM human_interventions
+                    GROUP BY session_id
+                ) AS latest
+                ON h.session_id = latest.session_id AND h.id = latest.latest_id
+                """
+            ).fetchall()
+        return {str(row["session_id"]): _human_intervention_row_to_dict(row) for row in rows}
+
     def append_intervention_feedback(
         self,
         *,
@@ -691,6 +791,7 @@ class SQLiteSessionStore:
             connection.execute("DELETE FROM support_responses WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM referral_events WHERE session_id = ?", (session_id,))
             connection.execute("DELETE FROM intervention_feedback WHERE session_id = ?", (session_id,))
+            connection.execute("DELETE FROM human_interventions WHERE session_id = ?", (session_id,))
         logger.info("Cleared persisted session data for session_id=%s", session_id)
 
     def get_session_analysis(self, session_id: str) -> dict[str, Any]:
@@ -698,6 +799,7 @@ class SQLiteSessionStore:
         referral_events = self.get_referral_events(session_id)
         entropy_trace = self.get_entropy_trace(session_id)
         intervention_feedback = self.get_intervention_feedback(session_id)
+        human_interventions = self.get_human_interventions(session_id)
         feedback_summary = self.summarize_intervention_feedback(session_id)
         conversation_history = self.get_history(session_id)
         conversation_memory = build_memory_context(conversation_history)
@@ -851,6 +953,8 @@ class SQLiteSessionStore:
                 "next_orchestration_recommendation": None,
                 "referral_events": [],
                 "intervention_feedback": intervention_feedback,
+                "human_interventions": human_interventions,
+                "latest_human_intervention": human_interventions[-1] if human_interventions else None,
                 "feedback_summary": feedback_summary,
                 "session_insight": session_insight,
                 "session_continuity": session_continuity,
@@ -948,6 +1052,8 @@ class SQLiteSessionStore:
             ),
             "referral_events": referral_events,
             "intervention_feedback": intervention_feedback,
+            "human_interventions": human_interventions,
+            "latest_human_intervention": human_interventions[-1] if human_interventions else None,
             "feedback_summary": feedback_summary,
             "session_insight": session_insight,
             "session_continuity": session_continuity,
@@ -1480,19 +1586,28 @@ class SQLiteSessionStore:
         *,
         limit: int | None = 100,
         include_low_priority: bool = False,
+        include_resolved: bool = False,
     ) -> dict[str, Any]:
         records = self.list_support_responses(limit=None)
         latest_records = _latest_records_by_session(records)
+        latest_human_interventions = self.get_latest_human_interventions_by_session()
         items = [
             _build_care_queue_item(
                 record,
                 session_records=[item for item in records if item.get("session_id") == record.get("session_id")],
                 feedback_summary=self.summarize_intervention_feedback(str(record.get("session_id") or "")),
+                human_intervention=latest_human_interventions.get(str(record.get("session_id") or "")),
             )
             for record in latest_records
         ]
         if not include_low_priority:
             items = [item for item in items if item.priority != "low"]
+        if not include_resolved:
+            items = [
+                item
+                for item in items
+                if (item.evidence.get("human_intervention") or {}).get("status") not in {"resolved", "closed"}
+            ]
         items.sort(
             key=lambda item: (
                 _QUEUE_PRIORITY_RANK.get(item.priority, 0),
@@ -1934,6 +2049,7 @@ def _build_care_queue_item(
     *,
     session_records: list[dict[str, Any]] | None = None,
     feedback_summary: dict[str, Any] | None = None,
+    human_intervention: dict[str, Any] | None = None,
 ) -> CareQueueItem:
     care_pathway = _infer_record_care_pathway(record)
     outcome_status = _infer_record_entropy_outcome_status(record)
@@ -1980,6 +2096,7 @@ def _build_care_queue_item(
             "primary_state": record.get("primary_state"),
             "trend_warning_reasons": trend_warning.trigger_reasons,
             "trend_warning_evidence": trend_warning.evidence,
+            "human_intervention": human_intervention,
         },
     )
 
@@ -2039,6 +2156,20 @@ def _queue_score(
     if latest_entropy_score is not None:
         score += min(max(latest_entropy_score, 0), 100) // 5
     return score
+
+
+def _human_intervention_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "session_id": row["session_id"],
+        "response_id": row["response_id"],
+        "status": row["status"],
+        "handler_id": row["handler_id"],
+        "note": row["note"],
+        "next_action": row["next_action"],
+        "tags": json.loads(row["tags_json"]),
+        "created_at": row["created_at"],
+    }
 
 
 def _safe_int(value: Any) -> int | None:

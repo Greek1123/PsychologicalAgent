@@ -300,6 +300,59 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertEqual(queue["items"][0]["recommended_action"], "recommend_human_followup")
         self.assertEqual(queue_with_low["total_items"], 2)
 
+    def test_human_intervention_status_closes_care_queue_item(self) -> None:
+        db_path = _test_db_path()
+
+        store = SQLiteSessionStore(str(db_path), max_messages=6)
+        store.store_support_response(
+            session_id="session-human",
+            response_id="resp-human",
+            source="text",
+            input_text="u-human",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={
+                "reply_text": "a-human",
+                "risk": {"level": "high", "score": 82},
+                "entropy": {"score": 76, "trend": {"delta": 10}},
+                "referral_decision": {"should_refer": True, "urgency": "recommended"},
+            },
+        )
+
+        acknowledged = store.append_human_intervention(
+            session_id="session-human",
+            response_id="resp-human",
+            status="acknowledged",
+            handler_id="counselor-001",
+            note="已查看，准备联系学生。",
+            next_action="same_day_checkin",
+            tags=["manual_followup"],
+        )
+        queue = store.get_care_queue()
+
+        self.assertEqual(acknowledged["status"], "acknowledged")
+        self.assertEqual(queue["total_items"], 1)
+        self.assertEqual(queue["items"][0]["evidence"]["human_intervention"]["handler_id"], "counselor-001")
+
+        store.append_human_intervention(
+            session_id="session-human",
+            response_id="resp-human",
+            status="resolved",
+            handler_id="counselor-001",
+            note="已完成线下确认。",
+            next_action="continue_observation",
+            tags=["resolved"],
+        )
+        open_queue = store.get_care_queue()
+        full_queue = store.get_care_queue(include_resolved=True)
+        analysis = store.get_session_analysis("session-human")
+
+        self.assertEqual(open_queue["total_items"], 0)
+        self.assertEqual(full_queue["total_items"], 1)
+        self.assertEqual(full_queue["items"][0]["evidence"]["human_intervention"]["status"], "resolved")
+        self.assertEqual(analysis["latest_human_intervention"]["status"], "resolved")
+
 
 if __name__ == "__main__":
     unittest.main()

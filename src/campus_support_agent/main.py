@@ -47,6 +47,7 @@ def get_settings() -> Settings:
 logger = get_logger("main")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 APP_HTML = STATIC_DIR / "app.html"
+HUMAN_INTERVENTION_STATUSES = {"acknowledged", "in_progress", "escalated", "resolved", "closed"}
 
 
 @lru_cache(maxsize=1)
@@ -348,6 +349,16 @@ def get_frontend_contract() -> dict[str, Any]:
                 "method": "GET",
                 "path": "/api/v1/sessions/{session_id}/analysis",
             },
+            "care_queue": {
+                "method": "GET",
+                "path": "/api/v1/analytics/care-queue",
+                "query": ["limit", "include_low_priority", "include_resolved"],
+            },
+            "human_interventions": {
+                "method": "POST",
+                "path": "/api/v1/sessions/{session_id}/human-interventions",
+                "statuses": sorted(HUMAN_INTERVENTION_STATUSES),
+            },
             "model_status": {
                 "method": "GET",
                 "path": "/api/v1/model/status",
@@ -381,6 +392,15 @@ def get_frontend_contract() -> dict[str, Any]:
             "multimodal_signal": "Audio evidence summary when the input is audio.",
             "session": "Session id plus stored history and entropy trace counts.",
             "system_flags": "Backend flags for manual review and repeated referral patterns.",
+            "human_interventions": "Manual handling records in session analysis after staff acknowledgement or resolution.",
+        },
+        "human_intervention_request_example": {
+            "response_id": "support_xxx",
+            "status": "acknowledged",
+            "handler_id": "counselor-001",
+            "note": "已查看高优先级队列，准备线下跟进。",
+            "next_action": "contact_student_with_low_pressure_checkin",
+            "tags": ["manual_followup", "same_day_review"],
         },
         "frontend_display_policy": {
             "student_chat": ["reply_text", "safety.emergency_notice", "safety.human_referral"],
@@ -833,6 +853,73 @@ def get_session_referrals(session_id: str, limit: int | None = None) -> dict[str
     }
 
 
+def _parse_human_intervention_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    status = str(payload.get("status", "")).strip()
+    if status not in HUMAN_INTERVENTION_STATUSES:
+        allowed = ", ".join(sorted(HUMAN_INTERVENTION_STATUSES))
+        raise HTTPException(status_code=422, detail=f"status must be one of: {allowed}")
+
+    tags = payload.get("tags") or []
+    if not isinstance(tags, list):
+        raise HTTPException(status_code=422, detail="tags must be a string array.")
+
+    def optional_text(field_name: str) -> str | None:
+        value = payload.get(field_name)
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise HTTPException(status_code=422, detail=f"{field_name} must be a string.")
+        return value.strip() or None
+
+    return {
+        "response_id": optional_text("response_id"),
+        "status": status,
+        "handler_id": optional_text("handler_id"),
+        "note": optional_text("note"),
+        "next_action": optional_text("next_action"),
+        "tags": [str(tag).strip() for tag in tags if str(tag).strip()],
+    }
+
+
+@app.post("/api/v1/sessions/{session_id}/human-interventions")
+def append_session_human_intervention(session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    parsed = _parse_human_intervention_payload(payload)
+    session_store = get_session_store()
+    intervention = session_store.append_human_intervention(
+        session_id=session_id,
+        response_id=parsed["response_id"],
+        status=parsed["status"],
+        handler_id=parsed["handler_id"],
+        note=parsed["note"],
+        next_action=parsed["next_action"],
+        tags=parsed["tags"],
+    )
+    logger.info(
+        "Human intervention submitted session_id=%s status=%s handler=%s",
+        session_id,
+        parsed["status"],
+        parsed["handler_id"] or "-",
+    )
+    return {
+        "session_id": session_id,
+        "human_intervention": intervention,
+        "human_interventions": session_store.get_human_interventions(session_id),
+    }
+
+
+@app.get("/api/v1/sessions/{session_id}/human-interventions")
+def get_session_human_interventions(session_id: str, limit: int | None = None) -> dict[str, Any]:
+    session_store = get_session_store()
+    interventions = session_store.get_human_interventions(session_id, limit=limit)
+    logger.info("Human interventions requested session_id=%s total=%s", session_id, len(interventions))
+    return {
+        "session_id": session_id,
+        "total_interventions": len(interventions),
+        "latest_human_intervention": interventions[-1] if interventions else None,
+        "human_interventions": interventions,
+    }
+
+
 def _parse_feedback_payload(payload: dict[str, Any]) -> dict[str, Any]:
     response_id = str(payload.get("response_id", "")).strip()
     if not response_id:
@@ -930,10 +1017,23 @@ def get_overview_analytics(limit: int = 200) -> dict[str, Any]:
 
 
 @app.get("/api/v1/analytics/care-queue")
-def get_care_queue(limit: int = 100, include_low_priority: bool = False) -> dict[str, Any]:
+def get_care_queue(
+    limit: int = 100,
+    include_low_priority: bool = False,
+    include_resolved: bool = False,
+) -> dict[str, Any]:
     session_store = get_session_store()
-    queue = session_store.get_care_queue(limit=limit, include_low_priority=include_low_priority)
-    logger.info("Care queue requested total=%s include_low=%s", queue["total_items"], include_low_priority)
+    queue = session_store.get_care_queue(
+        limit=limit,
+        include_low_priority=include_low_priority,
+        include_resolved=include_resolved,
+    )
+    logger.info(
+        "Care queue requested total=%s include_low=%s include_resolved=%s",
+        queue["total_items"],
+        include_low_priority,
+        include_resolved,
+    )
     return queue
 
 

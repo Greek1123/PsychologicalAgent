@@ -149,10 +149,65 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("risk", contract["response_core_fields"])
         self.assertIn("entropy", contract["response_core_fields"])
         self.assertIn("referral_decision", contract["response_core_fields"])
+        self.assertIn("human_interventions", contract["response_core_fields"])
+        self.assertIn("human_interventions", contract["endpoints"])
         self.assertIn("student_chat", contract["frontend_display_policy"])
         self.assertIn("research_dashboard", contract["frontend_display_policy"])
         self.assertIn("critical", contract["risk_badges"])
         self.assertGreaterEqual(len(contract["demo_prompts"]), 4)
+
+    def test_human_intervention_endpoint_updates_care_queue_state(self) -> None:
+        session_id = f"test-human-session-{uuid4().hex}"
+        response = main.support_text(
+            {
+                "session_id": session_id,
+                "text": "我这几天一直睡不着，吃不下，也不太想见人。",
+                "student_context": {},
+                "conversation_history": [],
+            }
+        )
+
+        created = main.append_session_human_intervention(
+            session_id,
+            {
+                "response_id": response["response_id"],
+                "status": "acknowledged",
+                "handler_id": "counselor-001",
+                "note": "已查看，准备低压力跟进。",
+                "next_action": "same_day_checkin",
+                "tags": ["manual_followup"],
+            },
+        )
+        interventions = main.get_session_human_interventions(session_id)
+        analysis = main.get_session_analysis(session_id)
+        queue = main.get_care_queue(limit=20, include_low_priority=True)
+
+        self.assertEqual(created["human_intervention"]["status"], "acknowledged")
+        self.assertEqual(interventions["latest_human_intervention"]["handler_id"], "counselor-001")
+        self.assertEqual(analysis["latest_human_intervention"]["status"], "acknowledged")
+        self.assertTrue(
+            any(
+                item["session_id"] == session_id
+                and item["evidence"]["human_intervention"]["status"] == "acknowledged"
+                for item in queue["items"]
+            )
+        )
+
+        main.append_session_human_intervention(
+            session_id,
+            {
+                "response_id": response["response_id"],
+                "status": "resolved",
+                "handler_id": "counselor-001",
+                "note": "已完成初步跟进。",
+                "tags": ["resolved"],
+            },
+        )
+        open_queue = main.get_care_queue(limit=20, include_low_priority=True)
+        full_queue = main.get_care_queue(limit=20, include_low_priority=True, include_resolved=True)
+
+        self.assertFalse(any(item["session_id"] == session_id for item in open_queue["items"]))
+        self.assertTrue(any(item["session_id"] == session_id for item in full_queue["items"]))
 
     def test_session_feedback_updates_analysis_and_overview(self) -> None:
         session_id = f"test-feedback-session-{uuid4().hex}"
