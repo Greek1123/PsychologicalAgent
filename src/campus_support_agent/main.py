@@ -21,6 +21,12 @@ from .entropy import evaluate_psychological_entropy
 from .feedback_adaptation import build_feedback_adaptation
 from .intervention_next_step import enrich_student_context_with_intervention_next_step
 from .logging_utils import configure_logging, get_logger
+from .privacy_views import (
+    SUPPORTED_VIEW_ROLES,
+    normalize_view_role,
+    project_session_analysis_for_role,
+    project_support_response_for_role,
+)
 from .providers import build_llm_provider, build_stt_provider
 from .reduction import build_entropy_reduction_strategy
 from .retrieval import CampusKnowledgeRetriever
@@ -359,6 +365,11 @@ def get_frontend_contract() -> dict[str, Any]:
                 "path": "/api/v1/sessions/{session_id}/human-interventions",
                 "statuses": sorted(HUMAN_INTERVENTION_STATUSES),
             },
+            "role_view": {
+                "method": "GET",
+                "path": "/api/v1/sessions/{session_id}/view",
+                "query": ["role=student|counselor|research|admin"],
+            },
             "model_status": {
                 "method": "GET",
                 "path": "/api/v1/model/status",
@@ -425,6 +436,12 @@ def get_frontend_contract() -> dict[str, Any]:
                 "backend_actions",
                 "system_flags.reasons",
             ],
+            "backend_role_views": {
+                "student": "Shows reply, safety notice, lightweight risk label, balance state, and user-facing care actions.",
+                "counselor": "Shows operational care fields while removing hidden clinical goals and backend-only action internals.",
+                "research": "Keeps structured metrics but redacts free text and direct intervention notes.",
+                "admin": "Full internal payload for local development and audit.",
+            },
         },
         "risk_badges": {
             "low": {"label": "Low", "tone": "neutral"},
@@ -694,6 +711,33 @@ def get_session_analysis(session_id: str) -> dict[str, Any]:
     analysis = session_store.get_session_analysis(session_id)
     logger.info("Session analysis requested session_id=%s total=%s", session_id, analysis["total_responses"])
     return analysis
+
+
+@app.get("/api/v1/sessions/{session_id}/view")
+def get_session_role_view(session_id: str, role: str = "student") -> dict[str, Any]:
+    try:
+        normalized_role = normalize_view_role(role)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"role must be one of: {', '.join(sorted(SUPPORTED_VIEW_ROLES))}",
+        ) from exc
+
+    session_store = get_session_store()
+    records = session_store.list_support_responses(session_id=session_id, limit=None)
+    analysis = session_store.get_session_analysis(session_id)
+    latest_response = records[-1]["response"] if records else None
+    logger.info("Session role view requested session_id=%s role=%s", session_id, normalized_role)
+    return {
+        "session_id": session_id,
+        "role": normalized_role,
+        "latest_response": (
+            project_support_response_for_role(latest_response, normalized_role)
+            if isinstance(latest_response, dict)
+            else None
+        ),
+        "analysis": project_session_analysis_for_role(analysis, normalized_role),
+    }
 
 
 @app.get("/api/v1/sessions/{session_id}/audit")

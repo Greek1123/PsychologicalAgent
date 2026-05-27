@@ -30,6 +30,7 @@
 手动抽检进展：新增 `scripts/run_manual_reply_check.py`，用于固定运行代表性后端对话，并记录“输入问题、系统回复、风险等级、心理熵、策略、动态状态”。2026-05-27 已扩展到 12 个场景 / 27 轮，并加入 expected/forbidden 关键词自动检查，最新记录输出到 `reports/manual_reply_checks/20260527_191548_manual_reply_check.md`、`.csv`、`.json`，全部 PASS。抽检中继续修复了暗恋/表白后续轮次被好友疏远或隐私模板抢走的问题；修复后全量测试 269 passed，DOCX 后端 100 例平均分提升到 81.04，`flag_counts` 为空，`low_score_examples` 为空。
 前端交付层进展：2026-05-27 新增 `GET /api/v1/frontend/contract`，前端组员可以先请求这个接口确认当前推荐接入方式。学生端优先展示 `reply_text`、必要安全提示和可选的 `entropy_reduction.core_actions`；研究/管理面板再展示 `risk`、`entropy`、`state_profile`、`intervention_strategy`、`dynamic_adjustment`、`referral_decision`、`multimodal_signal` 和 `system_flags`。
 人工干预闭环进展：2026-05-27 在已有 `GET /api/v1/analytics/care-queue` 的基础上新增人工处理记录接口 `POST /api/v1/sessions/{session_id}/human-interventions` 和 `GET /api/v1/sessions/{session_id}/human-interventions`。咨询师/辅导员端现在可以把队列项标记为 `acknowledged`、`in_progress`、`escalated`、`resolved` 或 `closed`；默认 care queue 会隐藏已 `resolved/closed` 的会话，需要审计时加 `include_resolved=true`。
+隐私边界进展：2026-05-27 新增 `GET /api/v1/sessions/{session_id}/view?role=student|counselor|research|admin`，由后端直接生成不同角色视图。学生端只拿回复、安全提示、轻量风险标签、平衡状态和用户可见行动；研究端保留结构化风险/熵/策略指标但隐藏自由文本和人工备注；管理员视图保留完整内部字段用于本地审计。
 
 ## 协作与进展记录
 
@@ -541,6 +542,24 @@ curl -X POST "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/human-inter
 ```powershell
 curl "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/human-interventions"
 ```
+
+### 角色视图与隐私边界
+
+学生端、咨询师端、研究端和管理员端不要直接共用完整后端 JSON。建议改用角色视图接口：
+
+```powershell
+curl "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/view?role=student"
+curl "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/view?role=counselor"
+curl "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/view?role=research"
+curl "http://127.0.0.1:8000/api/v1/sessions/demo-student-001/view?role=admin"
+```
+
+默认建议：
+
+- `student`：正式学生端使用。
+- `counselor`：咨询师/辅导员工作台使用。
+- `research`：论文实验、统计面板和导出分析使用。
+- `admin`：仅本地开发、排错和审计使用。
 
 ### 文本输入
 

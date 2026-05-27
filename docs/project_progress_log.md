@@ -2,6 +2,32 @@
 
 本文件用于记录 Codex 每次对项目的检查、修改、验证结果和下一步建议。运行时接口日志仍查看 `logs/app.log`。
 
+## 2026-05-27 角色视图与隐私边界层
+
+### 本次做了什么
+
+- 在人工干预闭环之后，继续补真实使用需要的隐私边界：不同角色不直接共用完整后端 JSON。
+- 新增 `src/campus_support_agent/privacy_views.py`，提供角色投影：
+  - `student`：只返回回复、安全提示、轻量风险标签、平衡状态和用户可见行动。
+  - `counselor`：返回工作台需要的风险、熵、策略、转介和人工处理信息，但移除后端内部敏感字段。
+  - `research`：保留结构化指标，隐藏自由文本、人工备注和直接身份线索。
+  - `admin`：保留完整内部 payload，用于本地开发、排错和审计。
+- 新增 `GET /api/v1/sessions/{session_id}/view?role=student|counselor|research|admin`。
+- 更新 `GET /api/v1/frontend/contract`，加入 `role_view` 和后端角色视图说明。
+- 新增 `tests/test_privacy_views.py`，并扩展 `tests/test_main.py`，覆盖学生视图不泄露 `system_flags`/内部策略、研究视图隐藏文本、管理员视图保留完整字段。
+- 同步更新 `README.md`。
+
+### 验证结果
+
+```text
+python -m pytest tests/test_privacy_views.py tests/test_main.py
+10 passed
+```
+
+### 主要判断
+
+这一层把隐私边界从“前端自己隐藏字段”前移到了后端。后续正式学生端应优先用 `role=student`，咨询师工作台用 `role=counselor`，论文统计和实验面板用 `role=research`，完整内部字段只给 `role=admin`。
+
 ## 2026-05-27 人工干预队列闭环
 
 ### 本次做了什么

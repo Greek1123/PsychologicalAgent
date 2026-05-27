@@ -151,10 +151,36 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("referral_decision", contract["response_core_fields"])
         self.assertIn("human_interventions", contract["response_core_fields"])
         self.assertIn("human_interventions", contract["endpoints"])
+        self.assertIn("role_view", contract["endpoints"])
+        self.assertIn("backend_role_views", contract["frontend_display_policy"])
         self.assertIn("student_chat", contract["frontend_display_policy"])
         self.assertIn("research_dashboard", contract["frontend_display_policy"])
         self.assertIn("critical", contract["risk_badges"])
         self.assertGreaterEqual(len(contract["demo_prompts"]), 4)
+
+    def test_session_role_view_projects_privacy_fields(self) -> None:
+        session_id = f"test-view-session-{uuid4().hex}"
+        main.support_text(
+            {
+                "session_id": session_id,
+                "text": "我最近压力很大，晚上一直睡不好。",
+                "student_context": {"student_name": "private"},
+                "conversation_history": [],
+            }
+        )
+
+        student_view = main.get_session_role_view(session_id, role="student")
+        research_view = main.get_session_role_view(session_id, role="research")
+        admin_view = main.get_session_role_view(session_id, role="admin")
+
+        self.assertEqual(student_view["role"], "student")
+        self.assertIn("reply_text", student_view["latest_response"])
+        self.assertNotIn("system_flags", student_view["latest_response"])
+        self.assertNotIn("intervention_strategy", student_view["latest_response"])
+        self.assertIn("text_redacted", research_view["latest_response"])
+        self.assertNotIn("reply_text", research_view["latest_response"])
+        self.assertNotIn("latest_reply_text", research_view["analysis"])
+        self.assertIn("system_flags", admin_view["latest_response"])
 
     def test_human_intervention_endpoint_updates_care_queue_state(self) -> None:
         session_id = f"test-human-session-{uuid4().hex}"
