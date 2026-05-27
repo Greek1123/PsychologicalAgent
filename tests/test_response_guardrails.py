@@ -1039,6 +1039,30 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertIn("头晕", reply)
         self.assertNotIn("活动", reply)
 
+    def test_response_guardrail_friend_distancing_initial_splits_fact_and_guess(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我最好的朋友最近明显不怎么找我了，消息也回得很慢。我是不是被她厌烦了？",
+            "我先不给你下结论。",
+        )
+
+        self.assertIn("事实", reply)
+        self.assertIn("猜测", reply)
+        self.assertIn("回复少了", reply)
+
+    def test_response_guardrail_crush_rejection_uses_low_pressure_expression(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "如果他拒绝，我怕以后连朋友都做不成。",
+            "你担心别人知道，这个顾虑是正常的。",
+            conversation_history=[
+                {"role": "user", "content": "我喜欢一个同学很久了，但一直不敢说，分不清是不是普通朋友。"},
+                {"role": "assistant", "content": "你卡在不确定里。"},
+            ],
+        )
+
+        self.assertIn("低压力方式", reply)
+        self.assertIn("相处挺开心", reply)
+        self.assertIn("长期猜测", reply)
+
 
 if __name__ == "__main__":
     unittest.main()

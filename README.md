@@ -27,7 +27,7 @@
 
 动态平衡实验进展：新增 `scripts/export_docx_entropy_trajectories.py`，可把 DOCX 长对话逐轮导出为心理熵轨迹、风险等级、平衡状态、主导熵源、策略序列和动态调整状态。2026-05-25 完整 100 例导出结果为：299 个 turn，平均心理熵 14.77，风险分布为 low=236、medium=54、high=7、critical=2，平衡状态分布为 stable=290、fragile=7、crisis=2；高频策略包括 `supportive_listening`、`grounding_small_step`、`dorm_boundary_support`、`sleep_stabilization`、`safety_first`。该报告适合支撑“熵减与动态平衡”的多轮案例分析。
 
-手动抽检进展：新增 `scripts/run_manual_reply_check.py`，用于固定运行 8 组代表性后端对话，并记录“输入问题、系统回复、风险等级、心理熵、策略、动态状态”。2026-05-25 抽检生成 8 个场景 / 18 轮记录，输出到 `reports/manual_reply_checks/20260525_190154_manual_reply_check.md`、`.csv`、`.json`。抽检中发现并修复了“拍照 + 身材/节食/头晕”被误路由到班级活动孤立回复的问题；修复后全量测试 267 passed，DOCX 后端 100 例仍保持平均分 80.93、flags 为空、低分样例为空。
+手动抽检进展：新增 `scripts/run_manual_reply_check.py`，用于固定运行代表性后端对话，并记录“输入问题、系统回复、风险等级、心理熵、策略、动态状态”。2026-05-27 已扩展到 12 个场景 / 27 轮，并加入 expected/forbidden 关键词自动检查，最新记录输出到 `reports/manual_reply_checks/20260527_191548_manual_reply_check.md`、`.csv`、`.json`，全部 PASS。抽检中继续修复了暗恋/表白后续轮次被好友疏远或隐私模板抢走的问题；修复后全量测试 269 passed，DOCX 后端 100 例平均分提升到 81.04，`flag_counts` 为空，`low_score_examples` 为空。
 
 ## 协作与进展记录
 

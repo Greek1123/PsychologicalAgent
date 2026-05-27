@@ -2,6 +2,51 @@
 
 本文件用于记录 Codex 每次对项目的检查、修改、验证结果和下一步建议。运行时接口日志仍查看 `logs/app.log`。
 
+## 2026-05-27 手动抽检扩展与暗恋场景修复
+
+### 本次做了什么
+
+- 继续完善 `scripts/run_manual_reply_check.py`，把固定人工抽检从 8 个场景 / 18 轮扩展到 12 个场景 / 27 轮。
+- 给每轮抽检加入 `expect` 和 `forbid` 关键词检查，输出 `check_status`、缺失关键词和误触发关键词，帮助人工快速定位可疑回复。
+- 新增抽检覆盖：
+  - 被尾随后担心没有证据
+  - 网络匿名攻击
+  - 亲人重病照护压力
+  - 好友突然疏远
+- 抽检发现“好友突然疏远”第一轮仍落入通用安慰；补充事实/猜测分离回复。
+- DOCX 评估进一步发现“暗恋不敢表白”案例被好友疏远/隐私模板抢走；补充暗恋不确定、等消息边界、拒绝后关系风险三个专门路由。
+- 更新回归测试，覆盖暗恋拒绝后低压力表达，以及好友疏远初始事实/猜测拆分。
+
+### 输出文件
+
+```text
+最新人工抽检 Markdown：reports/manual_reply_checks/20260527_191548_manual_reply_check.md
+最新人工抽检 CSV：reports/manual_reply_checks/20260527_191548_manual_reply_check.csv
+最新人工抽检 JSON：reports/manual_reply_checks/20260527_191548_manual_reply_check.json
+```
+
+### 验证结果
+
+```text
+python scripts\run_manual_reply_check.py
+scenarios = 12
+turns = 27
+PASS = 27
+WARN = 0
+
+python scripts\auto_quality_pipeline.py --mode backend --limit 100 --start 1
+average_score = 81.04
+flag_counts = {}
+low_score_examples = []
+
+python -m pytest
+269 passed
+```
+
+### 主要判断
+
+固定抽检脚本现在不只是保存回复，也能做轻量自动巡检。它和 DOCX 自动评分互补：抽检负责快速发现语义误路由，DOCX 负责全量基线。暗恋/好友疏远这类相似词场景容易互相抢路由，后续新增场景时需要优先检查“相近主题是否误触发”。
+
 ## 2026-05-25 手动回复抽检记录
 
 ### 本次做了什么

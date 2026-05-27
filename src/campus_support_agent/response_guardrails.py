@@ -279,6 +279,18 @@ def _apply_priority_scenario_reply(
     if _is_refusal_guilt_boundary_text(clean_user, history_text):
         return _refusal_guilt_boundary_reply()
 
+    if _is_crush_rejection_friendship_fear_text(clean_user, history_text):
+        return _crush_rejection_friendship_fear_reply()
+
+    if _is_crush_message_boundary_text(clean_user, history_text):
+        return _crush_message_boundary_reply()
+
+    if _is_crush_uncertainty_text(clean_user, history_text):
+        return _crush_uncertainty_reply()
+
+    if _is_friend_distancing_initial_text(clean_user, history_text):
+        return _friend_distancing_initial_reply()
+
     if _is_friendship_loss_fear_text(clean_user, history_text):
         return _friendship_loss_fear_reply()
 
@@ -873,6 +885,68 @@ def _friendship_loss_fear_reply() -> str:
         "如果她真的在疏远你，那会很痛，但友情的变化不等于你不值得被喜欢。"
         "你可以先尊重她现在的距离，同时把生活重心慢慢分散到其他连接上，不要用一个人的反应定义你全部的社交价值。"
         "下一步可以只做一个低压力动作：发一条不追问、不施压的消息；如果对方仍然冷淡，就先把注意力放回自己的作息、学习和其他支持关系。"
+    )
+
+
+def _is_crush_uncertainty_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("喜欢一个同学", "暗恋", "不敢表白", "不敢说", "分不清")) and any(
+        term in combined for term in ("普通朋友", "回复慢", "舍不得直接放下", "关心我")
+    )
+
+
+def _crush_uncertainty_reply() -> str:
+    return (
+        "你卡在不确定里：对方的关心给了你期待，回复慢又让你不安。"
+        "暗恋最消耗人的地方，就是很多情绪都只能自己解释。"
+        "你不一定马上表白，但需要先看见这段关系对你的影响：它有没有让你越来越失去自己的节奏？"
+    )
+
+
+def _is_crush_message_boundary_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("喜欢一个同学", "暗恋", "不敢表白", "不敢说", "普通朋友")) and any(
+        term in combined for term in ("等他消息", "不去做自己的事", "反复琢磨", "什么意思")
+    )
+
+
+def _crush_message_boundary_reply() -> str:
+    return (
+        "这说明你已经把很多情绪控制权交给了他的反应。"
+        "可以先做两个小调整：第一，给聊天设一个边界，比如不因为等回复打断学习；第二，观察他是否主动投入，而不是只看他偶尔的温柔。"
+        "如果你想推进关系，可以选择一个自然场景，约他一起做具体事情，比如一起吃饭或看展，用对方是否愿意投入时间来判断。"
+    )
+
+
+def _is_crush_rejection_friendship_fear_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("喜欢一个同学", "暗恋", "表白", "普通朋友", "他回复", "等他消息")) and any(
+        term in combined for term in ("他拒绝", "连朋友都做不成", "拒绝我")
+    )
+
+
+def _crush_rejection_friendship_fear_reply() -> str:
+    return (
+        "这个风险确实存在，所以你可以不用选择突然、强烈的表白。"
+        "可以先用低压力方式表达好感，例如“我和你相处挺开心的，之后可以多一起出去吗？”对方的回应会给你更多信息。"
+        "无论结果怎样，你都不是在丢脸，而是在从长期猜测里走出来。你值得拥有更清楚、更稳定的关系感受。"
+    )
+
+
+def _is_friend_distancing_initial_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    if any(term in combined for term in ("暗恋", "表白", "喜欢一个同学", "普通朋友", "他拒绝")):
+        return False
+    has_friendship = any(term in combined for term in ("最好的朋友", "好友", "朋友", "消息", "回得很慢", "不怎么找我"))
+    has_uncertainty = any(term in combined for term in ("厌烦", "讨厌", "是不是", "总觉得不是", "只回几个字"))
+    return has_friendship and has_uncertainty
+
+
+def _friend_distancing_initial_reply() -> str:
+    return (
+        "关系突然变得不确定，会让人很容易往“是不是我被讨厌了”去想。"
+        "你现在的难受是真实的，但我们先不急着判断，结论还不一定。"
+        "我们可以先把事实和猜测分开：事实是回复少了、互动变少了；猜测是她厌烦你。"
     )
 
 
