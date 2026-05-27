@@ -139,6 +139,21 @@ class MainFlowTests(unittest.TestCase):
         self.assertFalse(status["local_checkpoint"]["checkpoint_exists"])
         self.assertFalse(status["local_checkpoint"]["base_model_exists"])
 
+    def test_frontend_contract_exposes_handoff_fields(self) -> None:
+        contract = main.get_frontend_contract()
+
+        self.assertEqual(contract["endpoints"]["text_support"]["path"], "/api/v1/support/text")
+        self.assertEqual(contract["endpoints"]["audio_support"]["content_type"], "multipart/form-data")
+        self.assertIn("text", contract["text_request_example"])
+        self.assertIn("reply_text", contract["response_core_fields"])
+        self.assertIn("risk", contract["response_core_fields"])
+        self.assertIn("entropy", contract["response_core_fields"])
+        self.assertIn("referral_decision", contract["response_core_fields"])
+        self.assertIn("student_chat", contract["frontend_display_policy"])
+        self.assertIn("research_dashboard", contract["frontend_display_policy"])
+        self.assertIn("critical", contract["risk_badges"])
+        self.assertGreaterEqual(len(contract["demo_prompts"]), 4)
+
     def test_session_feedback_updates_analysis_and_overview(self) -> None:
         session_id = f"test-feedback-session-{uuid4().hex}"
         response = main.support_text(

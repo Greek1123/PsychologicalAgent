@@ -319,6 +319,108 @@ def get_model_status() -> dict[str, Any]:
     return status
 
 
+@app.get("/api/v1/frontend/contract")
+def get_frontend_contract() -> dict[str, Any]:
+    logger.info("Frontend contract requested.")
+    return {
+        "version": "2026-05-27",
+        "purpose": "Stable handoff contract for the student-facing chat UI and research dashboard.",
+        "endpoints": {
+            "text_support": {
+                "method": "POST",
+                "path": "/api/v1/support/text",
+                "content_type": "application/json",
+                "required_fields": ["text"],
+                "optional_fields": ["session_id", "student_context", "conversation_history"],
+            },
+            "audio_support": {
+                "method": "POST",
+                "path": "/api/v1/support/audio",
+                "content_type": "multipart/form-data",
+                "required_fields": ["file"],
+                "optional_fields": ["session_id", "student_context", "conversation_history"],
+            },
+            "session_history": {
+                "method": "GET",
+                "path": "/api/v1/sessions/{session_id}",
+            },
+            "session_analysis": {
+                "method": "GET",
+                "path": "/api/v1/sessions/{session_id}/analysis",
+            },
+            "model_status": {
+                "method": "GET",
+                "path": "/api/v1/model/status",
+            },
+        },
+        "text_request_example": {
+            "session_id": "demo-student-001",
+            "text": "最近我一到晚上就很焦虑，睡不着，也不知道该怎么和室友说。",
+            "student_context": {
+                "grade": "undergraduate",
+                "campus": "main",
+            },
+            "conversation_history": [],
+        },
+        "audio_request_form_example": {
+            "file": "audio.wav",
+            "session_id": "demo-student-001",
+            "student_context": "{\"grade\":\"undergraduate\",\"campus\":\"main\"}",
+            "conversation_history": "[]",
+        },
+        "response_core_fields": {
+            "reply_text": "Main assistant reply. Show this as the primary chat bubble.",
+            "risk": "Risk level, score, reason, trigger terms, and human follow-up hint.",
+            "entropy": "Current entropy score, level, balance state, dimensions, drivers, and trend.",
+            "entropy_reduction": "Target state, core actions, expected delta, and review window.",
+            "state_profile": "Detected psychological state and evidence signals.",
+            "intervention_strategy": "Selected support strategy and next-step mode.",
+            "dynamic_adjustment": "Whether strategy or care intensity should change across turns.",
+            "referral_decision": "Whether human referral is recommended and at what urgency.",
+            "safety": "Disclaimer, emergency notice, and human referral text.",
+            "multimodal_signal": "Audio evidence summary when the input is audio.",
+            "session": "Session id plus stored history and entropy trace counts.",
+            "system_flags": "Backend flags for manual review and repeated referral patterns.",
+        },
+        "frontend_display_policy": {
+            "student_chat": ["reply_text", "safety.emergency_notice", "safety.human_referral"],
+            "student_optional_panel": [
+                "entropy.balance_state",
+                "entropy_reduction.core_actions",
+                "campus_resources",
+            ],
+            "research_dashboard": [
+                "risk",
+                "entropy",
+                "state_profile",
+                "intervention_strategy",
+                "dynamic_adjustment",
+                "referral_decision",
+                "multimodal_signal",
+                "system_flags",
+            ],
+            "hide_from_student_by_default": [
+                "hidden_clinical_goal",
+                "backend_reason",
+                "backend_actions",
+                "system_flags.reasons",
+            ],
+        },
+        "risk_badges": {
+            "low": {"label": "Low", "tone": "neutral"},
+            "medium": {"label": "Medium", "tone": "watch"},
+            "high": {"label": "High", "tone": "alert"},
+            "critical": {"label": "Critical", "tone": "urgent"},
+        },
+        "demo_prompts": [
+            "我最近期末复习很崩溃，晚上睡不着。",
+            "室友总是在我休息的时候开外放，我又不敢说。",
+            "我喜欢一个同学很久了，但怕表白后连朋友都做不成。",
+            "有人一直跟着我到宿舍附近，但我又怕是自己想多了。",
+        ],
+    }
+
+
 @app.post("/api/v1/support/text")
 def support_text(payload: dict[str, Any]) -> dict[str, Any]:
     text = str(payload.get("text", "")).strip()

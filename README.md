@@ -17,7 +17,7 @@
 - L3 校园心理 Agent 决策层：已完成核心闭环。包含安全分流、状态画像、心理熵评估、熵减策略、干预策略选择、校园知识库资源匹配和最终支持回复生成。
 - L4 动态平衡与纵向追踪层：已具备雏形并持续扩展。系统会保存会话历史、熵轨迹、支持回合、转介事件和用户反馈，并基于这些数据生成动态调整、会话连续性、策略重选、趋势预警、照护路径、照护计划、干预效果和熵减结果评估。
 - L5 训练与评估层：已建立工具链。支持训练数据导出、反馈坏例导出、DPO/SFT 数据构建、ms-swift 脚本、策略层评估、checkpoint 场景评估和月度报告材料。
-- L6 产品化与真实部署层：部分完成。已有测试前端和完整后端 API，但还需要进一步做正式前端体验、权限/隐私、真实 STT 服务、人工咨询师工作台、告警通知和真实校园流程对接。
+- L6 产品化与真实部署层：继续推进。已有测试前端、完整后端 API，并新增 `GET /api/v1/frontend/contract` 前端交接契约接口，用来给前端组员稳定说明文本/语音请求格式、核心响应字段、展示策略、风险徽标和演示问题；后续仍需要补齐正式前端体验、权限/隐私、真实 STT 服务、人工咨询师工作台、告警通知和真实校园流程对接。
 
 当前一句话定位：项目已经不是单纯聊天机器人，而是一个后端能力较完整的“校园心理熵减与动态平衡 Agent 原型系统”；下一阶段应重点补齐产品化前端、真实语音能力、人工干预闭环和实验评估报告。
 
@@ -28,6 +28,7 @@
 动态平衡实验进展：新增 `scripts/export_docx_entropy_trajectories.py`，可把 DOCX 长对话逐轮导出为心理熵轨迹、风险等级、平衡状态、主导熵源、策略序列和动态调整状态。2026-05-25 完整 100 例导出结果为：299 个 turn，平均心理熵 14.77，风险分布为 low=236、medium=54、high=7、critical=2，平衡状态分布为 stable=290、fragile=7、crisis=2；高频策略包括 `supportive_listening`、`grounding_small_step`、`dorm_boundary_support`、`sleep_stabilization`、`safety_first`。该报告适合支撑“熵减与动态平衡”的多轮案例分析。
 
 手动抽检进展：新增 `scripts/run_manual_reply_check.py`，用于固定运行代表性后端对话，并记录“输入问题、系统回复、风险等级、心理熵、策略、动态状态”。2026-05-27 已扩展到 12 个场景 / 27 轮，并加入 expected/forbidden 关键词自动检查，最新记录输出到 `reports/manual_reply_checks/20260527_191548_manual_reply_check.md`、`.csv`、`.json`，全部 PASS。抽检中继续修复了暗恋/表白后续轮次被好友疏远或隐私模板抢走的问题；修复后全量测试 269 passed，DOCX 后端 100 例平均分提升到 81.04，`flag_counts` 为空，`low_score_examples` 为空。
+前端交付层进展：2026-05-27 新增 `GET /api/v1/frontend/contract`，前端组员可以先请求这个接口确认当前推荐接入方式。学生端优先展示 `reply_text`、必要安全提示和可选的 `entropy_reduction.core_actions`；研究/管理面板再展示 `risk`、`entropy`、`state_profile`、`intervention_strategy`、`dynamic_adjustment`、`referral_decision`、`multimodal_signal` 和 `system_flags`。
 
 ## 协作与进展记录
 
@@ -502,6 +503,21 @@ python scripts/build_style_preference_templates.py
 你后续可以让人工补齐 `rejected`，再进入 DPO / ORPO 训练。
 
 ## 接口示例
+
+### 前端交接契约
+
+前端组员优先看这个接口，它返回当前后端推荐的请求格式、核心响应字段、展示策略、风险徽标和演示问题：
+
+```powershell
+curl "http://127.0.0.1:8000/api/v1/frontend/contract"
+```
+
+推荐接入顺序：
+
+1. 学生对话页先接 `POST /api/v1/support/text`，主气泡只展示 `reply_text`。
+2. 语音页再接 `POST /api/v1/support/audio`，如果返回 `multimodal_signal`，可以在调试面板展示音频证据。
+3. 研究/管理面板展示 `risk`、`entropy`、`state_profile`、`intervention_strategy`、`dynamic_adjustment`、`referral_decision` 和 `system_flags`。
+4. 普通学生端默认隐藏 `hidden_clinical_goal`、`backend_reason`、`backend_actions` 和 `system_flags.reasons`。
 
 ### 文本输入
 
