@@ -139,6 +139,14 @@ class MainFlowTests(unittest.TestCase):
         self.assertFalse(status["local_checkpoint"]["checkpoint_exists"])
         self.assertFalse(status["local_checkpoint"]["base_model_exists"])
 
+    def test_ops_readiness_reports_deployment_checks(self) -> None:
+        readiness = main.get_ops_readiness()
+
+        self.assertIn(readiness["status"], {"ready", "degraded", "blocked"})
+        self.assertIn("summary", readiness)
+        self.assertIn("checks", readiness)
+        self.assertTrue(any(check["name"] == "llm_provider" for check in readiness["checks"]))
+
     def test_frontend_contract_exposes_handoff_fields(self) -> None:
         contract = main.get_frontend_contract()
 
@@ -152,6 +160,7 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("human_interventions", contract["response_core_fields"])
         self.assertIn("human_interventions", contract["endpoints"])
         self.assertIn("role_view", contract["endpoints"])
+        self.assertIn("ops_readiness", contract["endpoints"])
         self.assertIn("backend_role_views", contract["frontend_display_policy"])
         self.assertIn("student_chat", contract["frontend_display_policy"])
         self.assertIn("research_dashboard", contract["frontend_display_policy"])

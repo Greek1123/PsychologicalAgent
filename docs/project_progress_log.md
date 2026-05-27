@@ -2,6 +2,41 @@
 
 本文件用于记录 Codex 每次对项目的检查、修改、验证结果和下一步建议。运行时接口日志仍查看 `logs/app.log`。
 
+## 2026-05-27 部署与运维自检层
+
+### 本次做了什么
+
+- 新增 `src/campus_support_agent/deployment_readiness.py`，集中检查部署前关键依赖：
+  - `LLM_PROVIDER` 和 `STT_PROVIDER` 是否合法
+  - `DATABASE_PATH` 父目录是否存在
+  - `LOG_FILE_PATH` 父目录是否存在
+  - `CAMPUS_KB_PATH` 是否存在
+  - `local_checkpoint` 模式下 LoRA checkpoint 和基础模型路径是否存在
+  - Python 版本是否满足要求
+- 新增 `GET /api/v1/ops/readiness`，服务启动后可以直接查看 `ready/degraded/blocked`。
+- 新增 `scripts/check_deployment_readiness.py`，不开服务时也能在终端自检。
+- `scripts/run_local_checkpoint_api.ps1` 启动前会自动运行部署自检，失败时直接阻止半启动。
+- `.env.example` 的 `LOCAL_CHECKPOINT_PATH` 更新为当前稳定推荐 LoRA：`training/ms_swift/outputs/refinement_pool_v5_peft/v0-20260520-215838/checkpoint-final`。
+- `GET /api/v1/frontend/contract` 加入 `ops_readiness` 入口说明。
+- 同步更新 `README.md`。
+
+### 验证结果
+
+```text
+python -m pytest tests/test_deployment_readiness.py tests/test_main.py
+11 passed
+
+python scripts\check_deployment_readiness.py
+status = ready
+pass = 7
+warn = 0
+fail = 0
+```
+
+### 主要判断
+
+这一层把“能运行”变成“能被检查地运行”。组员遇到启动失败时，不需要先读代码，可以直接看 readiness 输出里哪一项 blocked：模型路径、基础模型、知识库、日志目录、数据库目录或 provider 配置。
+
 ## 2026-05-27 角色视图与隐私边界层
 
 ### 本次做了什么

@@ -15,6 +15,7 @@ from .agent import CampusSupportAgent
 from .adjustment_loop import build_entropy_adjustment_loop, enrich_student_context_with_adjustment_loop
 from .care_plan import enrich_student_context_with_care_plan
 from .config import Settings
+from .deployment_readiness import build_deployment_readiness
 from .dialogue_memory import enrich_student_context_with_memory
 from .dynamic_adjustment import build_dynamic_adjustment
 from .entropy import evaluate_psychological_entropy
@@ -326,6 +327,13 @@ def get_model_status() -> dict[str, Any]:
     return status
 
 
+@app.get("/api/v1/ops/readiness")
+def get_ops_readiness() -> dict[str, Any]:
+    readiness = build_deployment_readiness(get_settings())
+    logger.info("Deployment readiness requested status=%s summary=%s", readiness["status"], readiness["summary"])
+    return readiness
+
+
 @app.get("/api/v1/frontend/contract")
 def get_frontend_contract() -> dict[str, Any]:
     logger.info("Frontend contract requested.")
@@ -373,6 +381,10 @@ def get_frontend_contract() -> dict[str, Any]:
             "model_status": {
                 "method": "GET",
                 "path": "/api/v1/model/status",
+            },
+            "ops_readiness": {
+                "method": "GET",
+                "path": "/api/v1/ops/readiness",
             },
         },
         "text_request_example": {

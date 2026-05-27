@@ -31,6 +31,7 @@
 前端交付层进展：2026-05-27 新增 `GET /api/v1/frontend/contract`，前端组员可以先请求这个接口确认当前推荐接入方式。学生端优先展示 `reply_text`、必要安全提示和可选的 `entropy_reduction.core_actions`；研究/管理面板再展示 `risk`、`entropy`、`state_profile`、`intervention_strategy`、`dynamic_adjustment`、`referral_decision`、`multimodal_signal` 和 `system_flags`。
 人工干预闭环进展：2026-05-27 在已有 `GET /api/v1/analytics/care-queue` 的基础上新增人工处理记录接口 `POST /api/v1/sessions/{session_id}/human-interventions` 和 `GET /api/v1/sessions/{session_id}/human-interventions`。咨询师/辅导员端现在可以把队列项标记为 `acknowledged`、`in_progress`、`escalated`、`resolved` 或 `closed`；默认 care queue 会隐藏已 `resolved/closed` 的会话，需要审计时加 `include_resolved=true`。
 隐私边界进展：2026-05-27 新增 `GET /api/v1/sessions/{session_id}/view?role=student|counselor|research|admin`，由后端直接生成不同角色视图。学生端只拿回复、安全提示、轻量风险标签、平衡状态和用户可见行动；研究端保留结构化风险/熵/策略指标但隐藏自由文本和人工备注；管理员视图保留完整内部字段用于本地审计。
+部署自检进展：2026-05-27 新增 `GET /api/v1/ops/readiness` 和 `scripts/check_deployment_readiness.py`，用于检查 provider 配置、数据库目录、日志目录、校园知识库、local checkpoint、基础模型和 Python 版本。`scripts/run_local_checkpoint_api.ps1` 启动前会先运行自检，避免模型路径或数据目录错误时服务半启动。
 
 ## 协作与进展记录
 
@@ -513,6 +514,22 @@ python scripts/build_style_preference_templates.py
 ```powershell
 curl "http://127.0.0.1:8000/api/v1/frontend/contract"
 ```
+
+### 部署自检
+
+不开服务时，可以直接在终端检查当前配置：
+
+```powershell
+python scripts\check_deployment_readiness.py
+```
+
+服务启动后，也可以调接口：
+
+```powershell
+curl "http://127.0.0.1:8000/api/v1/ops/readiness"
+```
+
+自检会返回 `ready`、`degraded` 或 `blocked`。如果是 `blocked`，优先检查 `.env` 里的 `LOCAL_CHECKPOINT_PATH`、`LOCAL_BASE_MODEL_PATH`、`DATABASE_PATH`、`LOG_FILE_PATH` 和 `CAMPUS_KB_PATH`。
 
 推荐接入顺序：
 
