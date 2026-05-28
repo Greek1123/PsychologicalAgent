@@ -1008,3 +1008,24 @@ If you want to train on a newer SFT adapter, set it first:
 $env:FEEDBACK_BASE_ADAPTER="D:\psychologicalAgent\training\ms_swift\outputs\your_sft_run\checkpoint-xxx"
 powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2_dpo.ps1
 ```
+## 2026-05-28 粗略前端测试工作台
+
+本轮已把内置 `/app` 从简单测试页整理成一个可直接联调的三栏工作台，方便在前端组正式页面完成前先测试后端能力：
+
+- 学生对话区：支持文本输入、语音文件上传、快捷测试问题、会话历史加载和清空。
+- 系统状态区：展示风险等级、心理熵、动态平衡状态、熵减策略、转介建议、校园资源和熵轨迹。
+- 后台面板区：展示角色视图、care queue、部署 readiness、frontend contract 和最近一次完整 JSON。
+
+本地启动后访问：
+
+```powershell
+$env:LLM_PROVIDER='mock'
+$env:STT_PROVIDER='mock'
+uvicorn campus_support_agent.main:app --app-dir src --host 127.0.0.1 --port 8000
+```
+
+```text
+http://127.0.0.1:8000/app
+```
+
+本轮验证结果：`python -m pytest tests/test_main.py` 通过 9 项；`node --check src/campus_support_agent/static/app.js` 通过；`/app` 可正常返回页面；文本接口 smoke test 成功；`/api/v1/ops/readiness` 返回 `ready`。截图级浏览器检查暂未执行，因为当前 Codex 打包环境缺少 `playwright-core`，已用 HTTP/API 检查替代。

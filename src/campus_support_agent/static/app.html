@@ -3,169 +3,162 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>校园心理支持 Agent</title>
+    <title>校园心理熵减 Agent 工作台</title>
     <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body>
-    <div class="bg-orb bg-orb-a"></div>
-    <div class="bg-orb bg-orb-b"></div>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Campus Psychological Agent</p>
+        <h1>校园心理熵减与动态平衡工作台</h1>
+      </div>
+      <div class="top-actions">
+        <button id="refreshReadiness" class="icon-btn" title="部署自检">自检</button>
+        <button id="refreshContract" class="icon-btn" title="前端契约">契约</button>
+        <button id="loadCareQueue" class="icon-btn" title="人工队列">队列</button>
+      </div>
+    </header>
 
-    <main class="shell">
-      <section class="hero">
-        <div>
-          <p class="eyebrow">Campus Support Agent</p>
-          <h1>校园心理支持调试台</h1>
-          <p class="hero-copy">
-            这个页面会同时展示两层信息：一层是用户真正看到的支持回复，另一层是前端保留的系统分析结果，
-            包括风险等级、心理熵、趋势变化和原始 JSON。前者用于体验，后者用于调试和答辩展示。
-          </p>
-        </div>
-        <label class="toggle-card">
-          <span>显示系统分析（调试）</span>
-          <input id="entropyToggle" type="checkbox" checked />
-        </label>
-      </section>
-
-      <section class="panel input-panel">
-        <div class="panel-head">
-          <h2>输入区</h2>
-          <p>同一个 <code>session_id</code> 会复用历史对话。</p>
+    <main class="workspace">
+      <section class="column chat-column">
+        <div class="section-head">
+          <h2>学生对话</h2>
+          <span id="statusLine" class="status-pill">等待输入</span>
         </div>
 
-        <div class="grid two-col">
-          <label class="field">
-            <span>Session ID</span>
-            <input id="sessionId" type="text" value="student-001" />
+        <div class="session-row">
+          <label>
+            <span>Session</span>
+            <input id="sessionId" type="text" value="demo-student-001" />
           </label>
-
-          <label class="field">
-            <span>输入方式</span>
-            <select id="inputMode">
-              <option value="text">文本输入</option>
-              <option value="audio">音频输入</option>
+          <label>
+            <span>角色视图</span>
+            <select id="roleSelect">
+              <option value="student">student</option>
+              <option value="counselor">counselor</option>
+              <option value="research">research</option>
+              <option value="admin">admin</option>
             </select>
           </label>
         </div>
 
-        <label class="field">
-          <span>学生上下文 JSON</span>
-          <textarea id="studentContext" rows="4">{
-  "grade": "大二",
-  "major": "计算机科学"
-}</textarea>
+        <div class="quick-prompts">
+          <button data-prompt="明天早上考试，我现在完全睡不着，越想越慌。">考试焦虑</button>
+          <button data-prompt="室友每天晚上外放视频，我提醒过一次，她好像不太高兴，我现在也不敢说了。">宿舍边界</button>
+          <button data-prompt="有人拿我的私密照片威胁我，说如果我不听他的就发到班群里。">隐私威胁</button>
+          <button data-prompt="我现在一个人在天台边上，真的不想活了，也不想再回去了。">危机优先</button>
+        </div>
+
+        <div id="chatLog" class="chat-log">
+          <div class="empty-state">发送一条消息后，这里会显示学生输入和 Agent 回复。</div>
+        </div>
+
+        <label class="message-box">
+          <span>文本输入</span>
+          <textarea id="messageInput" rows="4">我最近压力很大，晚上一直睡不好。</textarea>
         </label>
 
-        <div id="textMode" class="mode-block">
-          <label class="field">
-            <span>文本内容</span>
-            <textarea id="messageInput" rows="5">我最近压力很大，晚上总睡不好。</textarea>
-          </label>
-          <button id="submitText" class="action-btn primary">发送文本</button>
+        <details class="context-box">
+          <summary>学生上下文 JSON</summary>
+          <textarea id="studentContext" rows="5">{
+  "grade": "大二",
+  "major": "计算机科学",
+  "campus": "main"
+}</textarea>
+        </details>
+
+        <div class="button-row">
+          <button id="submitText" class="primary-btn">发送文本</button>
+          <button id="loadRoleView" class="secondary-btn">加载角色视图</button>
+          <button id="clearSession" class="secondary-btn">清空会话</button>
         </div>
 
-        <div id="audioMode" class="mode-block hidden">
-          <label class="field">
-            <span>选择音频文件</span>
+        <div class="audio-box">
+          <label>
+            <span>语音文件</span>
             <input id="audioFile" type="file" accept="audio/*" />
           </label>
-          <button id="submitAudio" class="action-btn primary">发送音频</button>
+          <button id="submitAudio" class="secondary-btn">发送语音</button>
         </div>
-
-        <div class="toolbar">
-          <button id="loadSession" class="action-btn secondary">加载会话历史</button>
-          <button id="clearSession" class="action-btn secondary">清空这个会话</button>
-          <button id="clearOutput" class="action-btn ghost">清空当前结果</button>
-        </div>
-
-        <p id="statusLine" class="status-line">等待发送请求。</p>
       </section>
 
-      <section class="grid dashboard">
-        <article class="panel result-panel">
-          <div class="panel-head">
-            <h2>结果区</h2>
-            <p>先看“助手当前回复”，其他信息是分析层与系统层结果。</p>
+      <section class="column status-column">
+        <div class="section-head">
+          <h2>系统状态</h2>
+          <button id="loadSession" class="link-btn">刷新历史</button>
+        </div>
+
+        <div class="metric-grid">
+          <div class="metric">
+            <span>风险</span>
+            <strong id="riskLevel">-</strong>
           </div>
-
-          <div class="summary-strip entropy-visible">
-            <div class="metric">
-              <span class="metric-label">风险等级</span>
-              <strong id="riskLevel">-</strong>
-            </div>
-            <div class="metric entropy-visible">
-              <span class="metric-label">心理熵值</span>
-              <strong id="entropyScore">-</strong>
-            </div>
-            <div class="metric entropy-visible">
-              <span class="metric-label">平衡状态</span>
-              <strong id="balanceState">-</strong>
-            </div>
-            <div class="metric entropy-visible">
-              <span class="metric-label">趋势变化</span>
-              <strong id="entropyDelta">-</strong>
-            </div>
+          <div class="metric">
+            <span>心理熵</span>
+            <strong id="entropyScore">-</strong>
           </div>
-
-          <section class="result-card">
-            <h3>助手当前回复</h3>
-            <p class="muted">这一块就是机器人真正返回给用户的话。</p>
-            <p id="supportSummary">等待结果。</p>
-          </section>
-
-          <div class="card-grid">
-            <section class="result-card entropy-visible">
-              <h3>减熵策略说明</h3>
-              <p id="reductionRationale">等待结果。</p>
-              <ul id="reductionActions" class="compact-list"></ul>
-            </section>
-
-            <section class="result-card">
-              <h3>即时支持建议</h3>
-              <ul id="immediateSupport" class="compact-list"></ul>
-            </section>
-
-            <section class="result-card">
-              <h3>校园支持动作</h3>
-              <ul id="campusActions" class="compact-list"></ul>
-            </section>
-
-            <section class="result-card entropy-visible">
-              <h3>校园资源推荐</h3>
-              <div id="campusResources" class="resource-stack"></div>
-            </section>
+          <div class="metric">
+            <span>平衡</span>
+            <strong id="balanceState">-</strong>
           </div>
-
-          <section class="result-card entropy-visible">
-            <h3>熵值维度</h3>
-            <div id="entropyDimensions" class="dimension-grid"></div>
-          </section>
-
-          <section class="result-card entropy-visible">
-            <h3>原始 JSON（调试）</h3>
-            <pre id="rawJson" class="raw-json">暂无数据</pre>
-          </section>
-        </article>
-
-        <article class="panel session-panel entropy-visible">
-          <div class="panel-head">
-            <h2>会话追踪（调试）</h2>
-            <p>这里看历史消息和熵值轨迹。</p>
+          <div class="metric">
+            <span>趋势</span>
+            <strong id="entropyDelta">-</strong>
           </div>
+        </div>
 
-          <section class="result-card">
-            <h3>熵值轨迹</h3>
-            <div id="entropyTrace" class="trace-stack">
-              <p class="muted">暂无会话追踪数据。</p>
-            </div>
-          </section>
+        <div class="panel-block">
+          <h3>熵减策略</h3>
+          <p id="reductionRationale" class="muted">暂无策略。</p>
+          <ul id="reductionActions" class="list"></ul>
+        </div>
 
-          <section class="result-card">
-            <h3>历史对话</h3>
-            <div id="conversationHistory" class="history-stack">
-              <p class="muted">暂无历史对话。</p>
-            </div>
-          </section>
-        </article>
+        <div class="panel-block">
+          <h3>干预与转介</h3>
+          <dl class="kv-list">
+            <div><dt>策略</dt><dd id="strategyId">-</dd></div>
+            <div><dt>动态调整</dt><dd id="dynamicAction">-</dd></div>
+            <div><dt>是否转介</dt><dd id="referralState">-</dd></div>
+            <div><dt>人工标记</dt><dd id="systemFlags">-</dd></div>
+          </dl>
+        </div>
+
+        <div class="panel-block">
+          <h3>校园资源</h3>
+          <div id="campusResources" class="resource-list"></div>
+        </div>
+
+        <div class="panel-block">
+          <h3>会话轨迹</h3>
+          <div id="entropyTrace" class="trace-list"></div>
+        </div>
+      </section>
+
+      <section class="column ops-column">
+        <div class="section-head">
+          <h2>后台面板</h2>
+          <button id="markHuman" class="link-btn">人工确认</button>
+        </div>
+
+        <div class="panel-block">
+          <h3>角色视图</h3>
+          <pre id="roleViewJson" class="json-box">暂无数据</pre>
+        </div>
+
+        <div class="panel-block">
+          <h3>人工队列</h3>
+          <div id="careQueue" class="queue-list"></div>
+        </div>
+
+        <div class="panel-block">
+          <h3>部署自检</h3>
+          <pre id="readinessJson" class="json-box">点击“自检”查看</pre>
+        </div>
+
+        <div class="panel-block">
+          <h3>最近响应 JSON</h3>
+          <pre id="rawJson" class="json-box">暂无数据</pre>
+        </div>
       </section>
     </main>
 

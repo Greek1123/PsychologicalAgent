@@ -967,3 +967,41 @@ python -m pytest
 ### 当前判断
 
 这轮主要改善训练数据闭环和模型侧参考回复学习，不改变后端 mock 评估分数。`auto_docx_reference_distill_patch/checkpoint-final` 是当前最新实验模型；它通过了 12 条干净 checkpoint 场景小测，但仍需要完整 55 场景 checkpoint 评估和与稳定 LoRA 的 DOCX 同题人工对比，才能替换默认推荐模型。
+## 2026-05-28 粗略前端测试工作台
+
+### 本次做了什么
+- 重写 `src/campus_support_agent/static/app.html`，把内置测试页升级成三栏工作台：学生对话、系统状态、后台面板。
+- 重写 `src/campus_support_agent/static/app.css`，改成更接近后台工具的紧凑布局，移动端会自动折叠为单列。
+- 重写 `src/campus_support_agent/static/app.js`，接入文本、语音、会话历史、角色视图、care queue、人工处理标记、readiness 和 frontend contract。
+- 工作台会同时展示用户可读回复、风险/心理熵/动态平衡、熵减策略、转介建议、校园资源、熵轨迹和原始 JSON，方便人工检查后端输出。
+- 同步更新 `README.md`，补充 `/app` 的本地启动和验证说明。
+
+### 验证结果
+
+```text
+python -m pytest tests/test_main.py
+9 passed
+
+node --check src\campus_support_agent\static\app.js
+通过
+
+GET http://127.0.0.1:8000/app
+页面可正常返回，包含 chatLog、careQueue 等新工作台节点
+
+POST /api/v1/support/text
+smoke test 成功返回 response_id、reply_text、risk、entropy
+
+GET /api/v1/ops/readiness
+status = ready
+pass = 7
+warn = 0
+fail = 0
+```
+
+### 遗留问题
+
+当前 Codex 打包环境里的 Playwright 入口缺少 `playwright-core`，所以这轮没有完成截图级浏览器检查；已用静态 JS 语法检查、HTTP 页面检查和后端 API smoke test 替代。
+
+### 下一步建议
+
+如果前端组还没有页面，可以先用 `http://127.0.0.1:8000/app` 做演示和接口验收；如果他们已经有页面，就把本工作台当作接口行为样板，对齐字段展示、风险徽标、角色视图和 care queue 逻辑。

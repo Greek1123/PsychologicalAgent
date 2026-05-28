@@ -1,276 +1,320 @@
-const entropyToggle = document.getElementById("entropyToggle");
-const inputMode = document.getElementById("inputMode");
-const textMode = document.getElementById("textMode");
-const audioMode = document.getElementById("audioMode");
-const statusLine = document.getElementById("statusLine");
+const state = {
+  latestResponse: null,
+};
 
-function setStatus(message, isError = false) {
-  statusLine.textContent = message;
-  statusLine.style.color = isError ? "#b74f2c" : "#756759";
+const $ = (id) => document.getElementById(id);
+
+function setStatus(message, type = "info") {
+  const target = $("statusLine");
+  target.textContent = message;
+  target.style.background = type === "error" ? "#ffe9e9" : "#edf4ff";
+  target.style.color = type === "error" ? "#c73232" : "#1d4ed8";
 }
 
 function parseContext() {
-  const raw = document.getElementById("studentContext").value.trim();
-  if (!raw) {
-    return {};
-  }
+  const raw = $("studentContext").value.trim();
+  if (!raw) return {};
   return JSON.parse(raw);
 }
 
-function renderList(elementId, items, fallback = "暂无数据") {
-  const target = document.getElementById(elementId);
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function addMessage(role, text) {
+  const log = $("chatLog");
+  const empty = log.querySelector(".empty-state");
+  if (empty) empty.remove();
+
+  const item = document.createElement("div");
+  item.className = `message ${role}`;
+  item.innerHTML = `
+    <div class="message-role">${role === "user" ? "学生" : "Agent"}</div>
+    <div class="bubble">${escapeHtml(text)}</div>
+  `;
+  log.appendChild(item);
+  log.scrollTop = log.scrollHeight;
+}
+
+function renderList(id, items, emptyText = "暂无数据") {
+  const target = $(id);
   target.innerHTML = "";
-  if (!items || items.length === 0) {
+  const values = Array.isArray(items) ? items : [];
+  if (!values.length) {
     const li = document.createElement("li");
-    li.textContent = fallback;
+    li.textContent = emptyText;
     target.appendChild(li);
     return;
   }
-
-  items.forEach((item) => {
+  values.forEach((value) => {
     const li = document.createElement("li");
-    li.textContent = item;
+    li.textContent = value;
     target.appendChild(li);
   });
 }
 
-function renderEntropyDimensions(dimensions) {
-  const target = document.getElementById("entropyDimensions");
-  target.innerHTML = "";
-  if (!dimensions) {
-    target.innerHTML = '<p class="muted">暂无维度数据。</p>';
-    return;
-  }
-
-  const labels = {
-    emotion_intensity: "情绪强度",
-    emotional_volatility: "情绪波动",
-    cognitive_load: "认知负荷",
-    physiological_imbalance: "生理失衡",
-    social_support_tension: "社会支持张力",
-    risk_pressure: "风险压力",
-  };
-
-  Object.entries(dimensions).forEach(([key, value]) => {
-    const card = document.createElement("div");
-    card.className = "dimension-card";
-    card.innerHTML = `<span>${labels[key] || key}</span><strong>${value}</strong>`;
-    target.appendChild(card);
-  });
+function riskTag(level) {
+  const clean = level || "unknown";
+  return `<span class="tag ${escapeHtml(clean)}">${escapeHtml(clean)}</span>`;
 }
 
-function renderCampusResources(resources) {
-  const target = document.getElementById("campusResources");
+function renderResources(resources) {
+  const target = $("campusResources");
   target.innerHTML = "";
-  if (!resources || resources.length === 0) {
+  if (!resources?.length) {
     target.innerHTML = '<p class="muted">暂无校园资源推荐。</p>';
     return;
   }
-
   resources.forEach((resource) => {
-    const card = document.createElement("div");
-    card.className = "resource-item";
-    card.innerHTML = `
-      <strong>${resource.title}</strong>
-      <div class="resource-meta">${resource.category} · ${resource.relevance_reason}</div>
-      <p>${resource.summary}</p>
-    `;
-    target.appendChild(card);
-  });
-}
-
-function renderTrace(trace) {
-  const target = document.getElementById("entropyTrace");
-  target.innerHTML = "";
-  if (!trace || trace.length === 0) {
-    target.innerHTML = '<p class="muted">暂无会话追踪数据。</p>';
-    return;
-  }
-
-  trace.forEach((point, index) => {
     const item = document.createElement("div");
-    item.className = "trace-item";
+    item.className = "resource-item";
     item.innerHTML = `
-      <strong>第 ${index + 1} 次记录 · Score ${point.score}</strong>
-      <div class="trace-meta">Level ${point.level} · ${point.balance_state}</div>
-      <div>${(point.dominant_drivers || []).join(" / ")}</div>
+      <strong>${escapeHtml(resource.title)}</strong>
+      <div class="muted">${escapeHtml(resource.category)} · ${escapeHtml(resource.relevance_reason)}</div>
+      <div>${escapeHtml(resource.summary)}</div>
     `;
     target.appendChild(item);
   });
 }
 
-function renderHistory(history) {
-  const target = document.getElementById("conversationHistory");
+function renderTrace(trace) {
+  const target = $("entropyTrace");
   target.innerHTML = "";
-  if (!history || history.length === 0) {
-    target.innerHTML = '<p class="muted">暂无历史对话。</p>';
+  if (!trace?.length) {
+    target.innerHTML = '<p class="muted">暂无会话轨迹。</p>';
     return;
   }
+  trace.forEach((point, index) => {
+    const item = document.createElement("div");
+    item.className = "trace-item";
+    item.innerHTML = `
+      <strong>第 ${index + 1} 次 · 熵值 ${escapeHtml(point.score)}</strong>
+      <div class="muted">${escapeHtml(point.balance_state)} · ${escapeHtml(point.created_at || "")}</div>
+      <div>${escapeHtml((point.dominant_drivers || []).join(" / "))}</div>
+    `;
+    target.appendChild(item);
+  });
+}
 
-  history.forEach((item) => {
+function renderCareQueue(queue) {
+  const target = $("careQueue");
+  target.innerHTML = "";
+  const items = queue?.items || [];
+  if (!items.length) {
+    target.innerHTML = '<p class="muted">当前没有队列条目。</p>';
+    return;
+  }
+  items.forEach((item) => {
+    const human = item.evidence?.human_intervention;
     const block = document.createElement("div");
-    block.className = "history-item";
+    block.className = "queue-item";
     block.innerHTML = `
-      <span class="history-role">${item.role}</span>
-      <span>${item.content}</span>
+      <strong>${escapeHtml(item.session_id)} ${riskTag(item.priority)}</strong>
+      <div>路线：${escapeHtml(item.route)}</div>
+      <div>动作：${escapeHtml(item.recommended_action)}</div>
+      <div class="muted">人工：${escapeHtml(human?.status || "-")} · 熵值：${escapeHtml(item.latest_entropy_score ?? "-")}</div>
     `;
     target.appendChild(block);
   });
 }
 
 function renderResponse(data) {
-  document.getElementById("riskLevel").textContent = data.risk?.level || "-";
-  document.getElementById("entropyScore").textContent = data.entropy?.score ?? "-";
-  document.getElementById("balanceState").textContent = data.entropy?.balance_state || "-";
+  state.latestResponse = data;
+  const risk = data.risk || {};
+  const entropy = data.entropy || {};
+  const trend = entropy.trend || {};
+  const strategy = data.intervention_strategy || {};
+  const dynamic = data.dynamic_adjustment || {};
+  const referral = data.referral_decision || {};
+  const flags = data.system_flags || {};
 
-  const trend = data.entropy?.trend;
-  const deltaText = trend && trend.delta !== null && trend.delta !== undefined
-    ? `${trend.delta > 0 ? "+" : ""}${trend.delta} (${trend.direction})`
-    : "-";
-  document.getElementById("entropyDelta").textContent = deltaText;
+  $("riskLevel").innerHTML = riskTag(risk.level);
+  $("entropyScore").textContent = entropy.score ?? "-";
+  $("balanceState").textContent = entropy.balance_state || "-";
+  $("entropyDelta").textContent = trend.delta === null || trend.delta === undefined
+    ? "-"
+    : `${trend.delta > 0 ? "+" : ""}${trend.delta} ${trend.direction || ""}`;
 
-  document.getElementById("supportSummary").textContent = data.reply_text || data.plan?.summary || "暂无摘要。";
-  document.getElementById("reductionRationale").textContent = data.entropy_reduction?.rationale || "暂无减熵策略。";
+  $("reductionRationale").textContent = data.entropy_reduction?.rationale || "暂无策略说明。";
   renderList("reductionActions", data.entropy_reduction?.core_actions || []);
-  renderList("immediateSupport", data.plan?.immediate_support || []);
-  renderList("campusActions", data.plan?.campus_actions || []);
-  renderCampusResources(data.campus_resources || []);
-  renderEntropyDimensions(data.entropy?.dimensions || null);
-  document.getElementById("rawJson").textContent = JSON.stringify(data, null, 2);
+  $("strategyId").textContent = strategy.strategy_id || "-";
+  $("dynamicAction").textContent = dynamic.action || "-";
+  $("referralState").textContent = `${referral.should_refer ? "yes" : "no"} / ${referral.urgency || "none"}`;
+  $("systemFlags").textContent = flags.manual_referral_recommended ? `yes: ${(flags.reasons || []).join(", ")}` : "no";
+  renderResources(data.campus_resources || []);
+  $("rawJson").textContent = JSON.stringify(data, null, 2);
+}
+
+async function requestJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.detail || `请求失败：${response.status}`);
+  }
+  return data;
 }
 
 async function submitText() {
   try {
-    setStatus("正在生成支持回复...");
-    const payload = {
-      session_id: document.getElementById("sessionId").value.trim(),
-      text: document.getElementById("messageInput").value.trim(),
-      student_context: parseContext(),
-    };
-
-    const response = await fetch("/api/v1/support/text", {
+    const text = $("messageInput").value.trim();
+    if (!text) throw new Error("请输入文本。");
+    setStatus("生成中...");
+    addMessage("user", text);
+    const data = await requestJson("/api/v1/support/text", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        session_id: $("sessionId").value.trim(),
+        text,
+        student_context: parseContext(),
+      }),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "文本请求失败。");
-    }
+    addMessage("assistant", data.reply_text || "暂无回复。");
     renderResponse(data);
-    setStatus("文本回复已更新。");
+    await loadSession(false);
+    await loadRoleView(false);
+    setStatus("已更新");
   } catch (error) {
-    setStatus(error.message || "文本请求失败。", true);
+    setStatus(error.message, "error");
   }
 }
 
 async function submitAudio() {
   try {
-    const file = document.getElementById("audioFile").files[0];
-    if (!file) {
-      throw new Error("请先选择音频文件。");
-    }
-
-    setStatus("正在处理音频...");
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("session_id", document.getElementById("sessionId").value.trim());
-    formData.append("student_context", JSON.stringify(parseContext()));
-
-    const response = await fetch("/api/v1/support/audio", {
-      method: "POST",
-      body: formData,
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "音频请求失败。");
-    }
+    const file = $("audioFile").files[0];
+    if (!file) throw new Error("请选择音频文件。");
+    setStatus("处理音频中...");
+    const form = new FormData();
+    form.append("file", file);
+    form.append("session_id", $("sessionId").value.trim());
+    form.append("student_context", JSON.stringify(parseContext()));
+    const data = await requestJson("/api/v1/support/audio", { method: "POST", body: form });
+    addMessage("user", data.transcript || `[音频] ${file.name}`);
+    addMessage("assistant", data.reply_text || "暂无回复。");
     renderResponse(data);
-    setStatus("音频回复已更新。");
+    await loadSession(false);
+    setStatus("语音已更新");
   } catch (error) {
-    setStatus(error.message || "音频请求失败。", true);
+    setStatus(error.message, "error");
   }
 }
 
-async function loadSession() {
+async function loadSession(showStatus = true) {
   try {
-    const sessionId = document.getElementById("sessionId").value.trim();
-    if (!sessionId) {
-      throw new Error("请先输入 session_id。");
-    }
-
-    setStatus("正在加载会话历史...");
-    const response = await fetch(`/api/v1/sessions/${encodeURIComponent(sessionId)}`);
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "加载会话历史失败。");
-    }
-    renderHistory(data.conversation_history || []);
+    const sessionId = $("sessionId").value.trim();
+    if (!sessionId) throw new Error("请输入 session_id。");
+    const data = await requestJson(`/api/v1/sessions/${encodeURIComponent(sessionId)}`);
     renderTrace(data.entropy_trace || []);
-    setStatus("会话历史已加载。");
+    if (showStatus) setStatus("历史已刷新");
   } catch (error) {
-    setStatus(error.message || "加载会话历史失败。", true);
+    setStatus(error.message, "error");
+  }
+}
+
+async function loadRoleView(showStatus = true) {
+  try {
+    const sessionId = $("sessionId").value.trim();
+    const role = $("roleSelect").value;
+    if (!sessionId) throw new Error("请输入 session_id。");
+    const data = await requestJson(`/api/v1/sessions/${encodeURIComponent(sessionId)}/view?role=${encodeURIComponent(role)}`);
+    $("roleViewJson").textContent = JSON.stringify(data, null, 2);
+    if (showStatus) setStatus(`已加载 ${role} 视图`);
+  } catch (error) {
+    setStatus(error.message, "error");
   }
 }
 
 async function clearSession() {
   try {
-    const sessionId = document.getElementById("sessionId").value.trim();
-    if (!sessionId) {
-      throw new Error("请先输入 session_id。");
-    }
-
-    setStatus("正在清空会话...");
-    const response = await fetch(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, {
-      method: "DELETE",
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "清空会话失败。");
-    }
-    renderHistory([]);
+    const sessionId = $("sessionId").value.trim();
+    if (!sessionId) throw new Error("请输入 session_id。");
+    await requestJson(`/api/v1/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+    $("chatLog").innerHTML = '<div class="empty-state">会话已清空。</div>';
     renderTrace([]);
-    setStatus(`会话 ${sessionId} 已清空。`);
+    $("roleViewJson").textContent = "暂无数据";
+    setStatus("会话已清空");
   } catch (error) {
-    setStatus(error.message || "清空会话失败。", true);
+    setStatus(error.message, "error");
   }
 }
 
-function syncMode() {
-  const mode = inputMode.value;
-  textMode.classList.toggle("hidden", mode !== "text");
-  audioMode.classList.toggle("hidden", mode !== "audio");
+async function markHumanIntervention() {
+  try {
+    const sessionId = $("sessionId").value.trim();
+    if (!sessionId) throw new Error("请输入 session_id。");
+    const responseId = state.latestResponse?.response_id || "";
+    const data = await requestJson(`/api/v1/sessions/${encodeURIComponent(sessionId)}/human-interventions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        response_id: responseId,
+        status: "acknowledged",
+        handler_id: "demo-counselor",
+        note: "前端粗略工作台人工确认。",
+        next_action: "same_day_review",
+        tags: ["frontend_demo"],
+      }),
+    });
+    $("roleViewJson").textContent = JSON.stringify(data, null, 2);
+    await loadCareQueue(false);
+    setStatus("已添加人工确认");
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
 }
 
-function syncEntropyVisibility() {
-  document.body.classList.toggle("entropy-hidden", !entropyToggle.checked);
+async function loadCareQueue(showStatus = true) {
+  try {
+    const data = await requestJson("/api/v1/analytics/care-queue?include_low_priority=true&include_resolved=true");
+    renderCareQueue(data);
+    if (showStatus) setStatus("队列已刷新");
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
 }
 
-function clearOutput() {
-  document.getElementById("riskLevel").textContent = "-";
-  document.getElementById("entropyScore").textContent = "-";
-  document.getElementById("balanceState").textContent = "-";
-  document.getElementById("entropyDelta").textContent = "-";
-  document.getElementById("supportSummary").textContent = "等待结果。";
-  document.getElementById("reductionRationale").textContent = "等待结果。";
-  renderList("reductionActions", [], "暂无数据");
-  renderList("immediateSupport", [], "暂无数据");
-  renderList("campusActions", [], "暂无数据");
-  renderCampusResources([]);
-  renderEntropyDimensions(null);
-  renderHistory([]);
-  renderTrace([]);
-  document.getElementById("rawJson").textContent = "暂无数据";
-  setStatus("输出区域已清空。");
+async function refreshReadiness() {
+  try {
+    const data = await requestJson("/api/v1/ops/readiness");
+    $("readinessJson").textContent = JSON.stringify(data, null, 2);
+    setStatus(`自检：${data.status}`);
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
 }
 
-document.getElementById("submitText").addEventListener("click", submitText);
-document.getElementById("submitAudio").addEventListener("click", submitAudio);
-document.getElementById("loadSession").addEventListener("click", loadSession);
-document.getElementById("clearSession").addEventListener("click", clearSession);
-document.getElementById("clearOutput").addEventListener("click", clearOutput);
-inputMode.addEventListener("change", syncMode);
-entropyToggle.addEventListener("change", syncEntropyVisibility);
+async function refreshContract() {
+  try {
+    const data = await requestJson("/api/v1/frontend/contract");
+    $("roleViewJson").textContent = JSON.stringify(data, null, 2);
+    setStatus("契约已加载");
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+}
 
-syncMode();
-syncEntropyVisibility();
+function bindEvents() {
+  $("submitText").addEventListener("click", submitText);
+  $("submitAudio").addEventListener("click", submitAudio);
+  $("loadSession").addEventListener("click", () => loadSession(true));
+  $("loadRoleView").addEventListener("click", () => loadRoleView(true));
+  $("clearSession").addEventListener("click", clearSession);
+  $("markHuman").addEventListener("click", markHumanIntervention);
+  $("loadCareQueue").addEventListener("click", () => loadCareQueue(true));
+  $("refreshReadiness").addEventListener("click", refreshReadiness);
+  $("refreshContract").addEventListener("click", refreshContract);
+  $("roleSelect").addEventListener("change", () => loadRoleView(true));
+  document.querySelectorAll("[data-prompt]").forEach((button) => {
+    button.addEventListener("click", () => {
+      $("messageInput").value = button.dataset.prompt;
+    });
+  });
+}
+
+bindEvents();
+refreshReadiness();
+loadCareQueue(false);
