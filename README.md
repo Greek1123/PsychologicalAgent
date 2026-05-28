@@ -33,6 +33,7 @@
 隐私边界进展：2026-05-27 新增 `GET /api/v1/sessions/{session_id}/view?role=student|counselor|research|admin`，由后端直接生成不同角色视图。学生端只拿回复、安全提示、轻量风险标签、平衡状态和用户可见行动；研究端保留结构化风险/熵/策略指标但隐藏自由文本和人工备注；管理员视图保留完整内部字段用于本地审计。
 部署自检进展：2026-05-27 新增 `GET /api/v1/ops/readiness` 和 `scripts/check_deployment_readiness.py`，用于检查 provider 配置、数据库目录、日志目录、校园知识库、local checkpoint、基础模型和 Python 版本。`scripts/run_local_checkpoint_api.ps1` 启动前会先运行自检，避免模型路径或数据目录错误时服务半启动。
 验收报告进展：2026-05-28 新增 `scripts/generate_acceptance_report.py`，可自动汇总部署自检、DOCX 后端测评、手动抽检、核心接口和系统层级，生成 `docs/system_acceptance_report.md`，方便组会、答辩或交给组员查看当前项目完成度。
+演示材料进展：2026-05-28 新增 `scripts/generate_demo_workspace.py`，可自动运行 6 个代表性校园心理场景并生成 `docs/demo_workspace_report.md`，覆盖期末焦虑、宿舍边界、暗恋不确定、隐私威胁、被尾随安全安排和危险地点危机优先。
 
 ## 协作与进展记录
 
@@ -547,6 +548,22 @@ docs/system_acceptance_report.md
 ```
 
 这份报告会汇总系统层级、DOCX 后端平均分、手动抽检 PASS/WARN、部署 readiness、核心接口和下一步建议。
+
+### 生成演示工作台样例
+
+如果觉得材料太少，建议先生成演示工作台报告：
+
+```powershell
+python scripts\generate_demo_workspace.py
+```
+
+默认输出：
+
+```text
+docs/demo_workspace_report.md
+```
+
+这份报告会实际调用当前后端，生成 6 个代表性校园场景的学生回复摘录、风险等级、心理熵、策略、转介状态和人工处理状态。
 
 推荐接入顺序：
 

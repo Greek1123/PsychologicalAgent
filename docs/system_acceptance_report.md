@@ -1,9 +1,9 @@
 # 系统验收报告
 
-- 生成时间：2026-05-28T21:14:18
-- 当前分支/提交：codex-backend-reference-alignment@c8eb136
+- 生成时间：2026-05-28T21:22:54
+- 当前分支/提交：codex-backend-reference-alignment@65c08c9
 - 部署自检：ready，pass=7，fail=0
-- 自动测试：281 passed
+- 自动测试：284 passed
 
 ## 当前系统层级
 
@@ -28,7 +28,7 @@
 | 手动抽检 PASS/WARN | 27 / 0 | reports\manual_reply_checks\20260527_191548_manual_reply_check.json |
 | 手动抽检场景/轮次 | 12 / 27 | 手动抽检 JSON |
 | 部署 readiness | ready | `scripts/check_deployment_readiness.py` |
-| 单元/回归测试 | 281 passed | pytest |
+| 单元/回归测试 | 284 passed | pytest |
 
 ## 主要接口
 
@@ -46,6 +46,7 @@
 - 给负责模型的组员：默认使用 README 中的 Qwen3 基础模型 + `refinement_pool_v5_peft` LoRA。
 - 给答辩/论文材料：使用 DOCX 自动测评、手动抽检、熵轨迹导出和后端对比实验作为实验支撑。
 - 给部署同学：启动前先运行 `python scripts\check_deployment_readiness.py`。
+- 给演示准备：运行 `python scripts\generate_demo_workspace.py` 生成 `docs/demo_workspace_report.md`。
 
 ## 下一步建议
 

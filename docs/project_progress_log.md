@@ -2,6 +2,44 @@
 
 本文件用于记录 Codex 每次对项目的检查、修改、验证结果和下一步建议。运行时接口日志仍查看 `logs/app.log`。
 
+## 2026-05-28 演示工作台样例层
+
+### 本次做了什么
+
+- 针对“材料太少、展示不够直观”的问题，新增一层可自动生成的演示工作台样例。
+- 新增 `src/campus_support_agent/demo_workspace.py`，内置 6 个代表性校园心理场景：
+  - 期末复习焦虑与睡眠失衡
+  - 宿舍边界与沟通压力
+  - 暗恋不确定与关系风险
+  - 隐私威胁与边界安抚
+  - 被尾随后安全安排
+  - 危险地点与危机优先
+- 新增 `scripts/generate_demo_workspace.py`，会实际调用当前后端跑上述场景，并生成 `docs/demo_workspace_report.md`。
+- 报告包含：每个场景的用户输入、系统回复摘录、风险等级、心理熵、平衡状态、策略、转介状态、人工处理状态和 care queue 摘要。
+- 新增 `tests/test_demo_workspace.py`，覆盖演示场景数量、危机升级场景、后端状态提取和报告渲染。
+- 更新 `README.md`，补充演示报告生成方式。
+
+### 生成结果
+
+```text
+python scripts\generate_demo_workspace.py
+output = docs/demo_workspace_report.md
+scenarios = 6
+dangerous_place = critical / urgent / escalated
+care_queue_items = 6
+```
+
+### 验证结果
+
+```text
+python -m pytest tests/test_demo_workspace.py
+3 passed
+```
+
+### 主要判断
+
+这一层让项目不只是“接口和指标”，而是有一份可以直接展示的样例工作台材料。后续如果答辩或组会需要演示，可以先打开 `docs/demo_workspace_report.md`，再配合 `docs/system_acceptance_report.md` 说明整体完成度。
+
 ## 2026-05-28 系统验收报告生成层
 
 ### 本次做了什么

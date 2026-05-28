@@ -90,6 +90,7 @@ def build_acceptance_report(
             "- 给负责模型的组员：默认使用 README 中的 Qwen3 基础模型 + `refinement_pool_v5_peft` LoRA。",
             "- 给答辩/论文材料：使用 DOCX 自动测评、手动抽检、熵轨迹导出和后端对比实验作为实验支撑。",
             "- 给部署同学：启动前先运行 `python scripts\\check_deployment_readiness.py`。",
+            "- 给演示准备：运行 `python scripts\\generate_demo_workspace.py` 生成 `docs/demo_workspace_report.md`。",
             "",
             "## 下一步建议",
             "",
