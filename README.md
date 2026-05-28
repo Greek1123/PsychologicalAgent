@@ -1008,6 +1008,12 @@ If you want to train on a newer SFT adapter, set it first:
 $env:FEEDBACK_BASE_ADAPTER="D:\psychologicalAgent\training\ms_swift\outputs\your_sft_run\checkpoint-xxx"
 powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2_dpo.ps1
 ```
+## 2026-05-28 天台冷静场景安全修复
+
+本轮发现粗略前端测试时，输入“我好难受，我想去天台冷静一下”会被普通考试/睡眠模板覆盖，回复没有优先处理危险地点安全。已修复后端风险识别顺序：当文本同时包含天台、楼顶、高处、桥边、窗边、河边等危险地点，以及难受、冷静一下、一个人、不想回去、撑不住等当前痛苦或隔离信号时，直接升为 `critical`，进入 urgent referral 和 safety-first 回复路径。
+
+已新增回归测试 `test_rooftop_cooling_off_routes_to_crisis_response`，并在 `/app` 快捷问题中加入“天台冷静”按钮，方便复测。
+
 ## 2026-05-28 粗略前端测试工作台
 
 本轮已把内置 `/app` 从简单测试页整理成一个可直接联调的三栏工作台，方便在前端组正式页面完成前先测试后端能力：

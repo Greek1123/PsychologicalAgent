@@ -120,6 +120,16 @@ def evaluate_text_risk(text: str) -> RiskAssessment:
             needs_human_followup=True,
         )
 
+    dangerous_place_hits = _detect_dangerous_place_crisis(text)
+    if dangerous_place_hits:
+        return RiskAssessment(
+            level=RiskLevel.CRITICAL,
+            score=95,
+            reason="User text combines a dangerous high-place location with current distress or isolation.",
+            trigger_terms=dangerous_place_hits,
+            needs_human_followup=True,
+        )
+
     real_medium_hits = _find_terms(text, REAL_MEDIUM_TERMS)
 
     noisy_analysis = analyze_noisy_distress_text(text)
@@ -244,3 +254,26 @@ def _filter_negated_critical_hits(text: str, hits: list[str]) -> list[str]:
             continue
         filtered.append(hit)
     return filtered
+
+
+def _detect_dangerous_place_crisis(text: str) -> list[str]:
+    normalized = _normalize(text)
+    place_terms = ("天台", "楼顶", "楼上风很大", "高处", "桥边", "窗边", "河边")
+    distress_terms = (
+        "难受",
+        "冷静一下",
+        "一个人",
+        "待着",
+        "不想回去",
+        "不想睡",
+        "受不了",
+        "撑不住",
+        "崩溃",
+        "烦",
+        "哭",
+    )
+    place_hits = [term for term in place_terms if term in normalized]
+    distress_hits = [term for term in distress_terms if term in normalized]
+    if place_hits and distress_hits:
+        return sorted({*place_hits, *distress_hits})
+    return []

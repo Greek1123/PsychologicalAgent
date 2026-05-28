@@ -967,6 +967,29 @@ python -m pytest
 ### 当前判断
 
 这轮主要改善训练数据闭环和模型侧参考回复学习，不改变后端 mock 评估分数。`auto_docx_reference_distill_patch/checkpoint-final` 是当前最新实验模型；它通过了 12 条干净 checkpoint 场景小测，但仍需要完整 55 场景 checkpoint 评估和与稳定 LoRA 的 DOCX 同题人工对比，才能替换默认推荐模型。
+## 2026-05-28 天台冷静场景安全修复
+
+### 本次做了什么
+- 根据前端实测反馈，修复“我好难受，我想去天台冷静一下”被普通考试/睡眠模板覆盖的问题。
+- 在 `src/campus_support_agent/safety.py` 中新增危险地点组合识别：天台、楼顶、高处、桥边、窗边、河边 + 难受、冷静一下、一个人、不想回去、撑不住等信号时，直接升为 `critical`。
+- 把该判断放到普通 `REAL_MEDIUM_TERMS` 之前，避免“难受”先命中 medium 后提前返回。
+- 在 `tests/test_agent.py` 新增 `test_rooftop_cooling_off_routes_to_crisis_response`，锁定原句必须进入 urgent referral 和安全优先回复。
+- 在 `/app` 快捷测试问题里新增“天台冷静”按钮，方便页面复测。
+
+### 验证结果
+
+```text
+python -m pytest tests/test_agent.py -q
+12 passed
+
+python -m pytest
+285 passed
+```
+
+### 主要判断
+
+这不是模型训练问题，而是后端安全分流优先级问题。危险地点 + 当前痛苦/独处意图必须在普通压力模板之前处理，否则前端即使展示正确也会拿到错误的后端回复。
+
 ## 2026-05-28 粗略前端测试工作台
 
 ### 本次做了什么
