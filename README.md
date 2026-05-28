@@ -32,6 +32,7 @@
 人工干预闭环进展：2026-05-27 在已有 `GET /api/v1/analytics/care-queue` 的基础上新增人工处理记录接口 `POST /api/v1/sessions/{session_id}/human-interventions` 和 `GET /api/v1/sessions/{session_id}/human-interventions`。咨询师/辅导员端现在可以把队列项标记为 `acknowledged`、`in_progress`、`escalated`、`resolved` 或 `closed`；默认 care queue 会隐藏已 `resolved/closed` 的会话，需要审计时加 `include_resolved=true`。
 隐私边界进展：2026-05-27 新增 `GET /api/v1/sessions/{session_id}/view?role=student|counselor|research|admin`，由后端直接生成不同角色视图。学生端只拿回复、安全提示、轻量风险标签、平衡状态和用户可见行动；研究端保留结构化风险/熵/策略指标但隐藏自由文本和人工备注；管理员视图保留完整内部字段用于本地审计。
 部署自检进展：2026-05-27 新增 `GET /api/v1/ops/readiness` 和 `scripts/check_deployment_readiness.py`，用于检查 provider 配置、数据库目录、日志目录、校园知识库、local checkpoint、基础模型和 Python 版本。`scripts/run_local_checkpoint_api.ps1` 启动前会先运行自检，避免模型路径或数据目录错误时服务半启动。
+验收报告进展：2026-05-28 新增 `scripts/generate_acceptance_report.py`，可自动汇总部署自检、DOCX 后端测评、手动抽检、核心接口和系统层级，生成 `docs/system_acceptance_report.md`，方便组会、答辩或交给组员查看当前项目完成度。
 
 ## 协作与进展记录
 
@@ -530,6 +531,22 @@ curl "http://127.0.0.1:8000/api/v1/ops/readiness"
 ```
 
 自检会返回 `ready`、`degraded` 或 `blocked`。如果是 `blocked`，优先检查 `.env` 里的 `LOCAL_CHECKPOINT_PATH`、`LOCAL_BASE_MODEL_PATH`、`DATABASE_PATH`、`LOG_FILE_PATH` 和 `CAMPUS_KB_PATH`。
+
+### 生成验收报告
+
+每轮较大改动后，可以生成一份当前系统验收摘要：
+
+```powershell
+python scripts\generate_acceptance_report.py --test-summary "278 passed"
+```
+
+默认输出：
+
+```text
+docs/system_acceptance_report.md
+```
+
+这份报告会汇总系统层级、DOCX 后端平均分、手动抽检 PASS/WARN、部署 readiness、核心接口和下一步建议。
 
 推荐接入顺序：
 

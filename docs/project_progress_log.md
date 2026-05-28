@@ -2,6 +2,45 @@
 
 本文件用于记录 Codex 每次对项目的检查、修改、验证结果和下一步建议。运行时接口日志仍查看 `logs/app.log`。
 
+## 2026-05-28 系统验收报告生成层
+
+### 本次做了什么
+
+- 新增 `src/campus_support_agent/acceptance_report.py`，把分散的项目结果汇总成一份答辩/组会可读的系统验收报告。
+- 新增 `scripts/generate_acceptance_report.py`，默认输出 `docs/system_acceptance_report.md`。
+- 报告自动汇总：
+  - 当前分支和提交
+  - 部署 readiness 状态
+  - DOCX 后端测评案例数、轮次、平均分、问题标签和低分样例数
+  - 手动抽检场景数、轮次、PASS/WARN
+  - 当前系统层级
+  - 主要 API
+  - 面向前端、模型、答辩和部署同学的交付说明
+- 新增 `tests/test_acceptance_report.py`，覆盖 DOCX JSONL 汇总、手动抽检 JSON 汇总和 Markdown 报告渲染。
+- 同步更新 `README.md`。
+
+### 生成结果
+
+```text
+python scripts\generate_acceptance_report.py --test-summary "278 passed"
+output = docs/system_acceptance_report.md
+DOCX backend average_score = 81.04
+DOCX cases/turns = 100 / 299
+manual PASS/WARN = 27 / 0
+readiness = ready
+```
+
+### 验证结果
+
+```text
+python -m pytest tests/test_acceptance_report.py
+3 passed
+```
+
+### 主要判断
+
+这一层不是继续改 Agent 回复，而是把现有系统能力沉淀成“可交付证据”。后续每次关键迭代后，只要跑评估、跑测试、再生成验收报告，就能快速得到一份最新答辩材料。
+
 ## 2026-05-27 部署与运维自检层
 
 ### 本次做了什么
