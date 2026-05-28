@@ -64,7 +64,22 @@ class CampusSupportAgentTests(unittest.TestCase):
         self.assertTrue(response.referral_decision.should_refer)
         self.assertEqual(response.referral_decision.urgency, "urgent")
         self.assertIn("天台", response.risk.trigger_terms)
-        self.assertIn("不要一个人待着", response.reply_text)
+        self.assertIn("不要一个人待", response.reply_text)
+
+    def test_rooftop_followup_keeps_critical_risk(self) -> None:
+        response = self.agent.handle_text(
+            text="可我真的很烦躁，我该怎么办",
+            conversation_history=[
+                {"role": "user", "content": "我想去天台冷静一下，我现在脑子很乱"},
+                {"role": "assistant", "content": "请你现在不要一个人待着，状态不太安全。"},
+                {"role": "user", "content": "我想去天台冷静一下，我现在脑子很乱"},
+                {"role": "assistant", "content": "我不再重复大段道理，现在只做 30 秒步骤。"},
+            ],
+        )
+
+        self.assertEqual(response.risk.level, RiskLevel.CRITICAL)
+        self.assertEqual(response.referral_decision.urgency, "urgent")
+        self.assertIn("下一个安全动作", response.reply_text)
 
     def test_audio_path_uses_transcript(self) -> None:
         response = self.agent.handle_audio(

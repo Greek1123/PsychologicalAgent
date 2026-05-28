@@ -234,6 +234,9 @@ def _apply_priority_scenario_reply(
     avoiding a single giant decision block inside ``sanitize_user_visible_reply``.
     """
 
+    if _is_dangerous_place_text(clean_user, history_text):
+        return _dangerous_place_safety_reply(clean_user, history_text)
+
     if _is_self_harm_ambivalence_text(clean_user, history_text):
         return _self_harm_ambivalence_reply()
 
@@ -254,9 +257,6 @@ def _apply_priority_scenario_reply(
 
     if _is_modern_crisis_user_text(clean_user) or _is_crisis_user_text(clean_user):
         return _modern_crisis_support_reply()
-
-    if _is_dangerous_place_text(clean_user, history_text):
-        return _dangerous_place_safety_reply()
 
     if _is_account_handover_risk_text(clean_user, history_text):
         return _account_handover_safety_reply()
@@ -763,11 +763,42 @@ def _self_harm_ambivalence_reply() -> str:
 def _is_dangerous_place_text(user_text: str, history_text: str = "") -> bool:
     combined = f"{history_text} {user_text}".replace(" ", "")
     return any(term in combined for term in ("\u5929\u53f0", "\u697c\u9876", "\u9ad8\u5904", "\u6865\u4e0a", "\u6cb3\u8fb9")) and any(
-        term in combined for term in ("\u4e00\u4e2a\u4eba", "\u5439\u5439\u98ce", "\u5f88\u70e6", "\u5b89\u9759\u4e00\u70b9", "\u4e0d\u7528\u62c5\u5fc3")
+        term in combined
+        for term in (
+            "\u4e00\u4e2a\u4eba",
+            "\u5439\u5439\u98ce",
+            "\u5f88\u70e6",
+            "\u70e6\u8e81",
+            "\u8111\u5b50\u5f88\u4e71",
+            "\u51b7\u9759\u4e00\u4e0b",
+            "\u5b89\u9759\u4e00\u70b9",
+            "\u4e0d\u7528\u62c5\u5fc3",
+            "\u600e\u4e48\u529e",
+            "\uff1f",
+            "?",
+        )
     )
 
 
-def _dangerous_place_safety_reply() -> str:
+def _dangerous_place_safety_reply(user_text: str = "", history_text: str = "") -> str:
+    compact_user = user_text.replace(" ", "")
+    compact_history = history_text.replace(" ", "")
+    repeated_place = sum(compact_history.count(term) for term in ("\u5929\u53f0", "\u697c\u9876", "\u9ad8\u5904", "\u6865\u4e0a", "\u6cb3\u8fb9"))
+    asks_next_step = any(term in compact_user for term in ("\u600e\u4e48\u529e", "\uff1f", "?"))
+    reports_agitation = any(term in compact_user for term in ("\u70e6\u8e81", "\u8111\u5b50\u5f88\u4e71", "\u5f88\u70e6"))
+
+    if asks_next_step:
+        return (
+            "\u5148\u4e0d\u8ba8\u8bba\u8003\u8bd5\uff0c\u6211\u4eec\u53ea\u505a\u4e0b\u4e00\u4e2a\u5b89\u5168\u52a8\u4f5c\uff1a\u8bf7\u4f60\u73b0\u5728\u628a\u8eab\u4f53\u79bb\u5f00\u901a\u5f80\u5929\u53f0\u6216\u9ad8\u5904\u7684\u8def\u7ebf\uff0c\u5f80\u6709\u4eba\u7684\u5730\u65b9\u8d70\uff0c\u6bd4\u5982\u5bbf\u7ba1\u5904\u3001\u503c\u73ed\u5ba4\u3001\u8d70\u5eca\u6216\u4fbf\u5229\u5e97\u3002"
+            "\u7136\u540e\u7ed9\u4e00\u4e2a\u4eba\u53d1\u8fd9\u53e5\uff1a\u201c\u6211\u73b0\u5728\u72b6\u6001\u4e0d\u7a33\uff0c\u8bf7\u6765\u966a\u6211\u4e00\u4e0b\u3002\u201d"
+            "\u53d1\u5b8c\u540e\u4f60\u53ea\u8981\u56de\u6211\u4e24\u4e2a\u5b57\uff1a\u201c\u53d1\u4e86\u201d\u3002"
+        )
+    if repeated_place >= 2 or (reports_agitation and repeated_place >= 1):
+        return (
+            "\u6211\u4e0d\u518d\u91cd\u590d\u5927\u6bb5\u9053\u7406\uff0c\u73b0\u5728\u53ea\u8ddf\u4f60\u505a\u4e00\u4e2a 30 \u79d2\u6b65\u9aa4\u3002"
+            "\u7b2c\u4e00\uff0c\u5148\u4e0d\u53bb\u5929\u53f0\uff0c\u628a\u65b9\u5411\u6539\u5230\u6709\u4eba\u7684\u5730\u65b9\uff1b\u7b2c\u4e8c\uff0c\u53cc\u811a\u8e29\u5730\uff0c\u6162\u6162\u547c\u51fa\u4e00\u53e3\u6c14\uff1b\u7b2c\u4e09\uff0c\u7ed9\u5ba4\u53cb\u6216\u8f85\u5bfc\u5458\u53d1\u4e00\u53e5\u201c\u6211\u73b0\u5728\u9700\u8981\u4eba\u966a\u201d\u3002"
+            "\u4f60\u53ef\u4ee5\u4e0d\u89e3\u91ca\u539f\u56e0\uff0c\u5148\u628a\u8fd9\u4e09\u6b65\u505a\u5b8c\u3002"
+        )
     return (
         "\u6211\u9700\u8981\u5f88\u76f4\u63a5\u5730\u8bf4\uff1a\u73b0\u5728\u5148\u4e0d\u8981\u53bb\u5929\u53f0\u3001\u697c\u9876\u6216\u4efb\u4f55\u9ad8\u5904\uff0c\u4e5f\u4e0d\u8981\u4e00\u4e2a\u4eba\u5f85\u5728\u5371\u9669\u5730\u65b9\u3002"
         "\u4f60\u73b0\u5728\u60c5\u7eea\u5f88\u5f3a\uff0c\u53c8\u60f3\u4e00\u4e2a\u4eba\u5f85\u7740\uff0c\u8fd9\u4f1a\u589e\u52a0\u51b2\u52a8\u98ce\u9669\u3002"

@@ -72,6 +72,8 @@ def _care_plan_fallback(user_text: str, history_text: str, care_plan: dict[str, 
 
 def _priority_reference_reply(user_text: str, history_text: str, reply_text: str) -> str | None:
     combined = f"{history_text} {user_text}"
+    if _dangerous_place_followup_context(combined):
+        return _dangerous_place_followup_reply(user_text, history_text)
     if _self_harm_ambivalence_context(combined):
         return (
             "你不想让别人知道、觉得丢人，这种羞耻感我能理解；但用疼痛让自己冷静，说明情绪已经超过你一个人舒服承受的范围了。"
@@ -1022,6 +1024,36 @@ def _dangerous_place_minimize_context(text: str) -> bool:
 def _dangerous_place_stairs_context(text: str) -> bool:
     return any(term in text for term in ("天台", "楼上风很大", "危险地点", "高处")) and any(
         term in text for term in ("楼梯口", "还没上去")
+    )
+
+
+def _dangerous_place_followup_context(text: str) -> bool:
+    return any(term in text for term in ("天台", "楼顶", "楼上风很大", "危险地点", "高处")) and any(
+        term in text for term in ("脑子很乱", "冷静一下", "烦躁", "很烦", "怎么办", "？", "?")
+    )
+
+
+def _dangerous_place_followup_reply(user_text: str, history_text: str) -> str:
+    compact_user = user_text.replace(" ", "")
+    compact_history = history_text.replace(" ", "")
+    repeated_place = sum(compact_history.count(term) for term in ("天台", "楼顶", "高处"))
+    asks_next_step = any(term in compact_user for term in ("怎么办", "？", "?"))
+
+    if asks_next_step:
+        return (
+            "先不讨论考试，我们只做下一个安全动作：请你现在把身体离开通往天台或高处的路线，往有人在的地方走，比如宿管处、值班室、走廊或便利店。"
+            "然后给一个人发这句：“我现在状态不稳，请来陪我一下。”"
+            "发完后你只要回我两个字：“发了”。"
+        )
+    if repeated_place >= 2:
+        return (
+            "我不再重复大段道理，现在只跟你做一个 30 秒步骤。"
+            "第一，先不去天台，把方向改到有人的地方；第二，双脚踩地，慢慢呼出一口气；第三，给室友或辅导员发一句“我现在需要人陪”。"
+            "你可以不解释原因，先把这三步做完。"
+        )
+    return (
+        "我需要很直接地说：现在先不要去天台、楼顶或任何高处，也不要一个人待在危险地方。"
+        "请先留在有人经过的地方，比如宿管处、便利店、值班室或走廊，然后给室友、同学或辅导员发一句：“我现在状态不太安全，你能来陪我一下吗？”"
     )
 
 

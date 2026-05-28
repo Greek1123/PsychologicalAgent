@@ -967,6 +967,47 @@ python -m pytest
 ### 当前判断
 
 这轮主要改善训练数据闭环和模型侧参考回复学习，不改变后端 mock 评估分数。`auto_docx_reference_distill_patch/checkpoint-final` 是当前最新实验模型；它通过了 12 条干净 checkpoint 场景小测，但仍需要完整 55 场景 checkpoint 评估和与稳定 LoRA 的 DOCX 同题人工对比，才能替换默认推荐模型。
+## 2026-05-28 危机多轮重复回复修复
+
+### 本次做了什么
+- 根据前端实测反馈，修复天台高危场景后续多轮反复输出同一段模板的问题。
+- 在 `src/campus_support_agent/response_guardrails.py` 中把危险地点回复优先级提前到自伤矛盾模板之前，避免历史里的 Agent 文本反向触发“疼痛冷静”模板。
+- 扩展危险地点识别词：覆盖“脑子很乱”“冷静一下”“烦躁”“怎么办”“？”等后续追问。
+- 将危险地点回复拆成阶段化输出：
+  - 首次：直接提示不要去天台/高处，去有人经过的地方并联系现实支持。
+  - 重复表达：不再讲大段道理，改为 30 秒安全步骤。
+  - 追问/问号：给出下一步动作，要求先离开危险路线、给可信任的人发求助句，并只回复“发了”。
+- 在 `src/campus_support_agent/agent.py` 中补充危机上下文继承：未解除的天台/高处危机场景后，如果用户后续只说“怎么办”“烦躁”“？”等短追问，结构化风险继续保持 `critical/urgent`，避免 care queue 和前台回复不一致。
+- 在 `tests/test_response_guardrails.py` 新增重复天台表达和问号追问两个回归测试。
+- 在 `tests/test_agent.py` 新增天台后续追问保持 critical 的回归测试。
+
+### 验证结果
+
+```text
+python -m pytest tests/test_response_guardrails.py -q
+103 passed
+
+python -m pytest tests/test_agent.py -q
+13 passed
+
+python -m pytest tests/test_agent.py tests/test_response_guardrails.py -q
+117 passed
+
+python -m pytest
+289 passed
+
+本地 API 多轮 smoke test：
+1. 考试失眠：risk=medium, urgency=none
+2. 第一次“天台冷静”：risk=critical, urgency=urgent
+3. 第二次“天台冷静”：risk=critical, urgency=urgent，回复切换为 30 秒步骤
+4. “我该怎么办”：risk=critical, urgency=urgent，回复切换为下一步安全动作
+5. “？”：risk=critical, urgency=urgent，继续保持下一步安全动作
+```
+
+### 主要判断
+
+这次不是风险等级识别问题，而是多轮护栏使用了包含 Agent 回复的历史文本，导致后续短输入被历史里的“伤害自己/冷静”词误导。修复后，危险地点场景会优先保持安全路线，并随轮次推进到具体动作。
+
 ## 2026-05-28 天台冷静场景安全修复
 
 ### 本次做了什么

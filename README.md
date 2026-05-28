@@ -1008,6 +1008,12 @@ If you want to train on a newer SFT adapter, set it first:
 $env:FEEDBACK_BASE_ADAPTER="D:\psychologicalAgent\training\ms_swift\outputs\your_sft_run\checkpoint-xxx"
 powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2_dpo.ps1
 ```
+## 2026-05-28 危机多轮重复回复修复
+
+本轮继续修复天台场景后的多轮对话问题：当用户反复说“我想去天台冷静一下”或继续追问“我该怎么办”“？”时，系统不再重复同一段“羞耻/疼痛冷静”模板，而是按阶段给出更短、更具体的下一步安全动作。当前策略为：首次提示不要去天台/高处并联系现实支持；重复表达时切换为 30 秒步骤；追问时要求先离开危险路线、去有人处、给可信任的人发送求助句，并让用户只回复“发了”。
+
+同时，未解除的天台/高处危机场景下，如果用户后续只说“我该怎么办”“？”或“很烦躁”，后端会继承上一轮高危上下文，继续保持 `critical` 和 `urgent`，避免后台 care queue 因短输入降级。新增回归测试覆盖重复天台表达、后续问号追问和危机上下文继承。
+
 ## 2026-05-28 天台冷静场景安全修复
 
 本轮发现粗略前端测试时，输入“我好难受，我想去天台冷静一下”会被普通考试/睡眠模板覆盖，回复没有优先处理危险地点安全。已修复后端风险识别顺序：当文本同时包含天台、楼顶、高处、桥边、窗边、河边等危险地点，以及难受、冷静一下、一个人、不想回去、撑不住等当前痛苦或隔离信号时，直接升为 `critical`，进入 urgent referral 和 safety-first 回复路径。
