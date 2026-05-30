@@ -98,6 +98,30 @@ backend_actions
 
 ## 文本接口 fetch 示例
 
+仓库里已经提供一份 TypeScript API client：
+
+```text
+frontend_handoff/campusSupportApi.ts
+```
+
+前端组可以直接复制到 Vite/React 项目的 `src/api/` 下使用。它已经封装了文本、语音、会话、角色视图、人工队列、人工处理记录和错误处理。
+
+示例：
+
+```ts
+import { CampusSupportApi } from "./api/campusSupportApi";
+
+const api = new CampusSupportApi("http://127.0.0.1:8000");
+const response = await api.sendText({
+  session_id: "demo-student-001",
+  text: "明天早上考试，我现在完全睡不着，越想越慌。",
+  student_context: { grade: "大二", campus: "main" },
+});
+const display = api.toStudentDisplayModel(response);
+```
+
+如果暂时不引入这份 client，也可以直接用下面的原生 fetch。
+
 ```js
 async function sendSupportText(text, sessionId = "demo-student-001") {
   const response = await fetch("http://127.0.0.1:8000/api/v1/support/text", {

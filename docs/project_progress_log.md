@@ -988,6 +988,7 @@ python -m pytest
 - 脚本会把结果写入 `reports/frontend_handoff_smoke/`，方便交给组员或留作验收记录。
 - 补齐 `FRONTEND_ALLOWED_ORIGINS` 配置，默认允许 `3000`、`5173` 和 `8000` 的本地前端端口；`GET /api/v1/frontend/contract` 会返回当前 CORS origins。
 - `GET /api/v1/ops/readiness` 新增 `frontend_allowed_origins` 检查：生产环境如果仍然使用 `*` 会返回 warn，避免正式联调时浏览器凭证请求被 CORS 配置坑住。
+- 新增 `frontend_handoff/campusSupportApi.ts`，给前端组一个可复制的 TypeScript API client，覆盖文本、语音、角色视图、care queue、人工处理记录和学生端展示模型转换。
 - 同步更新 `README.md`。
 
 ### 验证结果
@@ -995,6 +996,12 @@ python -m pytest
 ```text
 python -m pytest tests\test_main.py tests\test_deployment_readiness.py -q
 13 passed
+
+python -m pytest tests\test_frontend_handoff_artifacts.py tests\test_main.py tests\test_deployment_readiness.py -q
+15 passed
+
+npx.cmd --yes -p typescript tsc --noEmit --lib DOM,ES2020 --target ES2020 frontend_handoff\campusSupportApi.ts
+通过
 
 python -m pytest
 303 passed
