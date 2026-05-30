@@ -986,20 +986,25 @@ python -m pytest
   - `GET /api/v1/sessions/{session_id}/view?role=student`
   - `GET /api/v1/analytics/care-queue`
 - 脚本会把结果写入 `reports/frontend_handoff_smoke/`，方便交给组员或留作验收记录。
+- 补齐 `FRONTEND_ALLOWED_ORIGINS` 配置，默认允许 `3000`、`5173` 和 `8000` 的本地前端端口；`GET /api/v1/frontend/contract` 会返回当前 CORS origins。
+- `GET /api/v1/ops/readiness` 新增 `frontend_allowed_origins` 检查：生产环境如果仍然使用 `*` 会返回 warn，避免正式联调时浏览器凭证请求被 CORS 配置坑住。
 - 同步更新 `README.md`。
 
 ### 验证结果
 
 ```text
-python -m pytest tests\test_main.py -q
-9 passed
+python -m pytest tests\test_main.py tests\test_deployment_readiness.py -q
+13 passed
+
+python -m pytest
+303 passed
 
 python -m py_compile scripts\smoke_frontend_handoff.py
 通过
 
-python scripts\smoke_frontend_handoff.py --base-url http://127.0.0.1:8000 --session-id frontend-handoff-smoke
+python scripts\smoke_frontend_handoff.py --base-url http://127.0.0.1:8765 --session-id frontend-handoff-smoke-cors
 ok = true
-report = reports/frontend_handoff_smoke/20260530_122430_frontend_handoff_smoke.md
+report = reports/frontend_handoff_smoke/20260530_122832_frontend_handoff_smoke.md
 ```
 
 ### 当前判断

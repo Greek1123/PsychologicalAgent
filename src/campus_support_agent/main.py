@@ -85,9 +85,10 @@ app = FastAPI(
 )
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+_startup_settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_startup_settings.frontend_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -340,6 +341,11 @@ def get_frontend_contract() -> dict[str, Any]:
     return {
         "version": "2026-05-27",
         "purpose": "Stable handoff contract for the student-facing chat UI and research dashboard.",
+        "cors": {
+            "allowed_origins": get_settings().frontend_allowed_origins,
+            "env": "FRONTEND_ALLOWED_ORIGINS",
+            "example": "http://127.0.0.1:5173,http://localhost:5173",
+        },
         "endpoints": {
             "text_support": {
                 "method": "POST",

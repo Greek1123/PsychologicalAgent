@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -152,6 +153,9 @@ class MainFlowTests(unittest.TestCase):
 
         self.assertEqual(contract["endpoints"]["text_support"]["path"], "/api/v1/support/text")
         self.assertEqual(contract["endpoints"]["audio_support"]["content_type"], "multipart/form-data")
+        self.assertIn("cors", contract)
+        self.assertIn("FRONTEND_ALLOWED_ORIGINS", contract["cors"]["env"])
+        self.assertIn("http://127.0.0.1:5173", contract["cors"]["allowed_origins"])
         self.assertIn("text", contract["text_request_example"])
         self.assertIn("reply_text", contract["response_core_fields"])
         self.assertIn("risk", contract["response_core_fields"])
@@ -166,6 +170,21 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("research_dashboard", contract["frontend_display_policy"])
         self.assertIn("critical", contract["risk_badges"])
         self.assertGreaterEqual(len(contract["demo_prompts"]), 4)
+
+    def test_cors_preflight_allows_local_frontend_origin(self) -> None:
+        client = TestClient(main.app)
+
+        response = client.options(
+            "/api/v1/support/text",
+            headers={
+                "Origin": "http://127.0.0.1:5173",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["access-control-allow-origin"], "http://127.0.0.1:5173")
 
     def test_session_role_view_projects_privacy_fields(self) -> None:
         session_id = f"test-view-session-{uuid4().hex}"

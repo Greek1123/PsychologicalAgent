@@ -1010,7 +1010,7 @@ powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2
 ```
 ## 2026-05-30 前端联调交接层
 
-本轮进入接口联调层，新增 `docs/frontend_integration_guide.md`，把前端组员需要的启动方式、文本/语音接口、学生端展示字段、角色视图、人工队列和模型边界整理成独立交接文档。新增 `scripts/smoke_frontend_handoff.py`，后端启动后可一键检查 `/health`、`/api/v1/frontend/contract`、`/api/v1/ops/readiness`、文本对话、学生角色视图和 care queue，并在 `reports/frontend_handoff_smoke/` 生成联调报告。本轮验证：`python -m pytest tests\test_main.py -q` 通过 9 项；`python -m py_compile scripts\smoke_frontend_handoff.py` 通过；本地 `http://127.0.0.1:8000` smoke 结果 `ok=true`，报告为 `reports/frontend_handoff_smoke/20260530_122430_frontend_handoff_smoke.md`。
+本轮进入接口联调层，新增 `docs/frontend_integration_guide.md`，把前端组员需要的启动方式、文本/语音接口、学生端展示字段、角色视图、人工队列和模型边界整理成独立交接文档。新增 `scripts/smoke_frontend_handoff.py`，后端启动后可一键检查 `/health`、`/api/v1/frontend/contract`、`/api/v1/ops/readiness`、文本对话、学生角色视图和 care queue，并在 `reports/frontend_handoff_smoke/` 生成联调报告。随后补齐正式前端独立端口联调所需的 `FRONTEND_ALLOWED_ORIGINS` 配置，contract 会返回允许的 CORS origins，readiness 会在生产环境使用通配符时提示降级。本轮验证：`python -m pytest tests\test_main.py tests\test_deployment_readiness.py -q` 通过 13 项；`python -m pytest` 完整套件通过 303 项；`python -m py_compile scripts\smoke_frontend_handoff.py` 通过；临时端口 `http://127.0.0.1:8765` smoke 结果 `ok=true`，报告为 `reports/frontend_handoff_smoke/20260530_122832_frontend_handoff_smoke.md`。
 
 ## 2026-05-30 DOCX 低分 turn 定向优化
 

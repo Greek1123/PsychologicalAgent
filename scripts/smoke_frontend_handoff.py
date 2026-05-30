@@ -37,12 +37,39 @@ def _request_json(
 def _run_step(name: str, fn) -> dict[str, Any]:
     try:
         status, data = fn()
-        return {"name": name, "ok": 200 <= status < 300, "status": status, "data": data}
+        errors = _validate_step(name, data)
+        return {"name": name, "ok": 200 <= status < 300 and not errors, "status": status, "data": data, "errors": errors}
     except HTTPError as exc:
         raw = exc.read().decode("utf-8", errors="replace")
         return {"name": name, "ok": False, "status": exc.code, "error": raw}
     except (URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         return {"name": name, "ok": False, "status": None, "error": str(exc)}
+
+
+def _validate_step(name: str, data: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    if name == "frontend_contract":
+        endpoints = data.get("endpoints") or {}
+        cors = data.get("cors") or {}
+        for key in ("text_support", "audio_support", "role_view", "care_queue"):
+            if key not in endpoints:
+                errors.append(f"missing endpoint: {key}")
+        if not cors.get("allowed_origins"):
+            errors.append("missing cors.allowed_origins")
+    elif name == "text_support":
+        for key in ("response_id", "reply_text", "risk", "entropy", "safety"):
+            if key not in data:
+                errors.append(f"missing response field: {key}")
+    elif name == "student_role_view":
+        latest = data.get("latest_response") or {}
+        if "reply_text" not in latest:
+            errors.append("student role view missing latest_response.reply_text")
+    elif name == "care_queue":
+        if "items" not in data:
+            errors.append("care queue missing items")
+        if "priority_counts" not in data:
+            errors.append("care queue missing priority_counts")
+    return errors
 
 
 def run_smoke(base_url: str, session_id: str, prompt: str) -> dict[str, Any]:
@@ -97,6 +124,8 @@ def _summarize_step(step: dict[str, Any]) -> list[str]:
     lines = [f"### {step['name']}", "", f"- ok: `{step['ok']}`", f"- status: `{step.get('status')}`"]
     if not step["ok"]:
         lines.append(f"- error: `{step.get('error', '')[:300]}`")
+        if step.get("errors"):
+            lines.append(f"- validation_errors: `{json.dumps(step['errors'], ensure_ascii=False)}`")
         return lines
     if step["name"] == "health":
         lines.append(f"- service: `{data.get('status')}`")
@@ -104,6 +133,7 @@ def _summarize_step(step: dict[str, Any]) -> list[str]:
     elif step["name"] == "frontend_contract":
         endpoints = sorted((data.get("endpoints") or {}).keys())
         lines.append(f"- endpoints: `{', '.join(endpoints)}`")
+        lines.append(f"- cors_allowed_origins: `{', '.join((data.get('cors') or {}).get('allowed_origins') or [])}`")
     elif step["name"] == "ops_readiness":
         lines.append(f"- readiness: `{data.get('status')}`")
     elif step["name"] == "text_support":

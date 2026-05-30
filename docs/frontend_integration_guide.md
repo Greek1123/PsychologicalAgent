@@ -28,6 +28,12 @@ uvicorn campus_support_agent.main:app --app-dir src --host 127.0.0.1 --port 8000
 uvicorn campus_support_agent.main:app --app-dir src --host 127.0.0.1 --port 8001
 ```
 
+如果前端是 Vite/React 独立启动，例如 `http://127.0.0.1:5173`，后端默认已经允许常见本地前端端口。需要自定义时设置：
+
+```powershell
+$env:FRONTEND_ALLOWED_ORIGINS="http://127.0.0.1:5173,http://localhost:5173"
+```
+
 粗略测试页面：
 
 ```text
@@ -235,6 +241,7 @@ python scripts\smoke_frontend_handoff.py --base-url http://127.0.0.1:8000
 - `POST /api/v1/support/text`
 - `GET /api/v1/sessions/{session_id}/view?role=student`
 - `GET /api/v1/analytics/care-queue`
+- contract 中的 CORS origin 配置
 
 报告会写入：
 

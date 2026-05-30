@@ -27,6 +27,7 @@ def build_deployment_readiness(settings: Settings) -> dict[str, Any]:
         _path_parent_check("database_path", settings.database_path),
         _path_parent_check("log_file_path", settings.log_file_path),
         _file_exists_check("campus_kb_path", settings.campus_kb_path),
+        _frontend_origins_check(settings),
         _local_checkpoint_check(settings),
         _python_runtime_check(),
     ]
@@ -122,6 +123,32 @@ def _local_checkpoint_check(settings: Settings) -> ReadinessCheck:
             "base_model_exists": base_model_path.exists(),
             "missing": missing,
         },
+    )
+
+
+def _frontend_origins_check(settings: Settings) -> ReadinessCheck:
+    origins = [origin.strip() for origin in settings.frontend_allowed_origins if origin.strip()]
+    if not origins:
+        return ReadinessCheck(
+            name="frontend_allowed_origins",
+            status="fail",
+            message="No frontend origins are configured.",
+            details={"env": "FRONTEND_ALLOWED_ORIGINS", "origins": origins},
+        )
+    has_wildcard = "*" in origins
+    production_like = settings.app_env.strip().lower() in {"prod", "production"}
+    if has_wildcard and production_like:
+        return ReadinessCheck(
+            name="frontend_allowed_origins",
+            status="warn",
+            message="Wildcard CORS origin should not be used in production.",
+            details={"env": "FRONTEND_ALLOWED_ORIGINS", "origins": origins},
+        )
+    return ReadinessCheck(
+        name="frontend_allowed_origins",
+        status="pass",
+        message="Frontend CORS origins are configured.",
+        details={"env": "FRONTEND_ALLOWED_ORIGINS", "origins": origins},
     )
 
 

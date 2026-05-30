@@ -33,6 +33,7 @@ def test_deployment_readiness_passes_for_mock_provider(tmp_path: Path) -> None:
         "database_path",
         "log_file_path",
         "campus_kb_path",
+        "frontend_allowed_origins",
         "python_runtime",
     }
 
@@ -56,3 +57,24 @@ def test_deployment_readiness_blocks_missing_local_checkpoint(tmp_path: Path) ->
     assert readiness["status"] == "blocked"
     assert local_check["status"] == "fail"
     assert local_check["details"]["missing"] == ["LOCAL_CHECKPOINT_PATH", "LOCAL_BASE_MODEL_PATH"]
+
+
+def test_deployment_readiness_warns_for_wildcard_origin_in_production(tmp_path: Path) -> None:
+    kb_path = tmp_path / "campus_knowledge.json"
+    kb_path.write_text("[]", encoding="utf-8")
+    settings = Settings(
+        app_env="production",
+        llm_provider="mock",
+        stt_provider="mock",
+        database_path=str(tmp_path / "agent.db"),
+        log_file_path=str(tmp_path / "app.log"),
+        campus_kb_path=str(kb_path),
+        frontend_allowed_origins=["*"],
+    )
+
+    readiness = build_deployment_readiness(settings)
+    cors_check = next(check for check in readiness["checks"] if check["name"] == "frontend_allowed_origins")
+
+    assert readiness["status"] == "degraded"
+    assert cors_check["status"] == "warn"
+    assert cors_check["details"]["env"] == "FRONTEND_ALLOWED_ORIGINS"

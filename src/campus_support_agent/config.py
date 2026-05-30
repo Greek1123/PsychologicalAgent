@@ -53,6 +53,19 @@ class Settings:
     database_path: str = field(
         default_factory=lambda: os.getenv("DATABASE_PATH", str(PROJECT_ROOT / "data" / "campus_agent.db"))
     )
+    frontend_allowed_origins: list[str] = field(
+        default_factory=lambda: _split_csv(
+            os.getenv("FRONTEND_ALLOWED_ORIGINS"),
+            [
+                "http://127.0.0.1:3000",
+                "http://localhost:3000",
+                "http://127.0.0.1:5173",
+                "http://localhost:5173",
+                "http://127.0.0.1:8000",
+                "http://localhost:8000",
+            ],
+        )
+    )
 
     llm_provider: str = field(default_factory=lambda: os.getenv("LLM_PROVIDER", "mock"))
     llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "EmoLLM-2.0"))
