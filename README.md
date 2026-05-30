@@ -1008,6 +1008,10 @@ If you want to train on a newer SFT adapter, set it first:
 $env:FEEDBACK_BASE_ADAPTER="D:\psychologicalAgent\training\ms_swift\outputs\your_sft_run\checkpoint-xxx"
 powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2_dpo.ps1
 ```
+## 2026-05-30 前端联调交接层
+
+本轮进入接口联调层，新增 `docs/frontend_integration_guide.md`，把前端组员需要的启动方式、文本/语音接口、学生端展示字段、角色视图、人工队列和模型边界整理成独立交接文档。新增 `scripts/smoke_frontend_handoff.py`，后端启动后可一键检查 `/health`、`/api/v1/frontend/contract`、`/api/v1/ops/readiness`、文本对话、学生角色视图和 care queue，并在 `reports/frontend_handoff_smoke/` 生成联调报告。本轮验证：`python -m pytest tests\test_main.py -q` 通过 9 项；`python -m py_compile scripts\smoke_frontend_handoff.py` 通过；本地 `http://127.0.0.1:8000` smoke 结果 `ok=true`，报告为 `reports/frontend_handoff_smoke/20260530_122430_frontend_handoff_smoke.md`。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 本轮继续跑 `auto_quality_pipeline.py --mode backend --limit 100 --start 1` 和手动抽检，针对 DOCX 低分 turn 做了两类细化：作业堆积场景中“打开文档就想逃/怕写得很烂”会直接给出实验报告可提交骨架、三到五句话、补图改语病和 25 分钟计时；兼职工资拖欠场景中“怕被拉黑/觉得自己太弱”会转为证据化沟通、维护边界和劳动报酬权益。最新 DOCX 100 例结果：平均分 `80.81`，`flag_counts={}`，低分样例为空；手动抽检 12 场景 / 27 轮 `WARN=0`。

@@ -967,6 +967,45 @@ python -m pytest
 ### 当前判断
 
 这轮主要改善训练数据闭环和模型侧参考回复学习，不改变后端 mock 评估分数。`auto_docx_reference_distill_patch/checkpoint-final` 是当前最新实验模型；它通过了 12 条干净 checkpoint 场景小测，但仍需要完整 55 场景 checkpoint 评估和与稳定 LoRA 的 DOCX 同题人工对比，才能替换默认推荐模型。
+## 2026-05-30 前端联调交接层
+
+### 本次做了什么
+- 按“假设前端已经完成，开始下一层”的方向，进入前后端联调交接层。
+- 新增 `docs/frontend_integration_guide.md`，把组员真正需要的内容集中到一份文档：
+  - 本地启动命令，分别给 CMD 和 PowerShell。
+  - 文本接口 `POST /api/v1/support/text` 的请求和展示字段。
+  - 语音接口 `POST /api/v1/support/audio` 的表单字段。
+  - 学生端、咨询师端、研究端、管理端角色视图。
+  - 人工关注队列和人工处理记录接口。
+  - 前端哪些字段应该展示，哪些字段不要直接给学生展示。
+- 新增 `scripts/smoke_frontend_handoff.py`，后端启动后可以自动跑通：
+  - `/health`
+  - `/api/v1/frontend/contract`
+  - `/api/v1/ops/readiness`
+  - `POST /api/v1/support/text`
+  - `GET /api/v1/sessions/{session_id}/view?role=student`
+  - `GET /api/v1/analytics/care-queue`
+- 脚本会把结果写入 `reports/frontend_handoff_smoke/`，方便交给组员或留作验收记录。
+- 同步更新 `README.md`。
+
+### 验证结果
+
+```text
+python -m pytest tests\test_main.py -q
+9 passed
+
+python -m py_compile scripts\smoke_frontend_handoff.py
+通过
+
+python scripts\smoke_frontend_handoff.py --base-url http://127.0.0.1:8000 --session-id frontend-handoff-smoke
+ok = true
+report = reports/frontend_handoff_smoke/20260530_122430_frontend_handoff_smoke.md
+```
+
+### 当前判断
+
+前端组员不需要拿模型文件，也不需要直接加载 LoRA/checkpoint；他们只需要后端地址和 API 字段。模型路径、provider、mock/local checkpoint 切换都留在后端环境变量里管理。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 ### 本次做了什么
