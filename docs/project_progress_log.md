@@ -967,6 +967,39 @@ python -m pytest
 ### 当前判断
 
 这轮主要改善训练数据闭环和模型侧参考回复学习，不改变后端 mock 评估分数。`auto_docx_reference_distill_patch/checkpoint-final` 是当前最新实验模型；它通过了 12 条干净 checkpoint 场景小测，但仍需要完整 55 场景 checkpoint 评估和与稳定 LoRA 的 DOCX 同题人工对比，才能替换默认推荐模型。
+## 2026-05-30 手动抽检 WARN 清零优化
+
+### 本次做了什么
+- 继续沿着真实前端压测后的高危多轮问题优化，没有新增模型训练。
+- 运行 `scripts/run_manual_reply_check.py`，初始结果为 12 个场景 / 27 轮中 `PASS=24`、`WARN=3`。
+- 定位到两个问题：
+  - 账号交接隐性高危场景第三轮“我怕他们问我为什么”被危险地点模板误抢走，因为最终回复护栏把历史里的“危险地点”泛词也当成天台场景。
+  - 危险地点场景第二轮“别把事情想严重”和第三轮“我在楼梯口，还没上去”没有输出抽检期望的高风险说明、离开天台方向和室内有人处。
+- 修复 `src/campus_support_agent/final_reply_guardrails.py`：
+  - 危险地点后续场景只识别真实地点词：天台、楼顶、高处等，不再用泛化的“危险地点”抢路由。
+  - 针对“不会怎么样/别想严重”输出高风险说明和“离开通往天台的方向”。
+  - 针对“楼梯口/还没上去”输出“离开通往天台的方向，往楼下或室内有人处走”。
+- 修复 `src/campus_support_agent/agent.py`：
+  - 危险地点危机上下文继承增加“不会怎么样/别把事情想严重/楼梯口/还没上去”等后续短句。
+  - 识别历史安全提示里的“不要去天台/任何高处”，让这些后续短句继续保持 `critical/urgent`。
+- 新增/扩展 `tests/test_response_guardrails.py` 和 `tests/test_agent.py`，覆盖账号交接不被天台模板抢走、天台否认严重性、楼梯口后续和结构化 critical 继承。
+
+### 验证结果
+
+```text
+python -m pytest tests/test_agent.py tests/test_response_guardrails.py -q
+121 passed
+
+python scripts\run_manual_reply_check.py
+scenarios = 12
+turns = 27
+WARN = 0
+```
+
+### 主要判断
+
+这轮问题仍然不是模型本身，而是多轮路由的上下文边界：不能把所有历史里的“危险地点”泛词都当作天台场景；但一旦真实天台/高处危机未解除，后续否认严重性、楼梯口位置、怎么办和问号都应该继承高危状态。
+
 ## 2026-05-28 危机多轮重复回复修复
 
 ### 本次做了什么

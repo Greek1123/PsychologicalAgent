@@ -118,12 +118,17 @@ def _should_carry_forward_dangerous_place_risk(
     if risk.level in {RiskLevel.HIGH, RiskLevel.CRITICAL} or not conversation_history:
         return False
     compact_text = text.replace(" ", "")
-    is_followup = any(term in compact_text for term in ("怎么办", "烦躁", "脑子很乱", "？", "?"))
+    is_followup = any(
+        term in compact_text
+        for term in ("怎么办", "烦躁", "脑子很乱", "？", "?", "不会怎么样", "别把事情想严重", "楼梯口", "还没上去")
+    )
     if not is_followup:
         return False
     recent = "".join(str(item.get("content", "")) for item in conversation_history[-6:]).replace(" ", "")
     has_dangerous_place = any(term in recent for term in ("天台", "楼顶", "高处", "桥上", "河边"))
-    has_unresolved_safety = any(term in recent for term in ("不要一个人", "状态不太安全", "危险", "需要人陪", "紧急"))
+    has_unresolved_safety = any(
+        term in recent for term in ("不要一个人", "状态不太安全", "危险", "需要人陪", "紧急", "不要去天台", "任何高处")
+    )
     return has_dangerous_place and has_unresolved_safety
 
 

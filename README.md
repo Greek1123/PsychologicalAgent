@@ -1008,6 +1008,10 @@ If you want to train on a newer SFT adapter, set it first:
 $env:FEEDBACK_BASE_ADAPTER="D:\psychologicalAgent\training\ms_swift\outputs\your_sft_run\checkpoint-xxx"
 powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2_dpo.ps1
 ```
+## 2026-05-30 手动抽检 WARN 清零优化
+
+本轮继续优化多轮高危场景路由。`scripts/run_manual_reply_check.py` 在 12 个场景 / 27 轮抽检中暴露 3 个 WARN：账号交接隐性高危的后续解释被“危险地点”模板误抢走；危险地点场景中“别把事情想严重”和“我在楼梯口，还没上去”没有输出足够具体的离开天台路线。已修复最终回复护栏和危机上下文继承逻辑，最新手动抽检 27 轮结果为 `WARN=0`。
+
 ## 2026-05-28 危机多轮重复回复修复
 
 本轮继续修复天台场景后的多轮对话问题：当用户反复说“我想去天台冷静一下”或继续追问“我该怎么办”“？”时，系统不再重复同一段“羞耻/疼痛冷静”模板，而是按阶段给出更短、更具体的下一步安全动作。当前策略为：首次提示不要去天台/高处并联系现实支持；重复表达时切换为 30 秒步骤；追问时要求先离开危险路线、去有人处、给可信任的人发送求助句，并让用户只回复“发了”。

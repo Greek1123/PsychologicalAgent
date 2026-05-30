@@ -487,6 +487,49 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertNotIn("疼痛让自己冷静", reply)
         self.assertNotIn("觉得丢人", reply)
 
+    def test_final_guardrail_routes_rooftop_minimization_to_high_risk_step(self) -> None:
+        reply = finalize_user_visible_reply(
+            "你别把事情想严重，我不会怎么样。",
+            "你可以洗把脸缓一缓。",
+            conversation_history=[
+                {"role": "user", "content": "我现在很烦，想去天台吹吹风。我就是想一个人待着。"},
+                {"role": "assistant", "content": "现在先不要去天台、楼顶或任何高处。"},
+            ],
+        )
+
+        self.assertIn("高风险", reply)
+        self.assertIn("离开通往天台的方向", reply)
+        self.assertNotIn("洗把脸", reply)
+
+    def test_final_guardrail_routes_rooftop_stairs_to_indoor_people(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我在楼梯口，还没上去。",
+            "你可以待在走廊五分钟。",
+            conversation_history=[
+                {"role": "user", "content": "我现在很烦，想去天台吹吹风。我就是想一个人待着。"},
+                {"role": "assistant", "content": "现在先不要去天台、楼顶或任何高处。"},
+            ],
+        )
+
+        self.assertIn("离开通往天台的方向", reply)
+        self.assertIn("室内有人处", reply)
+        self.assertNotIn("待在走廊五分钟", reply)
+
+    def test_final_guardrail_does_not_route_account_handover_to_rooftop_reply(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我怕他们问我为什么。",
+            "你可以继续整理账号。",
+            conversation_history=[
+                {"role": "user", "content": "我最近想把一些账号密码整理给朋友，万一以后我不在。"},
+                {"role": "assistant", "content": "请先暂停整理账号，同时远离危险地点和可能伤害自己的物品。"},
+                {"role": "user", "content": "我不想说得那么严重，只是觉得一切都很累。"},
+            ],
+        )
+
+        self.assertIn("不用完整解释", reply)
+        self.assertIn("危机求助", reply)
+        self.assertNotIn("天台", reply)
+
     def test_account_handover_gets_high_risk_reply(self) -> None:
         reply = sanitize_user_visible_reply(
             "我不想说得那么严重。我只是觉得一切都很累，留着也没意思。",

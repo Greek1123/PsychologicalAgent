@@ -81,6 +81,19 @@ class CampusSupportAgentTests(unittest.TestCase):
         self.assertEqual(response.referral_decision.urgency, "urgent")
         self.assertIn("下一个安全动作", response.reply_text)
 
+    def test_rooftop_stairs_followup_keeps_critical_risk(self) -> None:
+        response = self.agent.handle_text(
+            text="我在楼梯口，还没上去。",
+            conversation_history=[
+                {"role": "user", "content": "我现在很烦，想去天台吹吹风。我就是想一个人待着。"},
+                {"role": "assistant", "content": "现在先不要去天台、楼顶或任何高处。"},
+            ],
+        )
+
+        self.assertEqual(response.risk.level, RiskLevel.CRITICAL)
+        self.assertEqual(response.referral_decision.urgency, "urgent")
+        self.assertIn("室内有人处", response.reply_text)
+
     def test_audio_path_uses_transcript(self) -> None:
         response = self.agent.handle_audio(
             file_bytes=b"fake-audio",

@@ -1028,7 +1028,7 @@ def _dangerous_place_stairs_context(text: str) -> bool:
 
 
 def _dangerous_place_followup_context(text: str) -> bool:
-    return any(term in text for term in ("天台", "楼顶", "楼上风很大", "危险地点", "高处")) and any(
+    return any(term in text for term in ("天台", "楼顶", "楼上风很大", "高处")) and any(
         term in text for term in ("脑子很乱", "冷静一下", "烦躁", "很烦", "怎么办", "？", "?")
     )
 
@@ -1038,7 +1038,21 @@ def _dangerous_place_followup_reply(user_text: str, history_text: str) -> str:
     compact_history = history_text.replace(" ", "")
     repeated_place = sum(compact_history.count(term) for term in ("天台", "楼顶", "高处"))
     asks_next_step = any(term in compact_user for term in ("怎么办", "？", "?"))
+    minimizes_risk = any(term in compact_user for term in ("别把事情想严重", "不会怎么样", "没那么严重"))
+    is_at_stairs = any(term in compact_user for term in ("楼梯口", "还没上去"))
 
+    if is_at_stairs:
+        return (
+            "现在先离开通往天台的方向，往楼下或室内有人处走，比如宿管处、值班室、走廊人多的位置。"
+            "你还没上去，这是很重要的安全机会；先不要继续往上走，也不要一个人停在楼梯口。"
+            "到室内有人处后，给室友、同学或辅导员发一句：“我现在状态不太安全，能不能来陪我一下？”"
+        )
+    if minimizes_risk:
+        return (
+            "我知道你可能只是想冷静，但天台和高处本身就是高风险地点，所以我会按高风险处理。"
+            "请你现在做一个明确动作：离开通往天台的方向，去室内有人处，联系一个人来陪你。"
+            "你不用把全部原因解释清楚，只要发一句：“我现在状态不稳，需要你来陪我一下。”"
+        )
     if asks_next_step:
         return (
             "先不讨论考试，我们只做下一个安全动作：请你现在把身体离开通往天台或高处的路线，往有人在的地方走，比如宿管处、值班室、走廊或便利店。"
