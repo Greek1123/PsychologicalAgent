@@ -72,6 +72,12 @@ def _care_plan_fallback(user_text: str, history_text: str, care_plan: dict[str, 
 
 def _priority_reference_reply(user_text: str, history_text: str, reply_text: str) -> str | None:
     combined = f"{history_text} {user_text}"
+    if _unpaid_part_time_followup_context(combined):
+        return _unpaid_part_time_followup_reply(user_text)
+    if _task_report_blank_context(combined):
+        return _task_report_blank_reply()
+    if _circadian_phone_context(user_text, history_text):
+        return _circadian_phone_reply(user_text)
     if _dangerous_place_followup_context(combined):
         return _dangerous_place_followup_reply(user_text, history_text)
     if _self_harm_ambivalence_context(combined):
@@ -1024,6 +1030,79 @@ def _dangerous_place_minimize_context(text: str) -> bool:
 def _dangerous_place_stairs_context(text: str) -> bool:
     return any(term in text for term in ("天台", "楼上风很大", "危险地点", "高处")) and any(
         term in text for term in ("楼梯口", "还没上去")
+    )
+
+
+def _unpaid_part_time_followup_context(text: str) -> bool:
+    return any(term in text for term in ("兼职", "工资", "老板", "劳动报酬", "拖欠")) and any(
+        term in text for term in ("拉黑", "问急", "不好意思", "像是在求", "太弱", "处理不好")
+    )
+
+
+def _unpaid_part_time_followup_reply(user_text: str) -> str:
+    compact_user = user_text.replace(" ", "")
+    if any(term in compact_user for term in ("拉黑", "问急")):
+        return (
+            "怕被拉黑说明你已经在担心对方用回避来压你，但这不代表你只能沉默。"
+            "先把沟通从“催他”改成“留下证据”：用文字发一次清楚、克制的确认，例如“我想确认兼职工资的具体发放时间，请在今天给我一个明确日期。”"
+            "发出后截图保存。如果对方拉黑或继续拖延，这反而是后续找学校老师、平台、法律援助或劳动维权渠道时的重要证据。"
+        )
+    if any(term in compact_user for term in ("太弱", "处理不好")):
+        return (
+            "这不是弱，是你第一次练习维护边界。维权不一定要很强硬，先把事实和证据整理好，再一步步推进。"
+            "你有权拿回属于自己的报酬。今天只做一件小事：把工作时间、约定工资和聊天记录放到一个文件夹里。"
+        )
+    return (
+        "你不是在求他，而是在要求对方履行约定。"
+        "先整理工作时间、约定工资、聊天记录和已完成内容，再用文字确认发放时间。"
+        "如果继续拖延，可以把材料带给学校老师、法律援助或劳动维权渠道。"
+    )
+
+
+def _task_report_blank_context(text: str) -> bool:
+    return any(term in text for term in ("实验报告", "文档", "英语展示", "代码")) and any(
+        term in text for term in ("想逃", "写出来很烂", "打开文档", "明天晚上交")
+    )
+
+
+def _task_report_blank_reply() -> str:
+    return (
+        "那优先级已经很清楚：先救明天晚上的实验报告。"
+        "你可以把“写好报告”改成“先凑出可提交骨架”：实验目的、环境、核心步骤、运行结果、问题分析。"
+        "每一部分先写三到五句话，不追求漂亮；写出来之后再补图、改语病。"
+        "先设一个 25 分钟计时，第一版的任务是让空白文档先有内容，不是一次写到完美。"
+    )
+
+
+def _circadian_phone_context(user_text: str, history_text: str) -> bool:
+    compact_user = user_text.replace(" ", "")
+    compact_history = history_text.replace(" ", "")
+    direct_phone = any(term in compact_user for term in ("刷手机", "短视频", "两三点", "凌晨", "早点睡", "自控力"))
+    if direct_phone and any(term in compact_user for term in ("后悔", "重复", "睡", "第二天", "立flag")):
+        return True
+    followup = any(term in compact_user for term in ("怎么办", "立flag", "坚持不了", "坚持不了几天"))
+    has_phone_history = any(term in compact_history for term in ("刷手机", "短视频", "两三点", "凌晨", "自控力"))
+    return followup and has_phone_history
+
+
+def _circadian_phone_reply(user_text: str = "") -> str:
+    compact_user = user_text.replace(" ", "")
+    if any(term in compact_user for term in ("怎么办", "立flag")):
+        return (
+            "不要只靠意志，先改环境。今晚睡前把手机放到伸手够不到的位置，最好放到桌上充电；如果需要闹钟，改用实体闹钟或把闹钟放远。"
+            "再给睡前留一个替代动作：洗漱后听固定音频十分钟，或看纸质书两页。"
+            "目标不是马上十点睡，而是先把入睡时间提前 20 分钟。"
+        )
+    if "坚持不了" in compact_user:
+        return (
+            "坚持不了几天也不等于失败。先不要把它当成长期承诺，只记录一周两件事：几点把手机放远、几点睡着。"
+            "如果中间破功，第二天继续从同一个小动作开始，不需要补偿式熬更狠。"
+            "改变习惯靠的是重复的低门槛动作，不是每天都靠情绪发誓。"
+        )
+    return (
+        "这更像一个反复循环，不只是“自控力差”：白天累，晚上想靠短视频补一点属于自己的时间，结果睡得更晚，第二天更后悔。"
+        "今晚先不要立大目标，只改一个环节：给自己保留 20 分钟可刷手机时间，到点后把手机放到床外或桌上充电，床只保留睡觉功能。"
+        "如果还想刷，就先坐起来刷，不躺着刷；目标不是马上自律，而是先把凌晨两三点往前挪 15 分钟。"
     )
 
 

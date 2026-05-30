@@ -967,6 +967,38 @@ python -m pytest
 ### 当前判断
 
 这轮主要改善训练数据闭环和模型侧参考回复学习，不改变后端 mock 评估分数。`auto_docx_reference_distill_patch/checkpoint-final` 是当前最新实验模型；它通过了 12 条干净 checkpoint 场景小测，但仍需要完整 55 场景 checkpoint 评估和与稳定 LoRA 的 DOCX 同题人工对比，才能替换默认推荐模型。
+## 2026-05-30 DOCX 低分 turn 定向优化
+
+### 本次做了什么
+- 继续运行全量 DOCX 后端评估和固定手动抽检，检查前面危机路由修复后是否还有低分 turn。
+- 初始本轮评估：`average_score=80.94`、`flag_counts={}`、低分样例为空；进一步展开 case 内 turn 后，发现若干 65-67 分的非危机场景仍然偏泛。
+- 定向补了两个更容易影响真实体验的低分场景：
+  - 作业堆积/实验报告空白：当用户说“实验报告明天交、打开文档就想逃、怕写得很烂”时，直接给出“先救实验报告 -> 可提交骨架 -> 每部分三到五句话 -> 写出来后再补图、改语病 -> 25 分钟计时”的具体动作。
+  - 兼职工资拖欠：当用户说“怕问急了被拉黑”时，转为证据化沟通方案；当用户说“我太弱了，这种事都处理不好”时，转为“第一次练习维护边界”和劳动报酬权益重构。
+- 同时收窄“凌晨刷手机”护栏，避免它因为历史里出现“刷手机/睡眠”而误抢其他场景，例如“觉得别人都在针对自己”的医疗/现实支持场景。
+- 新增/扩展回归测试，覆盖兼职工资拉黑、兼职工资自责、实验报告空白、刷手机后续和刷手机误抢路由。
+
+### 验证结果
+
+```text
+python -m pytest tests/test_response_guardrails.py tests/test_local_response_policy.py tests/test_agent.py -q
+150 passed
+
+python scripts\run_manual_reply_check.py
+scenarios = 12
+turns = 27
+WARN = 0
+
+python scripts\auto_quality_pipeline.py --mode backend --limit 100 --start 1
+average_score = 80.81
+flag_counts = {}
+low_score_examples = []
+```
+
+### 主要判断
+
+这轮优化没有追求“把平均分数字硬拉高”，而是优先消除会被用户明显感知为泛化的低分回复。最终平均分仍稳定在 80+，无 flags、无低分样例；同时具体场景的可执行性更强。
+
 ## 2026-05-30 手动抽检 WARN 清零优化
 
 ### 本次做了什么

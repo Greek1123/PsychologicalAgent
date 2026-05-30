@@ -128,6 +128,9 @@ class LocalResponsePolicyTests(unittest.TestCase):
         _, plan = result
         self.assertEqual(result.info.policy_name, "task_overload_procrastination")
         self.assertTrue(any("可提交骨架" in item or "25 分钟" in item or "截止时间" in item for item in [plan.summary, *plan.immediate_support, *plan.self_regulation, *plan.follow_up]))
+        self.assertTrue(any("补图" in item and "改语病" in item for item in plan.immediate_support))
+        self.assertTrue(any("每一部分先写三到五句话" in item and "不追求漂亮" in item for item in plan.immediate_support))
+        self.assertTrue(any("补图" in item and "改语病" in item for item in plan.self_regulation))
 
     def test_group_work_marginalized_uses_visible_contribution_steps(self) -> None:
         text = "小组作业让我很憋屈，组员自己定了方案，很多事情都没问我，我怕老师觉得我没贡献。"

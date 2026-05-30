@@ -1008,6 +1008,10 @@ If you want to train on a newer SFT adapter, set it first:
 $env:FEEDBACK_BASE_ADAPTER="D:\psychologicalAgent\training\ms_swift\outputs\your_sft_run\checkpoint-xxx"
 powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2_dpo.ps1
 ```
+## 2026-05-30 DOCX 低分 turn 定向优化
+
+本轮继续跑 `auto_quality_pipeline.py --mode backend --limit 100 --start 1` 和手动抽检，针对 DOCX 低分 turn 做了两类细化：作业堆积场景中“打开文档就想逃/怕写得很烂”会直接给出实验报告可提交骨架、三到五句话、补图改语病和 25 分钟计时；兼职工资拖欠场景中“怕被拉黑/觉得自己太弱”会转为证据化沟通、维护边界和劳动报酬权益。最新 DOCX 100 例结果：平均分 `80.81`，`flag_counts={}`，低分样例为空；手动抽检 12 场景 / 27 轮 `WARN=0`。
+
 ## 2026-05-30 手动抽检 WARN 清零优化
 
 本轮继续优化多轮高危场景路由。`scripts/run_manual_reply_check.py` 在 12 个场景 / 27 轮抽检中暴露 3 个 WARN：账号交接隐性高危的后续解释被“危险地点”模板误抢走；危险地点场景中“别把事情想严重”和“我在楼梯口，还没上去”没有输出足够具体的离开天台路线。已修复最终回复护栏和危机上下文继承逻辑，最新手动抽检 27 轮结果为 `WARN=0`。

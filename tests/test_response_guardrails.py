@@ -542,6 +542,110 @@ class ResponseGuardrailsTests(unittest.TestCase):
         self.assertIn("状态不安全", reply)
         self.assertNotIn("高风险信号", reply)
 
+    def test_unpaid_part_time_blacklist_fear_gets_evidence_plan(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我怕问急了他直接把我拉黑。",
+            "我先不给你下结论，也不把问题说得很专业。",
+            conversation_history=[
+                {
+                    "role": "user",
+                    "content": "我做了一个月兼职，老板一直说下周发工资，到现在还没发。我每次问都很不好意思，像是在求他一样。",
+                }
+            ],
+        )
+
+        self.assertIn("拉黑", reply)
+        self.assertIn("留下证据", reply)
+        self.assertIn("明确日期", reply)
+        self.assertNotIn("不把问题说得很专业", reply)
+
+    def test_final_guardrail_unpaid_part_time_blacklist_fear_gets_evidence_plan(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我怕问急了他直接把我拉黑。",
+            "我先不给你下结论，也不把问题说得很专业。",
+            conversation_history=[
+                {
+                    "role": "user",
+                    "content": "我做了一个月兼职，老板一直说下周发工资，到现在还没发。我每次问都很不好意思，像是在求他一样。",
+                }
+            ],
+        )
+
+        self.assertIn("拉黑", reply)
+        self.assertIn("留下证据", reply)
+        self.assertIn("法律援助", reply)
+
+    def test_unpaid_part_time_self_blame_gets_boundary_reframe(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我觉得自己太弱了，这种事都处理不好。",
+            "你不是在求他。",
+            conversation_history=[
+                {"role": "user", "content": "我做了一个月兼职，老板一直说下周发工资，到现在还没发。"}
+            ],
+        )
+
+        self.assertIn("这不是弱", reply)
+        self.assertIn("维护边界", reply)
+        self.assertIn("报酬", reply)
+
+    def test_task_report_blank_gets_reference_like_skeleton(self) -> None:
+        reply = finalize_user_visible_reply(
+            "实验报告明天晚上交，英语展示后天，代码下周。可是我现在打开文档就想逃，我怕自己写出来很烂。",
+            "现在优先级可以先放在最近截止的任务上。",
+        )
+
+        self.assertIn("先救明天晚上的实验报告", reply)
+        self.assertIn("每一部分先写三到五句话", reply)
+        self.assertIn("补图、改语病", reply)
+
+    def test_circadian_phone_loop_gets_specific_sleep_boundary(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "我每天晚上都说早点睡，结果一躺下就刷手机，刷短视频刷到两三点。第二天醒来特别后悔，但晚上又重复。我感觉自己像没有自控力。",
+            "你可以先看情绪、身体疲惫，还是眼前那件事本身。",
+        )
+
+        self.assertIn("自控力差", reply)
+        self.assertIn("20 分钟", reply)
+        self.assertIn("手机放到床外", reply)
+        self.assertNotIn("眼前那件事本身", reply)
+
+    def test_final_guardrail_circadian_phone_loop_gets_specific_sleep_boundary(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我每天晚上都说早点睡，结果一躺下就刷手机，刷短视频刷到两三点。第二天醒来特别后悔，但晚上又重复。我感觉自己像没有自控力。",
+            "你可以先看情绪、身体疲惫，还是眼前那件事本身。",
+        )
+
+        self.assertIn("反复循环", reply)
+        self.assertIn("往前挪 15 分钟", reply)
+        self.assertNotIn("眼前那件事本身", reply)
+
+    def test_circadian_phone_followup_gets_environment_change(self) -> None:
+        reply = sanitize_user_visible_reply(
+            "那我应该怎么办？我试过立flag没用。",
+            "你可以再努力一点。",
+            conversation_history=[
+                {"role": "user", "content": "我每天晚上都说早点睡，结果一躺下就刷手机，刷短视频刷到两三点。"}
+            ],
+        )
+
+        self.assertIn("改环境", reply)
+        self.assertIn("手机放到伸手够不到的位置", reply)
+        self.assertIn("提前 20 分钟", reply)
+
+    def test_circadian_phone_guardrail_does_not_steal_unrelated_followup(self) -> None:
+        reply = finalize_user_visible_reply(
+            "可我说出来别人会觉得我疯了。",
+            "你可以不使用任何标签，只描述事实感受。",
+            conversation_history=[
+                {"role": "user", "content": "我连续失眠，总觉得有人在看我。"},
+                {"role": "assistant", "content": "连续睡眠很差值得尽快评估，也先避免反复刷手机。"},
+            ],
+        )
+
+        self.assertIn("事实感受", reply)
+        self.assertNotIn("短视频", reply)
+        self.assertNotIn("手机放到床外", reply)
+
     def test_relationship_checking_gets_specific_boundary_plan(self) -> None:
         reply = sanitize_user_visible_reply(
             "我谈恋爱后总想查岗，对方几个小时不回我，我就开始胡思乱想。",

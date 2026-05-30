@@ -343,7 +343,10 @@ def _apply_priority_scenario_reply(
         return _sexual_harassment_initial_reply()
 
     if _is_unpaid_part_time_text(clean_user, history_text):
-        return _unpaid_part_time_reply()
+        return _unpaid_part_time_reply(clean_user, history_text)
+
+    if _is_task_report_blank_text(clean_user, history_text):
+        return _task_report_blank_reply()
 
     if _is_study_loneliness_text(clean_user, history_text):
         return _study_loneliness_reply()
@@ -433,7 +436,7 @@ def _apply_priority_scenario_reply(
         return _night_masked_collapse_reply()
 
     if _is_circadian_phone_revenge_text(clean_user, history_text):
-        return _circadian_phone_revenge_reply()
+        return _circadian_phone_revenge_reply(clean_user)
 
     if _is_weekend_loneliness_text(clean_user, history_text):
         return _weekend_loneliness_reply()
@@ -1488,16 +1491,44 @@ def _sexual_harassment_initial_reply() -> str:
 def _is_unpaid_part_time_text(user_text: str, history_text: str = "") -> bool:
     combined = f"{history_text} {user_text}".replace(" ", "")
     has_work = any(term in combined for term in ("兼职", "工资", "老板", "一个月", "劳动报酬"))
-    has_delay = any(term in combined for term in ("下周发", "还没发", "不好意思", "像是在求", "需要这笔钱", "拖欠"))
+    has_delay = any(term in combined for term in ("下周发", "还没发", "不好意思", "像是在求", "需要这笔钱", "拖欠", "拉黑", "问急"))
     return has_work and has_delay
 
 
-def _unpaid_part_time_reply() -> str:
+def _unpaid_part_time_reply(user_text: str = "", history_text: str = "") -> str:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    if any(term in combined for term in ("拉黑", "问急")):
+        return (
+            "怕被拉黑说明你已经在担心对方用回避来压你，但这不代表你就只能沉默。"
+            "先把沟通从“催他”改成“留下证据”：用文字发一次清楚、克制的确认，例如“我想确认兼职工资的具体发放时间，请在今天给我一个明确日期。”"
+            "发出后截图保存。如果对方拉黑或继续拖延，这反而是后续找学校老师、平台、法律援助或劳动维权渠道时的重要证据。"
+        )
+    if any(term in combined for term in ("太弱", "处理不好")):
+        return (
+            "这不是弱，是你第一次练习维护边界。维权不一定要很强硬，先把事实和证据整理好，再一步步推进。"
+            "你有权拿回属于自己的报酬。今天只做一件小事：把工作时间、约定工资和聊天记录放到一个文件夹里。"
+        )
     return (
         "你不是在求他，你是在要求对方履行约定。"
         "不好意思很正常，很多学生第一次面对这种情况都会紧张，但你的劳动报酬是正当权益。"
         "先整理工作时间、约定工资、聊天记录和已完成内容，然后发一条清晰消息：“我想确认本月工资具体发放时间，请在今天给我明确答复。”"
         "如果继续拖延，可以咨询学校老师、法律援助或劳动维权渠道。"
+    )
+
+
+def _is_task_report_blank_text(user_text: str, history_text: str = "") -> bool:
+    combined = f"{history_text} {user_text}".replace(" ", "")
+    return any(term in combined for term in ("实验报告", "英语展示", "代码", "文档")) and any(
+        term in combined for term in ("明天晚上交", "打开文档", "想逃", "写出来很烂")
+    )
+
+
+def _task_report_blank_reply() -> str:
+    return (
+        "那优先级已经很清楚：先救明天晚上的实验报告。"
+        "你可以把“写好报告”改成“先凑出可提交骨架”：实验目的、环境、核心步骤、运行结果、问题分析。"
+        "每一部分先写三到五句话，不追求漂亮；写出来之后再补图、改语病。"
+        "先设一个 25 分钟计时，第一版的任务是让空白文档先有内容，不是一次写到完美。"
     )
 
 
@@ -1755,17 +1786,34 @@ def _night_masked_collapse_reply() -> str:
 
 
 def _is_circadian_phone_revenge_text(user_text: str, history_text: str = "") -> bool:
-    combined = f"{history_text} {user_text}".replace(" ", "")
-    has_sleep = any(term in combined for term in ("作息", "两三点睡", "凌晨", "早上起不来", "熬夜"))
-    has_phone_or_own_time = any(term in combined for term in ("刷手机", "短视频", "属于自己的时间", "报复性", "不想睡"))
-    return has_sleep and has_phone_or_own_time
+    compact_user = user_text.replace(" ", "")
+    compact_history = history_text.replace(" ", "")
+    direct_phone = any(term in compact_user for term in ("刷手机", "短视频", "两三点", "早点睡", "凌晨", "自控力"))
+    if direct_phone:
+        return True
+    followup = any(term in compact_user for term in ("怎么办", "立flag", "坚持不了", "坚持不了几天"))
+    has_phone_history = any(term in compact_history for term in ("刷手机", "短视频", "两三点", "凌晨", "自控力"))
+    return followup and has_phone_history
 
 
-def _circadian_phone_revenge_reply() -> str:
+def _circadian_phone_revenge_reply(user_text: str = "") -> str:
+    compact_user = user_text.replace(" ", "")
+    if any(term in compact_user for term in ("怎么办", "立flag")):
+        return (
+            "不要只靠意志，先改环境。今晚睡前把手机放到伸手够不到的位置，最好放到桌上充电；如果需要闹钟，改用实体闹钟或把闹钟放远。"
+            "再给睡前留一个替代动作：洗漱后听固定音频十分钟，或看纸质书两页。"
+            "目标不是马上十点睡，而是先把入睡时间提前 20 分钟。"
+        )
+    if "坚持不了" in compact_user:
+        return (
+            "坚持不了几天也不等于失败。先不要把它当成长期承诺，只记录一周两件事：几点把手机放远、几点睡着。"
+            "如果中间破功，第二天继续从同一个小动作开始，不需要补偿式熬更狠。"
+            "改变习惯靠的是重复的低门槛动作，不是每天都靠情绪发誓。"
+        )
     return (
-        "晚上刷手机不一定是你自控力差，很多时候是在补偿白天没有属于自己的时间。"
-        "现在先不要求马上变成健康作息，可以把目标设小一点：保留 20 分钟真正属于自己的时间，"
-        "到点后把手机放到床外，睡觉时间只往前挪 15 分钟。先让身体看到一点可执行的改变。"
+        "这更像一个反复循环，不只是“自控力差”：白天累，晚上想靠短视频补一点属于自己的时间，结果睡得更晚，第二天更后悔。"
+        "今晚先不要立大目标，只改一个环节：给自己保留 20 分钟可刷手机时间，到点后把手机放到床外或桌上充电，床只保留睡觉功能。"
+        "如果还想刷，就先坐起来刷，不躺着刷；目标不是马上自律，而是先把凌晨两三点往前挪 15 分钟。"
     )
 
 
