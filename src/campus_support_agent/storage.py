@@ -1109,6 +1109,9 @@ class SQLiteSessionStore:
         records = self.list_support_responses(limit=limit)
         intervention_audit_timeline = build_intervention_audit_timeline(records, limit=len(records))
         intervention_audit_summary = summarize_intervention_audits(intervention_audit_timeline)
+        processing_consistency = build_processing_consistency_report(records)
+        latest_records = _latest_records_by_session(records)
+        current_processing_consistency = build_processing_consistency_report(latest_records)
         risk_levels: dict[str, int] = {}
         local_policies: dict[str, int] = {}
         referral_urgencies: dict[str, int] = {}
@@ -1250,7 +1253,7 @@ class SQLiteSessionStore:
 
         return {
             "total_records": len(records),
-            "total_sessions": len(_latest_records_by_session(records)),
+            "total_sessions": len(latest_records),
             "referred_count": referred_count,
             "manual_referral_count": manual_referral_count,
             "risk_levels": risk_levels,
@@ -1285,6 +1288,12 @@ class SQLiteSessionStore:
             "goal_attainment_summary": goal_attainment_summary,
             "strategy_reselection_summary": strategy_reselection_summary,
             "intervention_audit_summary": intervention_audit_summary,
+            "processing_consistency_summary": processing_consistency["summary"],
+            "current_processing_consistency_summary": current_processing_consistency["summary"],
+            "processing_consistency_bad_cases": _build_processing_consistency_bad_cases(
+                processing_consistency["timeline"],
+                limit=10,
+            ),
             "feedback_summary": feedback_summary,
         }
 
@@ -2127,6 +2136,27 @@ def _count_top_level_values(items: list[dict[str, Any]], key: str) -> dict[str, 
         clean = str(value)
         counts[clean] = counts.get(clean, 0) + 1
     return counts
+
+
+def _build_processing_consistency_bad_cases(
+    timeline: list[dict[str, Any]],
+    *,
+    limit: int = 10,
+) -> list[dict[str, Any]]:
+    bad_cases = [item for item in timeline if item.get("issues")]
+    return [
+        {
+            "turn_index": item.get("turn_index"),
+            "response_id": item.get("response_id"),
+            "created_at": item.get("created_at"),
+            "risk_level": item.get("risk_level"),
+            "route": item.get("route"),
+            "safety_priority": item.get("safety_priority"),
+            "next_backend_action": item.get("next_backend_action"),
+            "issues": item.get("issues") or [],
+        }
+        for item in bad_cases[: max(limit, 0)]
+    ]
 
 
 def _preview_text(text: str, *, max_chars: int = 80) -> str:

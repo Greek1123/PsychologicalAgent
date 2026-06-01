@@ -1088,6 +1088,7 @@ python -m pytest
 - 继续扩展 session analysis：新增 `latest_processing_summary`、`processing_timeline`、聚合 `processing_summary`、处理路由计数、安全优先级计数和下一步后端动作计数。
 - 补充 API 级回归：同一 session 中“考试失眠 -> 天台冷静”必须从普通支持升到危机安全路线，并在 session analysis timeline 中保留 `crisis_safety / urgent / activate_urgent_handoff`。
 - 继续优化处理层自检：新增 `processing_consistency`，自动审计风险等级、处理路由、安全优先级、回复来源和下一步后端动作是否一致，避免高危输入被普通路线吞掉。
+- 扩展 overview 全局观测：`GET /api/v1/analytics/overview` 新增 `processing_consistency_summary`、`current_processing_consistency_summary` 和 `processing_consistency_bad_cases`，支持快速发现最近记录或当前 session 最新轮是否存在处理链矛盾。
 
 ### 验证结果
 
@@ -1132,6 +1133,21 @@ processing_consistency.inconsistent_turns = 0
 
 python -m pytest -q
 314 passed
+
+新增 overview 处理一致性聚合待验证：
+- 正常处理链应返回 `processing_consistency_summary.status = ok`。
+- 构造 `critical + local_policy + standard` 的异常记录应进入 `processing_consistency_bad_cases`。
+
+python -m pytest tests\test_storage.py::SQLiteSessionStoreTests::test_session_analysis_tracks_processing_timeline tests\test_storage.py::SQLiteSessionStoreTests::test_overview_flags_processing_consistency_bad_cases tests\test_main.py::MainFlowTests::test_session_analysis_and_overview_are_available -q
+3 passed
+
+TestClient overview smoke
+processing_consistency_summary.status = ok
+current_processing_consistency_summary.status = ok
+processing_consistency_bad_cases = []
+
+python -m pytest -q
+315 passed
 ```
 
 ### 当前判断

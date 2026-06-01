@@ -213,6 +213,56 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertTrue(analysis["processing_summary"]["needs_human_attention"])
         self.assertEqual(analysis["processing_consistency"]["summary"]["status"], "ok")
         self.assertEqual(analysis["processing_consistency"]["summary"]["inconsistent_turns"], 0)
+        overview = store.get_overview_stats()
+        self.assertEqual(overview["processing_consistency_summary"]["status"], "ok")
+        self.assertEqual(overview["current_processing_consistency_summary"]["status"], "ok")
+        self.assertEqual(overview["processing_consistency_bad_cases"], [])
+
+    def test_overview_flags_processing_consistency_bad_cases(self) -> None:
+        db_path = _test_db_path()
+
+        store = SQLiteSessionStore(str(db_path), max_messages=6)
+        store.store_support_response(
+            session_id="session-processing-bad",
+            response_id="resp-bad",
+            source="text",
+            input_text="high risk mismatch",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={
+                "reply_text": "ordinary support",
+                "risk": {"level": "critical", "score": 95},
+                "entropy": {"score": 80, "level": 5, "balance_state": "crisis"},
+                "referral_decision": {"should_refer": True, "urgency": "urgent"},
+                "processing_summary": {
+                    "route": "local_policy",
+                    "input_mode": "text",
+                    "reply_source": "local_policy",
+                    "safety_priority": "standard",
+                    "risk_level": "critical",
+                    "entropy_score": 80,
+                    "balance_state": "crisis",
+                    "primary_state": "safety_risk",
+                    "strategy_id": "safety_first",
+                    "dynamic_action": "escalate_support",
+                    "orchestration_route": "emergency_referral",
+                    "referral_urgency": "urgent",
+                    "should_refer": True,
+                    "local_policy_name": "bad_fixture",
+                    "next_backend_action": "continue_supportive_monitoring",
+                    "completed_stages": ["risk_assessment"],
+                    "decision_reasons": ["risk:critical"],
+                },
+            },
+        )
+
+        overview = store.get_overview_stats()
+
+        self.assertEqual(overview["processing_consistency_summary"]["status"], "needs_review")
+        self.assertEqual(overview["current_processing_consistency_summary"]["status"], "needs_review")
+        self.assertEqual(len(overview["processing_consistency_bad_cases"]), 1)
+        self.assertIn("high_risk_not_crisis_route", overview["processing_consistency_bad_cases"][0]["issues"])
 
     def test_referral_events_can_be_recorded_and_cleared(self) -> None:
         db_path = _test_db_path()

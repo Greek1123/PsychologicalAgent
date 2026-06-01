@@ -129,6 +129,14 @@ continue_supportive_monitoring -> queue_human_followup -> activate_urgent_handof
 
 当 `processing_consistency.summary.status = needs_review` 时，研究/管理面板应优先检查该 session。
 
+`GET /api/v1/analytics/overview` 也会聚合处理一致性：
+
+| 字段 | 含义 |
+| --- | --- |
+| `processing_consistency_summary` | 最近记录整体处理一致性摘要。 |
+| `current_processing_consistency_summary` | 每个 session 最新一轮的当前一致性摘要。 |
+| `processing_consistency_bad_cases` | 最近最多 10 条处理链矛盾记录，便于快速定位。 |
+
 ## 验收方式
 
 运行：

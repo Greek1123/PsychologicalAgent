@@ -1030,6 +1030,8 @@ powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2
 
 继续强化处理层自检：新增 `processing_consistency`，自动审计风险等级、处理路由、安全优先级、回复来源和下一步后端动作是否一致。例如 `critical` 却没有进入 `crisis_safety`、`urgent` 却没有触发 `activate_urgent_handoff`、已标记转介但仍只做普通监测，都会被标记为 `needs_review`。该字段面向研究/管理/调试视图，不直接给学生展示。验证：处理层相关测试 39 项通过；TestClient smoke 中“考试失眠 -> 天台冷静”返回 `processing_consistency.summary.status = ok`。
 
+继续扩展全局观测：`GET /api/v1/analytics/overview` 新增 `processing_consistency_summary`、`current_processing_consistency_summary` 和 `processing_consistency_bad_cases`，用于从全局层面发现处理链矛盾。这样不需要逐个 session 打开，也能看到最近是否存在“高危风险被普通路线处理”的记录。验证：overview 聚合相关测试 3 项通过；TestClient smoke 返回整体和当前一致性均为 `ok`，bad cases 为空。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 本轮继续跑 `auto_quality_pipeline.py --mode backend --limit 100 --start 1` 和手动抽检，针对 DOCX 低分 turn 做了两类细化：作业堆积场景中“打开文档就想逃/怕写得很烂”会直接给出实验报告可提交骨架、三到五句话、补图改语病和 25 分钟计时；兼职工资拖欠场景中“怕被拉黑/觉得自己太弱”会转为证据化沟通、维护边界和劳动报酬权益。最新 DOCX 100 例结果：平均分 `80.81`，`flag_counts={}`，低分样例为空；手动抽检 12 场景 / 27 轮 `WARN=0`。
