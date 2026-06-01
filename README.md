@@ -1032,6 +1032,8 @@ powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2
 
 继续扩展全局观测：`GET /api/v1/analytics/overview` 新增 `processing_consistency_summary`、`current_processing_consistency_summary` 和 `processing_consistency_bad_cases`，用于从全局层面发现处理链矛盾。这样不需要逐个 session 打开，也能看到最近是否存在“高危风险被普通路线处理”的记录。验证：overview 聚合相关测试 3 项通过；TestClient smoke 返回整体和当前一致性均为 `ok`，bad cases 为空。
 
+继续补齐处理层验收出口：新增 `GET /api/v1/analytics/processing-health`，汇总部署 readiness、overview 处理一致性、回复质量和决策轨迹，返回 `ok/watch/blocked/no_data`、阻塞问题、关注项和下一步建议。这个接口用于联调、演示前自检和研究/管理面板，不作为学生端展示内容。TestClient smoke 中“考试失眠 -> 天台冷静”返回 `status=watch`、处理一致性 `ok`、阻塞项为空，watch 原因是危机场景触发了决策轨迹关注。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 本轮继续跑 `auto_quality_pipeline.py --mode backend --limit 100 --start 1` 和手动抽检，针对 DOCX 低分 turn 做了两类细化：作业堆积场景中“打开文档就想逃/怕写得很烂”会直接给出实验报告可提交骨架、三到五句话、补图改语病和 25 分钟计时；兼职工资拖欠场景中“怕被拉黑/觉得自己太弱”会转为证据化沟通、维护边界和劳动报酬权益。最新 DOCX 100 例结果：平均分 `80.81`，`flag_counts={}`，低分样例为空；手动抽检 12 场景 / 27 轮 `WARN=0`。

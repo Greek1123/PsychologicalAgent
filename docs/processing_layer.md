@@ -137,6 +137,23 @@ continue_supportive_monitoring -> queue_human_followup -> activate_urgent_handof
 | `current_processing_consistency_summary` | 每个 session 最新一轮的当前一致性摘要。 |
 | `processing_consistency_bad_cases` | 最近最多 10 条处理链矛盾记录，便于快速定位。 |
 
+## 处理层健康检查
+
+`GET /api/v1/analytics/processing-health` 是一个面向联调、演示和研究/管理面板的总入口。它汇总：
+
+| 字段 | 含义 |
+| --- | --- |
+| `status` | `ok`、`watch`、`blocked` 或 `no_data`。 |
+| `recommended_next_action` | 当前建议动作，例如继续开发、检查质量告警或先跑 smoke。 |
+| `blocking_issues` | 会阻止演示或上线验收的问题，例如处理链一致性矛盾。 |
+| `watch_items` | 需要关注但不一定阻塞的问题，例如回复质量待复查。 |
+| `deployment_readiness` | 部署自检摘要。 |
+| `processing_consistency` | 处理一致性摘要、当前摘要和 bad cases。 |
+| `reply_quality` | 回复质量摘要和 bad case 入口。 |
+| `decision_trace` | 决策轨迹摘要和入口。 |
+
+这个接口的定位是“处理层仪表盘入口”，不是学生端接口。
+
 ## 验收方式
 
 运行：

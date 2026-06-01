@@ -70,6 +70,7 @@ class MainFlowTests(unittest.TestCase):
         )
         analysis = main.get_session_analysis(session_id)
         overview = main.get_overview_analytics(limit=20)
+        processing_health = main.get_processing_health(limit=20)
 
         self.assertEqual(analysis["session_id"], session_id)
         self.assertGreaterEqual(analysis["total_responses"], 1)
@@ -98,6 +99,10 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("processing_consistency_summary", overview)
         self.assertIn("current_processing_consistency_summary", overview)
         self.assertIn("processing_consistency_bad_cases", overview)
+        self.assertIn(processing_health["status"], {"ok", "watch", "blocked"})
+        self.assertGreaterEqual(processing_health["records_seen"], 1)
+        self.assertIn("processing_consistency", processing_health)
+        self.assertIn("source_endpoints", processing_health)
         self.assertIn("strategy_layer_summary", overview)
         self.assertIn("current_sessions", overview["strategy_layer_summary"])
         self.assertIn("all_records", overview["strategy_layer_summary"])
@@ -182,6 +187,25 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("checks", readiness)
         self.assertTrue(any(check["name"] == "llm_provider" for check in readiness["checks"]))
 
+    def test_processing_health_blocks_on_consistency_mismatch(self) -> None:
+        health = main._build_processing_health_report(
+            readiness={"status": "ready", "summary": "ok"},
+            overview={
+                "total_records": 1,
+                "total_sessions": 1,
+                "processing_consistency_summary": {"inconsistent_turns": 1, "status": "needs_review"},
+                "current_processing_consistency_summary": {"inconsistent_turns": 0, "status": "ok"},
+                "processing_consistency_bad_cases": [{"response_id": "bad"}],
+            },
+            reply_quality={"summary": {"needs_review": 0}},
+            decision_trace={"summary": {"needs_attention": False}},
+            limit=20,
+        )
+
+        self.assertEqual(health["status"], "blocked")
+        self.assertIn("processing_consistency_mismatch", health["blocking_issues"])
+        self.assertEqual(health["processing_consistency"]["bad_case_count"], 1)
+
     def test_frontend_contract_exposes_handoff_fields(self) -> None:
         contract = main.get_frontend_contract()
 
@@ -201,6 +225,7 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("human_interventions", contract["endpoints"])
         self.assertIn("role_view", contract["endpoints"])
         self.assertIn("ops_readiness", contract["endpoints"])
+        self.assertIn("processing_health", contract["endpoints"])
         self.assertIn("backend_role_views", contract["frontend_display_policy"])
         self.assertIn("student_chat", contract["frontend_display_policy"])
         self.assertIn("research_dashboard", contract["frontend_display_policy"])

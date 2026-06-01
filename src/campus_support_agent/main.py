@@ -398,6 +398,11 @@ def get_frontend_contract() -> dict[str, Any]:
                 "method": "GET",
                 "path": "/api/v1/ops/readiness",
             },
+            "processing_health": {
+                "method": "GET",
+                "path": "/api/v1/analytics/processing-health",
+                "query": ["limit"],
+            },
         },
         "text_request_example": {
             "session_id": "demo-student-001",
@@ -1078,12 +1083,111 @@ def get_session_feedback(session_id: str, limit: int | None = None) -> dict[str,
     }
 
 
+def _build_processing_health_report(
+    *,
+    readiness: dict[str, Any],
+    overview: dict[str, Any],
+    reply_quality: dict[str, Any],
+    decision_trace: dict[str, Any],
+    limit: int,
+) -> dict[str, Any]:
+    records_seen = int(overview.get("total_records") or 0)
+    processing_summary = overview.get("processing_consistency_summary") or {}
+    current_processing_summary = overview.get("current_processing_consistency_summary") or {}
+    reply_quality_summary = reply_quality.get("summary") or {}
+    decision_summary = decision_trace.get("summary") or {}
+
+    blocking_issues: list[str] = []
+    watch_items: list[str] = []
+    if readiness.get("status") == "blocked":
+        blocking_issues.append("deployment_readiness_blocked")
+    if int(processing_summary.get("inconsistent_turns") or 0) > 0:
+        blocking_issues.append("processing_consistency_mismatch")
+    if int(current_processing_summary.get("inconsistent_turns") or 0) > 0:
+        blocking_issues.append("current_session_processing_mismatch")
+    if readiness.get("status") == "degraded":
+        watch_items.append("deployment_readiness_degraded")
+    if int(reply_quality_summary.get("needs_review") or 0) > 0:
+        watch_items.append("reply_quality_needs_review")
+    if decision_summary.get("needs_attention"):
+        watch_items.append("decision_trace_needs_attention")
+
+    if records_seen == 0:
+        status = "no_data"
+        recommended_next_action = "run_text_support_smoke"
+    elif blocking_issues:
+        status = "blocked"
+        recommended_next_action = "fix_processing_consistency_before_demo"
+    elif watch_items:
+        status = "watch"
+        recommended_next_action = "review_quality_or_readiness_warnings"
+    else:
+        status = "ok"
+        recommended_next_action = "continue_development_or_frontend_integration"
+
+    return {
+        "status": status,
+        "recommended_next_action": recommended_next_action,
+        "records_seen": records_seen,
+        "sessions_seen": overview.get("total_sessions", 0),
+        "limit": limit,
+        "blocking_issues": blocking_issues,
+        "watch_items": watch_items,
+        "deployment_readiness": {
+            "status": readiness.get("status"),
+            "summary": readiness.get("summary"),
+        },
+        "processing_consistency": {
+            "summary": processing_summary,
+            "current_summary": current_processing_summary,
+            "bad_case_count": len(overview.get("processing_consistency_bad_cases") or []),
+            "bad_cases": overview.get("processing_consistency_bad_cases") or [],
+        },
+        "reply_quality": {
+            "summary": reply_quality_summary,
+            "bad_case_endpoint": "/api/v1/analytics/reply-quality/bad-cases",
+        },
+        "decision_trace": {
+            "summary": decision_summary,
+            "overview_endpoint": "/api/v1/analytics/decision-trace",
+        },
+        "source_endpoints": {
+            "readiness": "/api/v1/ops/readiness",
+            "overview": "/api/v1/analytics/overview",
+            "reply_quality": "/api/v1/analytics/reply-quality",
+            "decision_trace": "/api/v1/analytics/decision-trace",
+        },
+    }
+
+
 @app.get("/api/v1/analytics/overview")
 def get_overview_analytics(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     stats = session_store.get_overview_stats(limit=limit)
     logger.info("Overview analytics requested total=%s", stats["total_records"])
     return stats
+
+
+@app.get("/api/v1/analytics/processing-health")
+def get_processing_health(limit: int = 200) -> dict[str, Any]:
+    session_store = get_session_store()
+    readiness = build_deployment_readiness(get_settings())
+    overview = session_store.get_overview_stats(limit=limit)
+    reply_quality = session_store.get_reply_quality_overview(limit=limit)
+    decision_trace = session_store.get_decision_trace_overview(limit=limit)
+    health = _build_processing_health_report(
+        readiness=readiness,
+        overview=overview,
+        reply_quality=reply_quality,
+        decision_trace=decision_trace,
+        limit=limit,
+    )
+    logger.info(
+        "Processing health requested status=%s records=%s",
+        health["status"],
+        health["records_seen"],
+    )
+    return health
 
 
 @app.get("/api/v1/analytics/care-queue")

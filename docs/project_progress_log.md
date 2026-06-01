@@ -1089,6 +1089,7 @@ python -m pytest
 - 补充 API 级回归：同一 session 中“考试失眠 -> 天台冷静”必须从普通支持升到危机安全路线，并在 session analysis timeline 中保留 `crisis_safety / urgent / activate_urgent_handoff`。
 - 继续优化处理层自检：新增 `processing_consistency`，自动审计风险等级、处理路由、安全优先级、回复来源和下一步后端动作是否一致，避免高危输入被普通路线吞掉。
 - 扩展 overview 全局观测：`GET /api/v1/analytics/overview` 新增 `processing_consistency_summary`、`current_processing_consistency_summary` 和 `processing_consistency_bad_cases`，支持快速发现最近记录或当前 session 最新轮是否存在处理链矛盾。
+- 新增处理层健康检查：`GET /api/v1/analytics/processing-health` 汇总部署 readiness、处理一致性、回复质量和决策轨迹，输出 `ok/watch/blocked/no_data`、阻塞问题、关注项和下一步建议。
 
 ### 验证结果
 
@@ -1148,6 +1149,24 @@ processing_consistency_bad_cases = []
 
 python -m pytest -q
 315 passed
+
+新增 processing health 待验证：
+- 真实主流程应返回 `records_seen >= 1` 和 `processing_consistency`。
+- 构造处理链矛盾时 health 应返回 `blocked`。
+
+python -m pytest tests\test_main.py::MainFlowTests::test_session_analysis_and_overview_are_available tests\test_main.py::MainFlowTests::test_processing_health_blocks_on_consistency_mismatch tests\test_main.py::MainFlowTests::test_frontend_contract_exposes_handoff_fields -q
+3 passed
+
+TestClient processing-health smoke
+status = watch
+records_seen = 2
+blocking_issues = []
+watch_items = [decision_trace_needs_attention]
+processing_consistency.summary.status = ok
+processing_consistency.current_summary.status = ok
+
+python -m pytest -q
+316 passed
 ```
 
 ### 当前判断
