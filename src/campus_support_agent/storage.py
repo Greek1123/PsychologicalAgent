@@ -50,6 +50,7 @@ def _flatten_response_summary(response: dict[str, Any]) -> dict[str, Any]:
     adjustment_loop = response.get("adjustment_loop") or {}
     local_policy = response.get("local_policy") or {}
     referral_decision = response.get("referral_decision") or {}
+    processing_summary = response.get("processing_summary") or {}
     return {
         "reply_text": response.get("reply_text"),
         "risk_level": risk.get("level"),
@@ -101,6 +102,11 @@ def _flatten_response_summary(response: dict[str, Any]) -> dict[str, Any]:
         "referral_decision": referral_decision,
         "referral_should_refer": referral_decision.get("should_refer"),
         "referral_urgency": referral_decision.get("urgency"),
+        "processing_summary": processing_summary,
+        "processing_route": processing_summary.get("route"),
+        "processing_safety_priority": processing_summary.get("safety_priority"),
+        "processing_reply_source": processing_summary.get("reply_source"),
+        "processing_next_backend_action": processing_summary.get("next_backend_action"),
     }
 
 
@@ -928,6 +934,7 @@ class SQLiteSessionStore:
                 "latest_reduction_goal": None,
                 "latest_referral_explanation": None,
                 "latest_adjustment_loop": None,
+                "latest_processing_summary": None,
                 "strategy_layer_summary": _build_strategy_layer_summary([]),
                 "next_adjustment_loop": asdict(next_adjustment_loop),
                 "trend_warning": asdict(trend_warning),
@@ -943,6 +950,11 @@ class SQLiteSessionStore:
                 "referral_explanation_channels": {},
                 "adjustment_loop_actions": {},
                 "adjustment_loop_priorities": {},
+                "processing_routes": {},
+                "processing_safety_priorities": {},
+                "processing_next_backend_actions": {},
+                "processing_timeline": [],
+                "processing_summary": _summarize_processing_timeline([]),
                 "goal_attainment_timeline": [],
                 "goal_attainment_summary": goal_attainment_summary,
                 "strategy_reselection": strategy_reselection,
@@ -981,6 +993,9 @@ class SQLiteSessionStore:
         referral_explanation_channels: dict[str, int] = {}
         adjustment_loop_actions: dict[str, int] = {}
         adjustment_loop_priorities: dict[str, int] = {}
+        processing_routes: dict[str, int] = {}
+        processing_safety_priorities: dict[str, int] = {}
+        processing_next_backend_actions: dict[str, int] = {}
         for record in records:
             if record.get("risk_level"):
                 risk_levels[record["risk_level"]] = risk_levels.get(record["risk_level"], 0) + 1
@@ -1010,6 +1025,17 @@ class SQLiteSessionStore:
             if record.get("adjustment_loop_priority"):
                 priority = str(record["adjustment_loop_priority"])
                 adjustment_loop_priorities[priority] = adjustment_loop_priorities.get(priority, 0) + 1
+            if record.get("processing_route"):
+                route = str(record["processing_route"])
+                processing_routes[route] = processing_routes.get(route, 0) + 1
+            if record.get("processing_safety_priority"):
+                priority = str(record["processing_safety_priority"])
+                processing_safety_priorities[priority] = processing_safety_priorities.get(priority, 0) + 1
+            if record.get("processing_next_backend_action"):
+                action = str(record["processing_next_backend_action"])
+                processing_next_backend_actions[action] = processing_next_backend_actions.get(action, 0) + 1
+
+        processing_timeline = _build_processing_timeline(records)
 
         return {
             "session_id": session_id,
@@ -1023,6 +1049,7 @@ class SQLiteSessionStore:
             "latest_reduction_goal": latest.get("reduction_goal"),
             "latest_referral_explanation": latest.get("referral_explanation"),
             "latest_adjustment_loop": latest.get("adjustment_loop"),
+            "latest_processing_summary": latest.get("processing_summary"),
             "strategy_layer_summary": _build_strategy_layer_summary(records),
             "next_adjustment_loop": asdict(next_adjustment_loop),
             "trend_warning": asdict(trend_warning),
@@ -1038,6 +1065,11 @@ class SQLiteSessionStore:
             "referral_explanation_channels": referral_explanation_channels,
             "adjustment_loop_actions": adjustment_loop_actions,
             "adjustment_loop_priorities": adjustment_loop_priorities,
+            "processing_routes": processing_routes,
+            "processing_safety_priorities": processing_safety_priorities,
+            "processing_next_backend_actions": processing_next_backend_actions,
+            "processing_timeline": processing_timeline,
+            "processing_summary": _summarize_processing_timeline(processing_timeline),
             "goal_attainment_timeline": goal_attainment_timeline,
             "goal_attainment_summary": goal_attainment_summary,
             "strategy_reselection": strategy_reselection,
@@ -1986,12 +2018,106 @@ def _summarize_decision_trace(trace: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _build_processing_timeline(records: list[dict[str, Any]], *, limit: int | None = 20) -> list[dict[str, Any]]:
+    selected_records = records if limit is None else records[-max(limit, 0) :]
+    timeline: list[dict[str, Any]] = []
+    for index, record in enumerate(selected_records, start=max(len(records) - len(selected_records) + 1, 1)):
+        summary = record.get("processing_summary") or {}
+        if not summary:
+            timeline.append(
+                {
+                    "turn_index": index,
+                    "response_id": record.get("response_id"),
+                    "created_at": record.get("created_at"),
+                    "route": "legacy_or_missing",
+                    "safety_priority": None,
+                    "next_backend_action": None,
+                    "completed_stages": [],
+                    "decision_reasons": [],
+                }
+            )
+            continue
+        timeline.append(
+            {
+                "turn_index": index,
+                "response_id": record.get("response_id"),
+                "created_at": record.get("created_at"),
+                "route": summary.get("route"),
+                "input_mode": summary.get("input_mode"),
+                "reply_source": summary.get("reply_source"),
+                "safety_priority": summary.get("safety_priority"),
+                "risk_level": summary.get("risk_level"),
+                "entropy_score": summary.get("entropy_score"),
+                "balance_state": summary.get("balance_state"),
+                "primary_state": summary.get("primary_state"),
+                "strategy_id": summary.get("strategy_id"),
+                "dynamic_action": summary.get("dynamic_action"),
+                "orchestration_route": summary.get("orchestration_route"),
+                "referral_urgency": summary.get("referral_urgency"),
+                "should_refer": bool(summary.get("should_refer")),
+                "local_policy_name": summary.get("local_policy_name"),
+                "next_backend_action": summary.get("next_backend_action"),
+                "completed_stages": summary.get("completed_stages") or [],
+                "decision_reasons": summary.get("decision_reasons") or [],
+            }
+        )
+    return timeline
+
+
+def _summarize_processing_timeline(timeline: list[dict[str, Any]]) -> dict[str, Any]:
+    if not timeline:
+        return {
+            "turns": 0,
+            "routes": {},
+            "safety_priorities": {},
+            "next_backend_actions": {},
+            "latest_route": None,
+            "latest_safety_priority": None,
+            "latest_next_backend_action": None,
+            "needs_human_attention": False,
+            "attention_reasons": [],
+        }
+    routes = _count_top_level_values(timeline, "route")
+    safety_priorities = _count_top_level_values(timeline, "safety_priority")
+    next_actions = _count_top_level_values(timeline, "next_backend_action")
+    latest = timeline[-1]
+    attention_reasons: list[str] = []
+    if latest.get("safety_priority") in {"urgent", "human_followup"}:
+        attention_reasons.append(f"safety_priority:{latest.get('safety_priority')}")
+    if latest.get("next_backend_action") in {"activate_urgent_handoff", "queue_human_followup"}:
+        attention_reasons.append(f"next_backend_action:{latest.get('next_backend_action')}")
+    if latest.get("should_refer"):
+        attention_reasons.append("latest_should_refer")
+    return {
+        "turns": len(timeline),
+        "routes": routes,
+        "safety_priorities": safety_priorities,
+        "next_backend_actions": next_actions,
+        "latest_route": latest.get("route"),
+        "latest_safety_priority": latest.get("safety_priority"),
+        "latest_next_backend_action": latest.get("next_backend_action"),
+        "needs_human_attention": bool(attention_reasons),
+        "attention_reasons": attention_reasons,
+    }
+
+
 def _count_trace_values(trace: list[dict[str, Any]], path: tuple[str, str]) -> dict[str, int]:
     counts: dict[str, int] = {}
     outer, inner = path
     for item in trace:
         nested = item.get(outer) or {}
         value = nested.get(inner) if isinstance(nested, dict) else None
+        if value is None or value == "":
+            continue
+        clean = str(value)
+        counts[clean] = counts.get(clean, 0) + 1
+    return counts
+
+
+def _count_top_level_values(items: list[dict[str, Any]], key: str) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        value = item.get(key)
         if value is None or value == "":
             continue
         clean = str(value)

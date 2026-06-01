@@ -127,6 +127,36 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("latest_session_decisions", decision_overview)
         self.assertIn("summary", decision_overview)
 
+    def test_session_processing_timeline_escalates_dangerous_place_followup(self) -> None:
+        session_id = f"test-processing-session-{uuid4().hex}"
+        first = main.support_text(
+            {
+                "session_id": session_id,
+                "text": "\u660e\u5929\u65e9\u4e0a\u8003\u8bd5\uff0c\u6211\u73b0\u5728\u5b8c\u5168\u7761\u4e0d\u7740\uff0c\u8d8a\u60f3\u8d8a\u614c\u3002",
+                "student_context": {},
+                "conversation_history": [],
+            }
+        )
+        second = main.support_text(
+            {
+                "session_id": session_id,
+                "text": "\u6211\u597d\u96be\u53d7\uff0c\u6211\u60f3\u53bb\u5929\u53f0\u51b7\u9759\u4e00\u4e0b",
+                "student_context": {},
+                "conversation_history": [],
+            }
+        )
+
+        analysis = main.get_session_analysis(session_id)
+
+        self.assertEqual(first["processing_summary"]["route"], "local_policy")
+        self.assertEqual(second["risk"]["level"], "critical")
+        self.assertEqual(second["processing_summary"]["route"], "crisis_safety")
+        self.assertEqual(second["processing_summary"]["safety_priority"], "urgent")
+        self.assertEqual(analysis["latest_processing_summary"]["route"], "crisis_safety")
+        self.assertEqual(analysis["processing_timeline"][-1]["route"], "crisis_safety")
+        self.assertEqual(analysis["processing_summary"]["latest_next_backend_action"], "activate_urgent_handoff")
+        self.assertTrue(analysis["processing_summary"]["needs_human_attention"])
+
     def test_model_status_reports_local_checkpoint_configuration(self) -> None:
         os.environ["LLM_PROVIDER"] = "local_checkpoint"
         os.environ["LOCAL_CHECKPOINT_PATH"] = str(ROOT / "missing-checkpoint")

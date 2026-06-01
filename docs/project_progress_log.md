@@ -1085,6 +1085,8 @@ python -m pytest
 - 更新 `GET /api/v1/frontend/contract`，在核心响应字段和研究面板字段中加入 `processing_summary`。
 - 学生角色视图继续隐藏 `processing_summary`，研究/管理视图可见。
 - 新增 `docs/processing_layer.md`，说明处理层链路、字段含义和验收方式。
+- 继续扩展 session analysis：新增 `latest_processing_summary`、`processing_timeline`、聚合 `processing_summary`、处理路由计数、安全优先级计数和下一步后端动作计数。
+- 补充 API 级回归：同一 session 中“考试失眠 -> 天台冷静”必须从普通支持升到危机安全路线，并在 session analysis timeline 中保留 `crisis_safety / urgent / activate_urgent_handoff`。
 
 ### 验证结果
 
@@ -1099,6 +1101,22 @@ POST /api/v1/support/text 临时端口 smoke
 has_processing_summary = true
 route = local_policy
 safety_priority = standard
+
+python -m pytest tests\test_storage.py tests\test_main.py tests\test_privacy_views.py -q
+21 passed
+
+python -m pytest tests\test_main.py::MainFlowTests::test_session_processing_timeline_escalates_dangerous_place_followup tests\test_storage.py::SQLiteSessionStoreTests::test_session_analysis_tracks_processing_timeline -q
+2 passed
+
+python -m pytest -q
+311 passed
+
+TestClient smoke
+first_route = local_policy
+second_route = crisis_safety
+second_safety = urgent
+latest_action = activate_urgent_handoff
+timeline_routes = [local_policy, crisis_safety]
 ```
 
 ### 当前判断

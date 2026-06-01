@@ -1026,6 +1026,8 @@ powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2
 
 暂停前端继续开发，转回后端处理层。本轮新增 `processing_summary` 响应字段，汇总每一轮输入经过的处理路由、输入模式、回复来源、安全优先级、风险等级、心理熵、状态画像、干预策略、动态调整、熵减编排、转介紧急程度、已完成阶段和下一步后端动作。学生端角色视图不默认暴露该字段，研究/管理/调试视图可以使用它证明处理链路已经闭环。新增 `docs/processing_layer.md` 说明处理层结构。验证：`python -m pytest` 完整套件通过 309 项；临时端口 smoke 确认 `POST /api/v1/support/text` 返回 `processing_summary.route=local_policy` 和 `safety_priority=standard`。
 
+继续优化处理层沉淀：`GET /api/v1/sessions/{session_id}/analysis` 现在会返回 `latest_processing_summary`、`processing_timeline`、聚合 `processing_summary`、处理路由计数、安全优先级计数和下一步后端动作计数。这样可以观察一个会话多轮中是否从普通支持进入人工关注或危机安全路线。新增 API 级回归用例覆盖“考试失眠 -> 天台冷静”同一 session，确认第二轮会升到 `crisis_safety / urgent / activate_urgent_handoff`。验证：`python -m pytest -q` 全量通过 311 项；TestClient smoke 显示 timeline 为 `local_policy -> crisis_safety`。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 本轮继续跑 `auto_quality_pipeline.py --mode backend --limit 100 --start 1` 和手动抽检，针对 DOCX 低分 turn 做了两类细化：作业堆积场景中“打开文档就想逃/怕写得很烂”会直接给出实验报告可提交骨架、三到五句话、补图改语病和 25 分钟计时；兼职工资拖欠场景中“怕被拉黑/觉得自己太弱”会转为证据化沟通、维护边界和劳动报酬权益。最新 DOCX 100 例结果：平均分 `80.81`，`flag_counts={}`，低分样例为空；手动抽检 12 场景 / 27 轮 `WARN=0`。

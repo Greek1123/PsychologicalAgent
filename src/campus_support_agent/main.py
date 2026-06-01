@@ -368,6 +368,7 @@ def get_frontend_contract() -> dict[str, Any]:
             "session_analysis": {
                 "method": "GET",
                 "path": "/api/v1/sessions/{session_id}/analysis",
+                "processing_fields": ["latest_processing_summary", "processing_timeline", "processing_summary"],
             },
             "care_queue": {
                 "method": "GET",

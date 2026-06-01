@@ -130,6 +130,88 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertEqual(overview["current_orchestration_routes"]["boundary_respecting_support"], 1)
         self.assertIn("current_dialogue_stages", overview)
 
+    def test_session_analysis_tracks_processing_timeline(self) -> None:
+        db_path = _test_db_path()
+
+        store = SQLiteSessionStore(str(db_path), max_messages=6)
+        store.store_support_response(
+            session_id="session-processing",
+            response_id="resp-p1",
+            source="text",
+            input_text="明天考试我睡不着。",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={
+                "reply_text": "先把今晚负担降一点。",
+                "risk": {"level": "medium", "score": 45},
+                "entropy": {"score": 40, "level": 2, "balance_state": "stable"},
+                "processing_summary": {
+                    "route": "local_policy",
+                    "input_mode": "text",
+                    "reply_source": "local_policy",
+                    "safety_priority": "standard",
+                    "risk_level": "medium",
+                    "entropy_score": 40,
+                    "balance_state": "stable",
+                    "primary_state": "academic_anxiety",
+                    "strategy_id": "sleep_stabilization",
+                    "dynamic_action": "maintain_strategy",
+                    "orchestration_route": "stabilize_and_plan",
+                    "referral_urgency": "none",
+                    "should_refer": False,
+                    "local_policy_name": "exam_sleep_anxiety",
+                    "next_backend_action": "continue_supportive_monitoring",
+                    "completed_stages": ["risk_assessment", "entropy_evaluation"],
+                    "decision_reasons": ["risk:medium"],
+                },
+            },
+        )
+        store.store_support_response(
+            session_id="session-processing",
+            response_id="resp-p2",
+            source="text",
+            input_text="我想去天台冷静一下。",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={
+                "reply_text": "先离开危险地点。",
+                "risk": {"level": "critical", "score": 90},
+                "entropy": {"score": 82, "level": 5, "balance_state": "crisis"},
+                "referral_decision": {"should_refer": True, "urgency": "urgent"},
+                "processing_summary": {
+                    "route": "crisis_safety",
+                    "input_mode": "text",
+                    "reply_source": "crisis_template",
+                    "safety_priority": "urgent",
+                    "risk_level": "critical",
+                    "entropy_score": 82,
+                    "balance_state": "crisis",
+                    "primary_state": "crisis_distress",
+                    "strategy_id": "safety_first",
+                    "dynamic_action": "escalate_support",
+                    "orchestration_route": "emergency_referral",
+                    "referral_urgency": "urgent",
+                    "should_refer": True,
+                    "local_policy_name": None,
+                    "next_backend_action": "activate_urgent_handoff",
+                    "completed_stages": ["risk_assessment", "urgent_referral"],
+                    "decision_reasons": ["risk:critical"],
+                },
+            },
+        )
+
+        analysis = store.get_session_analysis("session-processing")
+
+        self.assertEqual(analysis["latest_processing_summary"]["route"], "crisis_safety")
+        self.assertEqual(analysis["processing_routes"], {"local_policy": 1, "crisis_safety": 1})
+        self.assertEqual(analysis["processing_safety_priorities"]["urgent"], 1)
+        self.assertEqual(analysis["processing_next_backend_actions"]["activate_urgent_handoff"], 1)
+        self.assertEqual(len(analysis["processing_timeline"]), 2)
+        self.assertEqual(analysis["processing_summary"]["latest_route"], "crisis_safety")
+        self.assertTrue(analysis["processing_summary"]["needs_human_attention"])
+
     def test_referral_events_can_be_recorded_and_cleared(self) -> None:
         db_path = _test_db_path()
 

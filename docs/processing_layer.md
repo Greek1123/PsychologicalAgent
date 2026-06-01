@@ -89,6 +89,29 @@
 
 学生端不默认展示 `processing_summary`，避免把后端决策标签暴露给正在求助的学生。
 
+## 会话级处理时间线
+
+`GET /api/v1/sessions/{session_id}/analysis` 现在会返回会话级处理信息：
+
+| 字段 | 含义 |
+| --- | --- |
+| `latest_processing_summary` | 最近一轮完整处理摘要。 |
+| `processing_timeline` | 最近若干轮处理摘要的时间线。 |
+| `processing_summary` | 对 timeline 的聚合统计。 |
+| `processing_routes` | 各处理路由计数。 |
+| `processing_safety_priorities` | 安全优先级计数。 |
+| `processing_next_backend_actions` | 下一步后端动作计数。 |
+
+这能用来观察一个 session 是否从普通支持逐步进入人工关注或危机安全路线。例如：
+
+```text
+local_policy -> local_policy -> crisis_safety
+standard -> human_followup -> urgent
+continue_supportive_monitoring -> queue_human_followup -> activate_urgent_handoff
+```
+
+该 timeline 复用已存储的 response JSON，不需要新增数据库表；旧数据如果没有 `processing_summary`，会显示为 `legacy_or_missing`。
+
 ## 验收方式
 
 运行：
@@ -104,3 +127,5 @@ python -m pytest tests\test_agent.py tests\test_main.py tests\test_privacy_views
 - 危机场景 `safety_priority = urgent`。
 - 学生角色视图不暴露 `processing_summary`。
 - 研究/管理视图可以查看 `processing_summary`。
+- 会话分析返回 `processing_timeline` 和聚合后的 `processing_summary`。
+- 同一 session 中“考试失眠 -> 天台冷静”会从 `local_policy` 升到 `crisis_safety / urgent / activate_urgent_handoff`。
