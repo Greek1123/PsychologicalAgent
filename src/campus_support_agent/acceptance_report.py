@@ -17,6 +17,11 @@ class ReportArtifacts:
     docx_eval_jsonl: Path | None
     manual_check_json: Path | None
     test_summary: str
+    frontend_client: Path | None = None
+    frontend_example: Path | None = None
+    demo_playbook: Path | None = None
+    demo_checklist: Path | None = None
+    frontend_smoke_report: Path | None = None
 
 
 def find_latest_artifacts(root: Path = PROJECT_ROOT, *, test_summary: str = "not run in this report") -> ReportArtifacts:
@@ -24,6 +29,11 @@ def find_latest_artifacts(root: Path = PROJECT_ROOT, *, test_summary: str = "not
         docx_eval_jsonl=_latest_file(root / "reports" / "auto_quality_pipeline", "*_extracted_docx_reference_eval.jsonl"),
         manual_check_json=_latest_file(root / "reports" / "manual_reply_checks", "*_manual_reply_check.json"),
         test_summary=test_summary,
+        frontend_client=_existing_file(root / "frontend_handoff" / "campusSupportApi.ts"),
+        frontend_example=_existing_file(root / "frontend_handoff" / "StudentChatExample.jsx"),
+        demo_playbook=_existing_file(root / "docs" / "demo_acceptance_playbook.md"),
+        demo_checklist=_existing_file(root / "docs" / "demo_acceptance_checklist.md"),
+        frontend_smoke_report=_latest_file(root / "reports" / "frontend_handoff_smoke", "*_frontend_handoff_smoke.md"),
     )
 
 
@@ -37,6 +47,7 @@ def build_acceptance_report(
     readiness = build_deployment_readiness(settings)
     docx_summary = summarize_docx_eval(artifacts.docx_eval_jsonl)
     manual_summary = summarize_manual_check(artifacts.manual_check_json)
+    delivery_summary = summarize_delivery_artifacts(artifacts)
     git_summary = get_git_summary()
     generated_at = generated_at or datetime.now().isoformat(timespec="seconds")
 
@@ -56,10 +67,11 @@ def build_acceptance_report(
             "| 多模态输入层 | 已完成原型 | 文本与语音入口已接入同一 Agent 链路，语音保留基础音频信号。 |",
             "| 心理熵与策略层 | 已完成核心闭环 | 支持风险识别、心理熵评估、熵减策略、动态调整和校园资源匹配。 |",
             "| DOCX 质量评估层 | 已达标 | 对照长对话优秀回复做自动测评，并保留低分样例定位能力。 |",
-            "| 前端交接层 | 已完成后端契约 | 提供 `/api/v1/frontend/contract` 和角色视图接口。 |",
+            "| 前端交接层 | 已完成交付包 | 提供 API contract、CORS 配置、smoke 脚本、TypeScript client 和 React 示例页。 |",
             "| 人工干预层 | 已完成第一版闭环 | 支持 care queue、人工确认、升级、解决和关闭。 |",
             "| 隐私边界层 | 已完成第一版 | 学生、咨询师、研究、管理员四类视图由后端投影。 |",
             "| 部署运维层 | 已完成第一版 | 提供 readiness API 与终端自检脚本。 |",
+            "| 演示验收层 | 已完成第一版 | 提供演示手册、验收清单和系统验收报告生成器。 |",
             "",
             "## 关键验收指标",
             "",
@@ -73,6 +85,8 @@ def build_acceptance_report(
             f"| 手动抽检场景/轮次 | {manual_summary['scenarios']} / {manual_summary['turns']} | 手动抽检 JSON |",
             f"| 部署 readiness | {readiness['status']} | `scripts/check_deployment_readiness.py` |",
             f"| 单元/回归测试 | {artifacts.test_summary} | pytest |",
+            f"| 前端交接产物 | {delivery_summary['frontend_ready']} | `frontend_handoff/` |",
+            f"| 演示验收材料 | {delivery_summary['demo_ready']} | `docs/demo_acceptance_*` |",
             "",
             "## 主要接口",
             "",
@@ -84,19 +98,28 @@ def build_acceptance_report(
             "- `POST /api/v1/sessions/{session_id}/human-interventions`：人工处理记录。",
             "- `GET /api/v1/ops/readiness`：部署自检。",
             "",
+            "## 前端与演示交付物",
+            "",
+            "| 交付物 | 状态 | 路径 |",
+            "| --- | --- | --- |",
+            *[
+                f"| {item['name']} | {item['status']} | {item['path']} |"
+                for item in delivery_summary["items"]
+            ],
+            "",
             "## 推荐交付说明",
             "",
-            "- 给前端组员：优先对接 `frontend/contract`、`support/text`、`support/audio` 和角色视图接口。",
+            "- 给前端组员：优先看 `docs/frontend_integration_guide.md`，复制 `frontend_handoff/campusSupportApi.ts` 和 `StudentChatExample.jsx`。",
             "- 给负责模型的组员：默认使用 README 中的 Qwen3 基础模型 + `refinement_pool_v5_peft` LoRA。",
             "- 给答辩/论文材料：使用 DOCX 自动测评、手动抽检、熵轨迹导出和后端对比实验作为实验支撑。",
             "- 给部署同学：启动前先运行 `python scripts\\check_deployment_readiness.py`。",
-            "- 给演示准备：运行 `python scripts\\generate_demo_workspace.py` 生成 `docs/demo_workspace_report.md`。",
+            "- 给演示准备：先看 `docs/demo_acceptance_playbook.md`，再按 `docs/demo_acceptance_checklist.md` 勾选。",
             "",
             "## 下一步建议",
             "",
             "1. 补正式咨询师工作台页面，把 care queue 和 human-interventions 可视化。",
             "2. 接真实 ASR 服务，并把语音停顿、音量、静音比例纳入多模态展示。",
-            "3. 将该验收报告脚本纳入每轮迭代流程，形成固定答辩材料。",
+            "3. 将正式前端仓库接入 `smoke_frontend_handoff.py`，形成前后端合并验收流程。",
             "",
         ]
     )
@@ -150,6 +173,27 @@ def summarize_manual_check(path: Path | None) -> dict[str, Any]:
     }
 
 
+def summarize_delivery_artifacts(artifacts: ReportArtifacts) -> dict[str, Any]:
+    specs = [
+        ("TypeScript API client", artifacts.frontend_client),
+        ("React 学生端示例", artifacts.frontend_example),
+        ("演示验收手册", artifacts.demo_playbook),
+        ("演示验收清单", artifacts.demo_checklist),
+        ("前端 smoke 报告", artifacts.frontend_smoke_report),
+    ]
+    items = [
+        {
+            "name": name,
+            "status": "present" if path and path.exists() else "missing",
+            "path": f"`{_relative(path)}`" if path and path.exists() else "-",
+        }
+        for name, path in specs
+    ]
+    frontend_ready = "ready" if all((artifacts.frontend_client, artifacts.frontend_example)) else "incomplete"
+    demo_ready = "ready" if all((artifacts.demo_playbook, artifacts.demo_checklist)) else "incomplete"
+    return {"frontend_ready": frontend_ready, "demo_ready": demo_ready, "items": items}
+
+
 def get_git_summary() -> str:
     try:
         branch = subprocess.check_output(["git", "branch", "--show-current"], cwd=PROJECT_ROOT, text=True).strip()
@@ -166,6 +210,10 @@ def _latest_file(root: Path, pattern: str) -> Path | None:
     if not files:
         return None
     return max(files, key=lambda path: path.stat().st_mtime)
+
+
+def _existing_file(path: Path) -> Path | None:
+    return path if path.exists() and path.is_file() else None
 
 
 def _relative(path: Path) -> str:

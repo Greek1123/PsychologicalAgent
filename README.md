@@ -1020,6 +1020,8 @@ powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2
 
 新增 `docs/demo_acceptance_playbook.md`，把组会/答辩演示流程整理成可照着走的手册，覆盖启动、前端工作台、普通压力、宿舍边界、隐私威胁、危险地点危机、care queue、角色视图和字段展示边界。新增 `scripts/generate_demo_acceptance_checklist.py`，可生成 `docs/demo_acceptance_checklist.md` 作为答辩前人工勾选清单。验证：`python scripts\generate_demo_acceptance_checklist.py` 成功生成清单；`python -m pytest tests\test_demo_acceptance_checklist.py -q` 通过 2 项；`python -m pytest` 完整套件通过 308 项。
 
+继续升级 `scripts/generate_acceptance_report.py` 和 `docs/system_acceptance_report.md`：系统验收报告现在会自动汇总前端交接产物、React 示例、演示手册、演示清单和最新 frontend smoke 报告，方便答辩时只打开一份总报告说明当前完成度。验证：`python -m pytest tests\test_acceptance_report.py -q` 通过 4 项；`python scripts\generate_acceptance_report.py --test-summary "308 passed"` 成功更新报告。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 本轮继续跑 `auto_quality_pipeline.py --mode backend --limit 100 --start 1` 和手动抽检，针对 DOCX 低分 turn 做了两类细化：作业堆积场景中“打开文档就想逃/怕写得很烂”会直接给出实验报告可提交骨架、三到五句话、补图改语病和 25 分钟计时；兼职工资拖欠场景中“怕被拉黑/觉得自己太弱”会转为证据化沟通、维护边界和劳动报酬权益。最新 DOCX 100 例结果：平均分 `80.81`，`flag_counts={}`，低分样例为空；手动抽检 12 场景 / 27 轮 `WARN=0`。

@@ -1036,6 +1036,12 @@ report = reports/frontend_handoff_smoke/20260530_122832_frontend_handoff_smoke.m
   - 学生端、咨询师端、研究端分别应该展示和隐藏哪些字段。
 - 新增 `scripts/generate_demo_acceptance_checklist.py`，可生成 `docs/demo_acceptance_checklist.md`，用于答辩前人工勾选验收。
 - 新增 `tests/test_demo_acceptance_checklist.py`，锁定演示手册和清单必须包含关键场景与展示边界。
+- 升级 `src/campus_support_agent/acceptance_report.py` 和 `docs/system_acceptance_report.md`，系统验收报告现在会列出：
+  - TypeScript API client
+  - React 学生端示例
+  - 演示验收手册
+  - 演示验收清单
+  - 最新 frontend smoke 报告
 - 同步更新 `README.md`。
 
 ### 验证结果
@@ -1046,6 +1052,12 @@ output = docs/demo_acceptance_checklist.md
 
 python -m pytest tests\test_demo_acceptance_checklist.py -q
 2 passed
+
+python -m pytest tests\test_acceptance_report.py -q
+4 passed
+
+python scripts\generate_acceptance_report.py --test-summary "308 passed"
+output = docs/system_acceptance_report.md
 
 python -m py_compile scripts\generate_demo_acceptance_checklist.py
 通过
