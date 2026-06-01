@@ -211,6 +211,8 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertEqual(len(analysis["processing_timeline"]), 2)
         self.assertEqual(analysis["processing_summary"]["latest_route"], "crisis_safety")
         self.assertTrue(analysis["processing_summary"]["needs_human_attention"])
+        self.assertEqual(analysis["processing_consistency"]["summary"]["status"], "ok")
+        self.assertEqual(analysis["processing_consistency"]["summary"]["inconsistent_turns"], 0)
 
     def test_referral_events_can_be_recorded_and_cleared(self) -> None:
         db_path = _test_db_path()

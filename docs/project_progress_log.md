@@ -1087,6 +1087,7 @@ python -m pytest
 - 新增 `docs/processing_layer.md`，说明处理层链路、字段含义和验收方式。
 - 继续扩展 session analysis：新增 `latest_processing_summary`、`processing_timeline`、聚合 `processing_summary`、处理路由计数、安全优先级计数和下一步后端动作计数。
 - 补充 API 级回归：同一 session 中“考试失眠 -> 天台冷静”必须从普通支持升到危机安全路线，并在 session analysis timeline 中保留 `crisis_safety / urgent / activate_urgent_handoff`。
+- 继续优化处理层自检：新增 `processing_consistency`，自动审计风险等级、处理路由、安全优先级、回复来源和下一步后端动作是否一致，避免高危输入被普通路线吞掉。
 
 ### 验证结果
 
@@ -1117,6 +1118,20 @@ second_route = crisis_safety
 second_safety = urgent
 latest_action = activate_urgent_handoff
 timeline_routes = [local_policy, crisis_safety]
+
+新增处理一致性审计待验证：
+- `processing_consistency.summary.status = ok` 表示处理路线与安全动作一致。
+- 构造 `critical + local_policy + standard` 的异常记录应返回 `needs_review`。
+
+python -m pytest tests\test_processing_consistency.py tests\test_storage.py tests\test_main.py tests\test_privacy_views.py tests\test_agent.py -q
+39 passed
+
+TestClient smoke
+processing_consistency.status = ok
+processing_consistency.inconsistent_turns = 0
+
+python -m pytest -q
+314 passed
 ```
 
 ### 当前判断

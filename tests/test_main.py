@@ -156,6 +156,7 @@ class MainFlowTests(unittest.TestCase):
         self.assertEqual(analysis["processing_timeline"][-1]["route"], "crisis_safety")
         self.assertEqual(analysis["processing_summary"]["latest_next_backend_action"], "activate_urgent_handoff")
         self.assertTrue(analysis["processing_summary"]["needs_human_attention"])
+        self.assertEqual(analysis["processing_consistency"]["summary"]["status"], "ok")
 
     def test_model_status_reports_local_checkpoint_configuration(self) -> None:
         os.environ["LLM_PROVIDER"] = "local_checkpoint"
@@ -193,6 +194,7 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("referral_decision", contract["response_core_fields"])
         self.assertIn("human_interventions", contract["response_core_fields"])
         self.assertIn("processing_summary", contract["response_core_fields"])
+        self.assertIn("processing_consistency", contract["endpoints"]["session_analysis"]["processing_fields"])
         self.assertIn("human_interventions", contract["endpoints"])
         self.assertIn("role_view", contract["endpoints"])
         self.assertIn("ops_readiness", contract["endpoints"])

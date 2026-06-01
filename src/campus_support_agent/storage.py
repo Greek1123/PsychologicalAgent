@@ -22,6 +22,7 @@ from .logging_utils import get_logger
 from .longitudinal_profile import build_longitudinal_state_profile
 from .care_pathway import build_care_pathway_decision
 from .entropy_outcome import build_entropy_reduction_outcome
+from .processing_consistency import build_processing_consistency_report
 from .quality_refinement import build_quality_refinement_plan
 from .reply_quality import build_reply_quality_report
 from .reply_quality_export import build_reply_quality_bad_cases
@@ -921,6 +922,7 @@ class SQLiteSessionStore:
             strategy_version=strategy_version,
             intervention_effectiveness=intervention_effectiveness,
         )
+        processing_consistency = build_processing_consistency_report(records)
         if not records:
             return {
                 "session_id": session_id,
@@ -955,6 +957,7 @@ class SQLiteSessionStore:
                 "processing_next_backend_actions": {},
                 "processing_timeline": [],
                 "processing_summary": _summarize_processing_timeline([]),
+                "processing_consistency": processing_consistency,
                 "goal_attainment_timeline": [],
                 "goal_attainment_summary": goal_attainment_summary,
                 "strategy_reselection": strategy_reselection,
@@ -1070,6 +1073,7 @@ class SQLiteSessionStore:
             "processing_next_backend_actions": processing_next_backend_actions,
             "processing_timeline": processing_timeline,
             "processing_summary": _summarize_processing_timeline(processing_timeline),
+            "processing_consistency": processing_consistency,
             "goal_attainment_timeline": goal_attainment_timeline,
             "goal_attainment_summary": goal_attainment_summary,
             "strategy_reselection": strategy_reselection,

@@ -98,6 +98,7 @@
 | `latest_processing_summary` | 最近一轮完整处理摘要。 |
 | `processing_timeline` | 最近若干轮处理摘要的时间线。 |
 | `processing_summary` | 对 timeline 的聚合统计。 |
+| `processing_consistency` | 对处理路由、安全优先级和下一步动作的一致性审计。 |
 | `processing_routes` | 各处理路由计数。 |
 | `processing_safety_priorities` | 安全优先级计数。 |
 | `processing_next_backend_actions` | 下一步后端动作计数。 |
@@ -111,6 +112,22 @@ continue_supportive_monitoring -> queue_human_followup -> activate_urgent_handof
 ```
 
 该 timeline 复用已存储的 response JSON，不需要新增数据库表；旧数据如果没有 `processing_summary`，会显示为 `legacy_or_missing`。
+
+## 处理一致性审计
+
+`processing_consistency` 用来发现后端处理链自相矛盾的情况，不面向学生展示。当前审计规则包括：
+
+| 问题标签 | 含义 |
+| --- | --- |
+| `missing_processing_summary` | 旧记录或异常记录缺少处理摘要。 |
+| `high_risk_not_crisis_route` | `high/critical` 风险没有进入 `crisis_safety`。 |
+| `critical_risk_not_urgent` | `critical` 风险没有被标记为 `urgent`。 |
+| `crisis_route_not_urgent` | 危机路线没有匹配紧急优先级。 |
+| `urgent_without_handoff_action` | `urgent` 没有对应 `activate_urgent_handoff`。 |
+| `referral_marked_but_monitoring_only` | 已标记转介，但下一步仍是普通监测。 |
+| `urgent_referral_not_urgent_priority` | 紧急转介没有同步到紧急优先级。 |
+
+当 `processing_consistency.summary.status = needs_review` 时，研究/管理面板应优先检查该 session。
 
 ## 验收方式
 
@@ -129,3 +146,4 @@ python -m pytest tests\test_agent.py tests\test_main.py tests\test_privacy_views
 - 研究/管理视图可以查看 `processing_summary`。
 - 会话分析返回 `processing_timeline` 和聚合后的 `processing_summary`。
 - 同一 session 中“考试失眠 -> 天台冷静”会从 `local_policy` 升到 `crisis_safety / urgent / activate_urgent_handoff`。
+- `processing_consistency.summary.status = ok` 表示处理路由、安全优先级和下一步动作没有明显矛盾。
