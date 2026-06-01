@@ -398,6 +398,28 @@ class MultimodalSignal:
 
 
 @dataclass(slots=True)
+class ProcessingSummary:
+    route: str
+    input_mode: str
+    reply_source: str
+    safety_priority: str
+    risk_level: str
+    entropy_score: int
+    balance_state: str
+    primary_state: str | None
+    strategy_id: str | None
+    dynamic_action: str | None
+    orchestration_route: str | None
+    referral_urgency: str | None
+    should_refer: bool
+    local_policy_name: str | None
+    completed_stages: list[str] = field(default_factory=list)
+    decision_reasons: list[str] = field(default_factory=list)
+    next_backend_action: str | None = None
+    evidence: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
 class LocalPolicyResult:
     assessment: SupportAssessment
     plan: SupportPlan
@@ -434,6 +456,7 @@ class SupportResponse:
     referral_explanation: ReferralExplanation | None = None
     adjustment_loop: EntropyAdjustmentLoop | None = None
     multimodal_signal: MultimodalSignal | None = None
+    processing_summary: ProcessingSummary | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -41,6 +41,7 @@ from .schemas import (
     RiskLevel,
     SafetyNotice,
     StateProfile,
+    ProcessingSummary,
     SupportAssessment,
     SupportPlan,
     SupportResponse,
@@ -275,6 +276,7 @@ class CampusSupportAgent:
         )
         if risk.level in {RiskLevel.HIGH, RiskLevel.CRITICAL}:
             logger.warning("Routing request to crisis flow due to risk=%s", risk.level)
+            crisis_referral_decision = self._build_referral_decision(risk=risk, entropy=entropy, local_policy=None)
             crisis_response = self._build_crisis_response(
                 text=clean_text,
                 risk=risk,
@@ -291,6 +293,7 @@ class CampusSupportAgent:
                 reduction_goal=reduction_goal,
                 referral_explanation=referral_explanation,
                 adjustment_loop=adjustment_loop,
+                referral_decision=crisis_referral_decision,
             )
             crisis_response.reply_text = finalize_user_visible_reply(
                 clean_text,
@@ -385,6 +388,32 @@ class CampusSupportAgent:
                 reduction_goal=reduction_goal,
                 referral_explanation=referral_explanation,
                 adjustment_loop=adjustment_loop,
+                processing_summary=self._build_processing_summary(
+                    route="local_policy",
+                    input_mode=source,
+                    reply_source="local_policy",
+                    risk=risk,
+                    entropy=entropy,
+                    state_profile=state_profile,
+                    intervention_strategy=intervention_strategy,
+                    dynamic_adjustment=dynamic_adjustment,
+                    entropy_orchestration=entropy_orchestration,
+                    referral_decision=referral_decision,
+                    local_policy=local_result.info,
+                    completed_stages=[
+                        "normalize_input",
+                        "noisy_input_analysis",
+                        "risk_assessment",
+                        "entropy_evaluation",
+                        "state_profile",
+                        "resource_retrieval",
+                        "local_policy_match",
+                        "strategy_selection",
+                        "dynamic_adjustment",
+                        "orchestration",
+                        "reply_guardrails",
+                    ],
+                ),
             )
 
         system_prompt = build_system_prompt(self.settings)
@@ -500,6 +529,32 @@ class CampusSupportAgent:
             reduction_goal=reduction_goal,
             referral_explanation=referral_explanation,
             adjustment_loop=adjustment_loop,
+            processing_summary=self._build_processing_summary(
+                route="llm_or_fallback",
+                input_mode=source,
+                reply_source="llm" if "parsed" in locals() else "fallback",
+                risk=risk,
+                entropy=entropy,
+                state_profile=state_profile,
+                intervention_strategy=intervention_strategy,
+                dynamic_adjustment=dynamic_adjustment,
+                entropy_orchestration=entropy_orchestration,
+                referral_decision=referral_decision,
+                local_policy=None,
+                completed_stages=[
+                    "normalize_input",
+                    "noisy_input_analysis",
+                    "risk_assessment",
+                    "entropy_evaluation",
+                    "state_profile",
+                    "resource_retrieval",
+                    "strategy_selection",
+                    "dynamic_adjustment",
+                    "orchestration",
+                    "llm_generation_or_fallback",
+                    "reply_guardrails",
+                ],
+            ),
         )
 
     def handle_audio(
@@ -655,6 +710,7 @@ class CampusSupportAgent:
         entropy_orchestration: EntropyOrchestration,
         reduction_goal: EntropyReductionGoal,
         referral_explanation: ReferralExplanation,
+        referral_decision: ReferralDecision,
         adjustment_loop: Any = None,
     ) -> SupportResponse:
         emergency_notice = (
@@ -713,7 +769,7 @@ class CampusSupportAgent:
             ),
             metadata=new_metadata(f"llm:{self.llm_provider.name},stt:{self.stt_provider.name}"),
             local_policy=None,
-            referral_decision=self._build_referral_decision(risk=risk, entropy=entropy, local_policy=None),
+            referral_decision=referral_decision,
             state_profile=state_profile,
             intervention_strategy=intervention_strategy,
             dynamic_adjustment=dynamic_adjustment,
@@ -722,6 +778,105 @@ class CampusSupportAgent:
             reduction_goal=reduction_goal,
             referral_explanation=referral_explanation,
             adjustment_loop=adjustment_loop,
+            processing_summary=self._build_processing_summary(
+                route="crisis_safety",
+                input_mode=source,
+                reply_source="crisis_template",
+                risk=risk,
+                entropy=entropy,
+                state_profile=state_profile,
+                intervention_strategy=intervention_strategy,
+                dynamic_adjustment=dynamic_adjustment,
+                entropy_orchestration=entropy_orchestration,
+                referral_decision=referral_decision,
+                local_policy=None,
+                completed_stages=[
+                    "normalize_input",
+                    "noisy_input_analysis",
+                    "risk_assessment",
+                    "dangerous_context_carry_forward",
+                    "entropy_evaluation",
+                    "state_profile",
+                    "resource_retrieval",
+                    "strategy_selection",
+                    "dynamic_adjustment",
+                    "urgent_referral",
+                    "crisis_reply_guardrails",
+                ],
+            ),
+        )
+
+    @staticmethod
+    def _build_processing_summary(
+        *,
+        route: str,
+        input_mode: str,
+        reply_source: str,
+        risk: RiskAssessment,
+        entropy: PsychologicalEntropy,
+        state_profile: StateProfile | None,
+        intervention_strategy: Any,
+        dynamic_adjustment: Any,
+        entropy_orchestration: EntropyOrchestration | None,
+        referral_decision: ReferralDecision | None,
+        local_policy: Any,
+        completed_stages: list[str],
+    ) -> ProcessingSummary:
+        should_refer = bool(referral_decision.should_refer) if referral_decision else False
+        urgency = referral_decision.urgency if referral_decision else "none"
+        safety_priority = (
+            "urgent"
+            if risk.level == RiskLevel.CRITICAL or urgency == "urgent"
+            else "human_followup"
+            if should_refer or risk.needs_human_followup
+            else "standard"
+        )
+        dynamic_action = getattr(dynamic_adjustment, "action", None)
+        orchestration_route = getattr(entropy_orchestration, "route", None)
+        decision_reasons: list[str] = [
+            f"risk:{risk.level}",
+            f"entropy:{entropy.score}",
+            f"balance:{entropy.balance_state}",
+        ]
+        if state_profile:
+            decision_reasons.append(f"state:{state_profile.primary_state}")
+        if dynamic_action:
+            decision_reasons.append(f"dynamic:{dynamic_action}")
+        if orchestration_route:
+            decision_reasons.append(f"orchestration:{orchestration_route}")
+        if referral_decision:
+            decision_reasons.extend(referral_decision.reasons[:4])
+        next_backend_action = (
+            "activate_urgent_handoff"
+            if safety_priority == "urgent"
+            else "queue_human_followup"
+            if safety_priority == "human_followup"
+            else "continue_supportive_monitoring"
+        )
+        return ProcessingSummary(
+            route=route,
+            input_mode=input_mode,
+            reply_source=reply_source,
+            safety_priority=safety_priority,
+            risk_level=str(risk.level),
+            entropy_score=entropy.score,
+            balance_state=entropy.balance_state,
+            primary_state=state_profile.primary_state if state_profile else None,
+            strategy_id=getattr(intervention_strategy, "strategy_id", None),
+            dynamic_action=dynamic_action,
+            orchestration_route=orchestration_route,
+            referral_urgency=urgency,
+            should_refer=should_refer,
+            local_policy_name=getattr(local_policy, "policy_name", None),
+            completed_stages=completed_stages,
+            decision_reasons=decision_reasons,
+            next_backend_action=next_backend_action,
+            evidence={
+                "risk_score": risk.score,
+                "risk_triggers": risk.trigger_terms,
+                "dominant_entropy_drivers": entropy.dominant_drivers,
+                "orchestration_memory_topics": getattr(entropy_orchestration, "memory_topics", []),
+            },
         )
 
     @staticmethod

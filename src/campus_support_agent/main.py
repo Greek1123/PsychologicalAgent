@@ -422,6 +422,7 @@ def get_frontend_contract() -> dict[str, Any]:
             "session": "Session id plus stored history and entropy trace counts.",
             "system_flags": "Backend flags for manual review and repeated referral patterns.",
             "human_interventions": "Manual handling records in session analysis after staff acknowledgement or resolution.",
+            "processing_summary": "Backend processing-layer route, completed stages, safety priority, and next backend action. Keep this in debug/research/admin views.",
         },
         "human_intervention_request_example": {
             "response_id": "support_xxx",
@@ -445,6 +446,7 @@ def get_frontend_contract() -> dict[str, Any]:
                 "intervention_strategy",
                 "dynamic_adjustment",
                 "referral_decision",
+                "processing_summary",
                 "multimodal_signal",
                 "system_flags",
             ],

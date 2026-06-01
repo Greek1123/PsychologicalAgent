@@ -45,6 +45,10 @@ class CampusSupportAgentTests(unittest.TestCase):
         self.assertIn(response.entropy.balance_state, {"stable", "strained", "fragile", "crisis"})
         self.assertGreaterEqual(len(response.entropy_reduction.targeted_drivers), 1)
         self.assertLess(response.entropy_reduction.expected_delta_score, 0)
+        self.assertIsNotNone(response.processing_summary)
+        self.assertIn("risk_assessment", response.processing_summary.completed_stages)
+        self.assertIn("entropy_evaluation", response.processing_summary.completed_stages)
+        self.assertEqual(response.processing_summary.safety_priority, "standard")
 
     def test_critical_text_routes_to_crisis_response(self) -> None:
         response = self.agent.handle_text(text="我真的不想活了，想自杀。")
@@ -55,6 +59,10 @@ class CampusSupportAgentTests(unittest.TestCase):
         self.assertIsNotNone(response.referral_decision)
         self.assertTrue(response.referral_decision.should_refer)
         self.assertEqual(response.referral_decision.urgency, "urgent")
+        self.assertIsNotNone(response.processing_summary)
+        self.assertEqual(response.processing_summary.route, "crisis_safety")
+        self.assertEqual(response.processing_summary.safety_priority, "urgent")
+        self.assertEqual(response.processing_summary.next_backend_action, "activate_urgent_handoff")
 
     def test_rooftop_cooling_off_routes_to_crisis_response(self) -> None:
         response = self.agent.handle_text(text="我好难受，我想去天台冷静一下")

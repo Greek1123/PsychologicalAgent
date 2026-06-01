@@ -162,12 +162,14 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("entropy", contract["response_core_fields"])
         self.assertIn("referral_decision", contract["response_core_fields"])
         self.assertIn("human_interventions", contract["response_core_fields"])
+        self.assertIn("processing_summary", contract["response_core_fields"])
         self.assertIn("human_interventions", contract["endpoints"])
         self.assertIn("role_view", contract["endpoints"])
         self.assertIn("ops_readiness", contract["endpoints"])
         self.assertIn("backend_role_views", contract["frontend_display_policy"])
         self.assertIn("student_chat", contract["frontend_display_policy"])
         self.assertIn("research_dashboard", contract["frontend_display_policy"])
+        self.assertIn("processing_summary", contract["frontend_display_policy"]["research_dashboard"])
         self.assertIn("critical", contract["risk_badges"])
         self.assertGreaterEqual(len(contract["demo_prompts"]), 4)
 
@@ -204,11 +206,14 @@ class MainFlowTests(unittest.TestCase):
         self.assertEqual(student_view["role"], "student")
         self.assertIn("reply_text", student_view["latest_response"])
         self.assertNotIn("system_flags", student_view["latest_response"])
+        self.assertNotIn("processing_summary", student_view["latest_response"])
         self.assertNotIn("intervention_strategy", student_view["latest_response"])
         self.assertIn("text_redacted", research_view["latest_response"])
         self.assertNotIn("reply_text", research_view["latest_response"])
         self.assertNotIn("latest_reply_text", research_view["analysis"])
+        self.assertIn("processing_summary", research_view["latest_response"])
         self.assertIn("system_flags", admin_view["latest_response"])
+        self.assertIn("processing_summary", admin_view["latest_response"])
 
     def test_human_intervention_endpoint_updates_care_queue_state(self) -> None:
         session_id = f"test-human-session-{uuid4().hex}"

@@ -1070,6 +1070,41 @@ python -m pytest
 
 这一层不是继续改模型回复，而是把目前已经完成的系统能力转化成可展示、可验收、可交给组员复核的材料。后续答辩时可以先跑 smoke，再按 playbook 演示四个典型场景。
 
+## 2026-06-01 后端处理层摘要
+
+### 本次做了什么
+- 按“先不做前端，先做好处理层”的方向，暂停前端交接继续扩展，回到后端 Agent 处理链。
+- 新增 `ProcessingSummary` 数据结构，并在 `SupportResponse` 中输出 `processing_summary`。
+- `processing_summary` 会汇总：
+  - 处理路由：`local_policy`、`llm_or_fallback`、`crisis_safety`
+  - 输入模式：文本或语音
+  - 回复来源：本地策略、LLM/兜底或危机模板
+  - 安全优先级：`standard`、`human_followup`、`urgent`
+  - 风险、心理熵、平衡状态、状态画像、干预策略、动态调整、熵减编排和转介紧急程度
+  - 已完成处理阶段和下一步后端动作
+- 更新 `GET /api/v1/frontend/contract`，在核心响应字段和研究面板字段中加入 `processing_summary`。
+- 学生角色视图继续隐藏 `processing_summary`，研究/管理视图可见。
+- 新增 `docs/processing_layer.md`，说明处理层链路、字段含义和验收方式。
+
+### 验证结果
+
+```text
+python -m pytest tests\test_agent.py tests\test_main.py tests\test_privacy_views.py -q
+26 passed
+
+python -m pytest
+309 passed
+
+POST /api/v1/support/text 临时端口 smoke
+has_processing_summary = true
+route = local_policy
+safety_priority = standard
+```
+
+### 当前判断
+
+处理层现在不只是“代码里串了很多模块”，而是有一个可观察的后端处理摘要。后续如果要做论文或答辩，可以用 `processing_summary` 证明系统完成了从输入到风险、心理熵、策略、动态调整、转介和回复护栏的闭环处理。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 ### 本次做了什么
