@@ -102,9 +102,16 @@ backend_actions
 
 ```text
 frontend_handoff/campusSupportApi.ts
+frontend_handoff/StudentChatExample.jsx
 ```
 
-前端组可以直接复制到 Vite/React 项目的 `src/api/` 下使用。它已经封装了文本、语音、会话、角色视图、人工队列、人工处理记录和错误处理。
+前端组可以把 `campusSupportApi.ts` 复制到 Vite/React 项目的 `src/api/` 下，把 `StudentChatExample.jsx` 作为学生端页面参考。API client 已经封装了文本、语音、会话、角色视图、人工队列、人工处理记录和错误处理。
+
+`.env.local` 示例：
+
+```text
+VITE_CAMPUS_AGENT_API_BASE_URL=http://127.0.0.1:8000
+```
 
 示例：
 
