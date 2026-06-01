@@ -1025,6 +1025,39 @@ report = reports/frontend_handoff_smoke/20260530_122832_frontend_handoff_smoke.m
 
 前端组员不需要拿模型文件，也不需要直接加载 LoRA/checkpoint；他们只需要后端地址和 API 字段。模型路径、provider、mock/local checkpoint 切换都留在后端环境变量里管理。
 
+## 2026-06-01 演示与验收层
+
+### 本次做了什么
+- 新增 `docs/demo_acceptance_playbook.md`，把演示路线沉淀成一份手册：
+  - 后端启动和 `/app` 打开方式。
+  - 前端联调 smoke 命令。
+  - 普通压力、宿舍边界、隐私威胁、危险地点危机四类演示问题。
+  - 每类场景应观察的风险、心理熵、熵减行动、care queue 和安全优先行为。
+  - 学生端、咨询师端、研究端分别应该展示和隐藏哪些字段。
+- 新增 `scripts/generate_demo_acceptance_checklist.py`，可生成 `docs/demo_acceptance_checklist.md`，用于答辩前人工勾选验收。
+- 新增 `tests/test_demo_acceptance_checklist.py`，锁定演示手册和清单必须包含关键场景与展示边界。
+- 同步更新 `README.md`。
+
+### 验证结果
+
+```text
+python scripts\generate_demo_acceptance_checklist.py
+output = docs/demo_acceptance_checklist.md
+
+python -m pytest tests\test_demo_acceptance_checklist.py -q
+2 passed
+
+python -m py_compile scripts\generate_demo_acceptance_checklist.py
+通过
+
+python -m pytest
+308 passed
+```
+
+### 当前判断
+
+这一层不是继续改模型回复，而是把目前已经完成的系统能力转化成可展示、可验收、可交给组员复核的材料。后续答辩时可以先跑 smoke，再按 playbook 演示四个典型场景。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 ### 本次做了什么

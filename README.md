@@ -1016,6 +1016,10 @@ powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2
 
 继续补充 React 接入样例：新增 `frontend_handoff/StudentChatExample.jsx` 和 `frontend_handoff/README.md`，展示学生端如何调用 API client、维护 loading/error 状态、展示安全提示、人工支持和熵减行动，同时避免把 `system_flags` 等后端调试字段直接暴露给学生端。验证：`python -m pytest tests\test_frontend_handoff_artifacts.py -q` 通过 3 项；`npx.cmd --yes -p typescript tsc --allowJs --checkJs false --noEmit --jsx react-jsx --lib DOM,ES2020 --target ES2020 frontend_handoff\StudentChatExample.jsx` 通过。
 
+## 2026-06-01 演示与验收层
+
+新增 `docs/demo_acceptance_playbook.md`，把组会/答辩演示流程整理成可照着走的手册，覆盖启动、前端工作台、普通压力、宿舍边界、隐私威胁、危险地点危机、care queue、角色视图和字段展示边界。新增 `scripts/generate_demo_acceptance_checklist.py`，可生成 `docs/demo_acceptance_checklist.md` 作为答辩前人工勾选清单。验证：`python scripts\generate_demo_acceptance_checklist.py` 成功生成清单；`python -m pytest tests\test_demo_acceptance_checklist.py -q` 通过 2 项；`python -m pytest` 完整套件通过 308 项。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 本轮继续跑 `auto_quality_pipeline.py --mode backend --limit 100 --start 1` 和手动抽检，针对 DOCX 低分 turn 做了两类细化：作业堆积场景中“打开文档就想逃/怕写得很烂”会直接给出实验报告可提交骨架、三到五句话、补图改语病和 25 分钟计时；兼职工资拖欠场景中“怕被拉黑/觉得自己太弱”会转为证据化沟通、维护边界和劳动报酬权益。最新 DOCX 100 例结果：平均分 `80.81`，`flag_counts={}`，低分样例为空；手动抽检 12 场景 / 27 轮 `WARN=0`。
