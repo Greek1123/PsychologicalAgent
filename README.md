@@ -54,6 +54,8 @@
 
 2026-06-03 处理层优化进展：新增 `followup_reply_overrides` 场景推进层，接入 `final_reply_guardrails`，用于修复短 follow-up 轮次被首轮模板、错误场景模板或泛化安抚模板覆盖的问题。该层不按用例编号或标准答案检索，而是根据当前用户句子 + 历史上下文识别可迁移的心理任务，例如室友作息边界、网暴后停止刷新与恢复表达、班级活动孤立、交通惊吓后的渐进恢复、匿名投稿/隐私泄露保护、毕业去向最小验证任务、恋爱查岗安全感、经济自责、普通感/自我价值、主动社交、项目反馈退缩等。最新完整 100 例 DOCX 后端评估为 `average_score=84.27`，`low_score_examples=[]`；本轮没有新增 LoRA 权重，主要通过后端处理层和回复护栏提升泛化对话质量。
 
+2026-06-03 人工抽检补充：新增 `scripts/generate_random_reply_audit.py`，可从最新 DOCX 后端评估 JSONL 中固定随机种子抽取 30 条真实回复，并为每条额外追加 2 个源文档没有的问题，生成“我询问的内容 / 模型回复 / 文档优秀回复 / 额外追问”的 Markdown 报告。本次输出位于 `reports/random_reply_audits/20260603_172544_random_reply_audit.md`，用于人工检查真实对话质量，不作为分数优化依据。
+
 ## 当前推荐模型
 
 给组员复现时，优先说明两类路径：
@@ -126,6 +128,17 @@ python scripts\run_manual_reply_check.py
 - JSON 明细：`reports/manual_reply_checks/*_manual_reply_check.json`
 
 这份记录会保存每一轮“我输入的问题”和“系统回复”，适合人工逐条检查回复质量。
+
+如果要从 DOCX 评估结果里随机抽取真实回复，并额外追加源文档没有的模糊/弱输出追问，运行：
+
+```powershell
+python scripts\generate_random_reply_audit.py --sample-size 30 --seed 20260603
+```
+
+默认输出：
+
+- Markdown 人工抽检报告：`reports/random_reply_audits/*_random_reply_audit.md`
+- JSON 明细：`reports/random_reply_audits/*_random_reply_audit.json`
 
 ## 目前已经实现
 

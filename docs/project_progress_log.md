@@ -1366,6 +1366,37 @@ fail = 0
 ### 下一步建议
 
 如果前端组还没有页面，可以先用 `http://127.0.0.1:8000/app` 做演示和接口验收；如果他们已经有页面，就把本工作台当作接口行为样板，对齐字段展示、风险徽标、角色视图和 care queue 逻辑。
+# 2026-06-03 随机 30 条真实回复人工抽检报告
+
+## 本次做了什么
+
+- 根据“不要为了分数而提高”的要求，新增 `scripts/generate_random_reply_audit.py`，从最新 100 例 DOCX 后端评估 JSONL 中随机抽取真实回复，不按分数挑选。
+- 每个样本都写入：
+  - 我询问的内容（源文档学生输入）
+  - 模型回复（当前后端真实输出）
+  - 对比文档标准内容（优秀回复）
+  - 额外追问 1：源文档没有的模糊/弱输出
+  - 额外追问 2：源文档没有的上下文推进问题
+- 额外追问会继续调用当前后端，而不是手写答案；用于人工观察模型在胡言乱语、弱表达、上下文推理和追问推进时的真实表现。
+
+## 生成结果
+
+```text
+python -m py_compile scripts\generate_random_reply_audit.py
+passed
+
+python scripts\generate_random_reply_audit.py --sample-size 30 --seed 20260603
+source_jsonl = reports/auto_quality_pipeline/backend_docx/20260603_171652_extracted_docx_reference_eval.jsonl
+sample_size = 30
+extra_followups = 60
+markdown = reports/random_reply_audits/20260603_172544_random_reply_audit.md
+json = reports/random_reply_audits/20260603_172544_random_reply_audit.json
+```
+
+## 当前观察
+
+这份报告不是质量背书，而是给人工检查用的原始材料。初步抽看能看到部分额外追问仍会出现偏泛化、偏保守或上下文推进不足的回复，这类问题比平均分更有价值，后续优化应优先基于这份人工抽检报告逐条标注，而不是继续单纯追求 DOCX 自动分数。
+
 # 2026-06-03 后端 follow-up 场景推进层优化
 
 ## 本次做了什么
