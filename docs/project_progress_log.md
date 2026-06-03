@@ -1366,3 +1366,41 @@ fail = 0
 ### 下一步建议
 
 如果前端组还没有页面，可以先用 `http://127.0.0.1:8000/app` 做演示和接口验收；如果他们已经有页面，就把本工作台当作接口行为样板，对齐字段展示、风险徽标、角色视图和 care queue 逻辑。
+# 2026-06-03 后端 follow-up 场景推进层优化
+
+## 本次做了什么
+
+- 新增 `src/campus_support_agent/followup_reply_overrides.py`，并在 `final_reply_guardrails.finalize_user_visible_reply()` 中优先调用，用于修复多轮对话里“当前短句被旧模板覆盖”的问题。
+- 这层不是按 100 个用例编号做选择题，也不是标准答案查表；它根据“当前用户句子 + 历史上下文”的组合识别可迁移心理任务，再生成当前轮应该推进到的对话动作。
+- 本轮覆盖并收紧了以下泛化场景：
+  - 室友作息冲突：首轮接住长期睡眠被打扰，后续推进到群规、重复边界、宿管/辅导员协调。
+  - 网暴/匿名投稿：首轮承认公开攻击和羞耻感，后续推进到停止刷新、保留证据、平台/老师介入、逐步恢复上课或表达。
+  - 隐私泄露风险：从确认安全推进到找可信的人陪、保留证据、不单独对质、不删除记录。
+  - 班级活动孤立、主动社交、暗恋不确定、分手后联系冲动、恋爱查岗安全感、家庭经济自责、普通感/自我价值、毕业去向迷茫、项目反馈退缩、任务拖延堆积、交通惊吓恢复等。
+- 同步收紧了过宽规则，例如“作品/被否定”不再误触发网暴模板，“班级活动没有存在感”不再误触发普通感自我价值模板，“毕业去向迷茫”的后续“怕选错/启动不了”不再重复首轮回复。
+- 新增 `tests/test_followup_reply_overrides.py`，覆盖家庭边界、恋爱查岗、经济自责、社交开口、数据库考试错配、项目反馈错配、分手联系冲动、暗恋不确定、危险地点安全优先等回归。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_followup_reply_overrides.py tests\test_agent.py tests\test_main.py -q
+39 passed
+
+python scripts\auto_quality_pipeline.py --mode backend --limit 100 --start 1
+cases = 100
+turns = 299
+average_score = 84.27
+flag_counts = {
+  misses_privacy_reassurance: 1,
+  formulaic_repetition: 1
+}
+low_score_examples = []
+report = reports/auto_quality_pipeline/20260603_171652_auto_quality_pipeline.md
+backend_jsonl = reports/auto_quality_pipeline/backend_docx/20260603_171652_extracted_docx_reference_eval.jsonl
+```
+
+对比本轮开始前的 `average_score=80.81`，本轮后端处理层提升到 `84.27`，并且低分样例清空。训练流水线仍会自动生成训练数据，但本轮没有新增 LoRA 权重；主要收益来自处理层、场景路由和最终回复护栏。
+
+## 当前判断
+
+后端回复层已经超过原先 80 分目标，且 100 例中没有低分回合。接下来不建议继续盲目“训练模型”，更适合进入实验与交付层：固定当前后端策略版本，生成论文/答辩可用的对比报告、case 轨迹表、前后端接口说明和人工干预流程说明；若后续再训练 LoRA，应以当前低标记样例和真实前端日志为数据来源，而不是直接记忆 DOCX 优秀回复。

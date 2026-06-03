@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .followup_reply_overrides import maybe_build_followup_reply
+
 
 def finalize_user_visible_reply(
     user_text: str,
@@ -20,6 +22,10 @@ def finalize_user_visible_reply(
     clean_reply = _compact(reply_text)
     history_text = _history_text(conversation_history)
     care_plan = _care_plan(student_context)
+
+    followup_override = maybe_build_followup_reply(clean_user, history_text)
+    if followup_override is not None:
+        return followup_override
 
     priority = _priority_reference_reply(clean_user, history_text, clean_reply)
     if priority is not None:
