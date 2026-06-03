@@ -1090,6 +1090,8 @@ python -m pytest
 - 继续优化处理层自检：新增 `processing_consistency`，自动审计风险等级、处理路由、安全优先级、回复来源和下一步后端动作是否一致，避免高危输入被普通路线吞掉。
 - 扩展 overview 全局观测：`GET /api/v1/analytics/overview` 新增 `processing_consistency_summary`、`current_processing_consistency_summary` 和 `processing_consistency_bad_cases`，支持快速发现最近记录或当前 session 最新轮是否存在处理链矛盾。
 - 新增处理层健康检查：`GET /api/v1/analytics/processing-health` 汇总部署 readiness、处理一致性、回复质量和决策轨迹，输出 `ok/watch/blocked/no_data`、阻塞问题、关注项和下一步建议。
+- 进入验收与演示层：新增 `scripts/smoke_processing_acceptance.py`，对运行中的后端自动跑考试失眠、宿舍边界、危险地点升级三个代表性 session，并生成 Markdown/JSON 验收报告。
+- 新增 `docs/processing_acceptance_smoke.md`，说明处理层验收 smoke 的运行方式、检查项和通过标准。
 
 ### 验证结果
 
@@ -1167,6 +1169,30 @@ processing_consistency.current_summary.status = ok
 
 python -m pytest -q
 316 passed
+
+新增处理层验收脚本待验证：
+- `python -m py_compile scripts\smoke_processing_acceptance.py`
+- `python -m pytest tests\test_processing_acceptance_smoke.py -q`
+
+python -m py_compile scripts\smoke_processing_acceptance.py
+passed
+
+python -m pytest tests\test_processing_acceptance_smoke.py -q
+3 passed
+
+python -m pytest -q
+319 passed
+
+Live processing acceptance smoke
+command = python scripts\smoke_processing_acceptance.py --base-url http://127.0.0.1:8773 --out-dir reports\processing_acceptance_live
+ok = true
+processing_health_status = watch
+report = reports\processing_acceptance_live\20260603_164802_processing_acceptance.md
+note = watch comes from crisis decision-trace attention; processing consistency has no blocking issue.
+
+Final verification
+python -m pytest -q
+319 passed
 ```
 
 ### 当前判断

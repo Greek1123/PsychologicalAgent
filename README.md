@@ -1034,6 +1034,8 @@ powershell -ExecutionPolicy Bypass -File .\training\ms_swift\run_feedback_phase2
 
 继续补齐处理层验收出口：新增 `GET /api/v1/analytics/processing-health`，汇总部署 readiness、overview 处理一致性、回复质量和决策轨迹，返回 `ok/watch/blocked/no_data`、阻塞问题、关注项和下一步建议。这个接口用于联调、演示前自检和研究/管理面板，不作为学生端展示内容。TestClient smoke 中“考试失眠 -> 天台冷静”返回 `status=watch`、处理一致性 `ok`、阻塞项为空，watch 原因是危机场景触发了决策轨迹关注。
 
+进入验收与演示层：新增 `scripts/smoke_processing_acceptance.py`，用于对运行中的后端执行多案例验收 smoke。脚本会检查 `/health`、`/api/v1/frontend/contract`、`/api/v1/ops/readiness`，再跑考试失眠、宿舍边界、危险地点升级三个代表性 session，并校验 `processing_summary`、`processing_consistency`、`processing-health` 和 overview bad cases。报告输出到 `reports/processing_acceptance/`，作为本地验收产物不随仓库提交。2026-06-03 live smoke 输出 `ok=true`，`processing_health_status=watch`，watch 原因来自危机场景的决策关注，处理一致性无阻塞。
+
 ## 2026-05-30 DOCX 低分 turn 定向优化
 
 本轮继续跑 `auto_quality_pipeline.py --mode backend --limit 100 --start 1` 和手动抽检，针对 DOCX 低分 turn 做了两类细化：作业堆积场景中“打开文档就想逃/怕写得很烂”会直接给出实验报告可提交骨架、三到五句话、补图改语病和 25 分钟计时；兼职工资拖欠场景中“怕被拉黑/觉得自己太弱”会转为证据化沟通、维护边界和劳动报酬权益。最新 DOCX 100 例结果：平均分 `80.81`，`flag_counts={}`，低分样例为空；手动抽检 12 场景 / 27 轮 `WARN=0`。
