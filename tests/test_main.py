@@ -367,6 +367,19 @@ class MainFlowTests(unittest.TestCase):
         self.assertEqual(assigned_queue["filters"]["workflow_state"], "assigned")
         self.assertEqual(assigned_queue["filters"]["owner"], "counselor-001")
         self.assertTrue(any(item["session_id"] == session_id for item in assigned_queue["items"]))
+        main.append_session_human_intervention(
+            session_id,
+            {
+                "response_id": response["response_id"],
+                "status": "in_progress",
+                "handler_id": "counselor-001",
+                "note": "student phone 13812345678",
+            },
+        )
+        counselor_queue = main.get_care_queue(limit=20, include_low_priority=True, role="counselor")
+        counselor_item = next(item for item in counselor_queue["items"] if item["session_id"] == session_id)
+        self.assertNotIn("13812345678", counselor_item["evidence"]["human_intervention"]["note"])
+        self.assertIn("[手机号]", counselor_item["evidence"]["human_intervention"]["note"])
 
         main.append_session_human_intervention(
             session_id,

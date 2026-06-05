@@ -1628,3 +1628,28 @@ python -m pytest -q
 ## 当前判断
 
 人工干预层现在已有三部分：底层 intervention 记录、care queue 工作流摘要与筛选、面向前端的动作接口。下一步适合补辅导员安全视图和批量操作，或者转向部署/运行层的健康监控和数据清理策略。
+
+# 2026-06-05 Care Queue 角色化降敏视图
+
+## 本次做了什么
+
+- `GET /api/v1/analytics/care-queue` 新增 `role=admin|counselor|research` 查询参数。
+- 默认 `admin` 保持原始队列输出，兼容已有调试和审计流程。
+- `counselor` 视图保留处理上下文，但对人工干预备注、next action 等文本中的手机号、邮箱等直接标识做脱敏。
+- `research` 视图移除人工干预的 `note` 和 `next_action`，只保留结构化状态和统计。
+- 新增 `project_care_queue_for_role`，让 care queue 复用现有角色视图和隐私脱敏工具。
+- 补充隐私层和主接口层测试，覆盖 counselor 脱敏和 research 移除备注。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_privacy_views.py tests\test_main.py -q
+23 passed
+
+python -m pytest -q
+360 passed
+```
+
+## 当前判断
+
+care queue 已经具备“同接口多角色输出”的基础能力。下一步可以继续做批量工作流动作，或者开始补运行层的数据保留/清理策略，减少长期测试数据库中的敏感内容堆积。

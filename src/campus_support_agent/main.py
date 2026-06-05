@@ -26,6 +26,7 @@ from .logging_utils import configure_logging, get_logger
 from .privacy_views import (
     SUPPORTED_VIEW_ROLES,
     normalize_view_role,
+    project_care_queue_for_role,
     project_session_analysis_for_role,
     project_support_response_for_role,
 )
@@ -436,7 +437,15 @@ def get_frontend_contract() -> dict[str, Any]:
             "care_queue": {
                 "method": "GET",
                 "path": "/api/v1/analytics/care-queue",
-                "query": ["limit", "include_low_priority", "include_resolved", "workflow_state", "owner", "only_overdue"],
+                "query": [
+                    "limit",
+                    "include_low_priority",
+                    "include_resolved",
+                    "workflow_state",
+                    "owner",
+                    "only_overdue",
+                    "role=admin|counselor|research",
+                ],
                 "workflow_fields": [
                     "evidence.human_workflow.workflow_state",
                     "evidence.human_workflow.owner",
@@ -1371,7 +1380,18 @@ def get_care_queue(
     workflow_state: str | None = None,
     owner: str | None = None,
     only_overdue: bool = False,
+    role: str = "admin",
 ) -> dict[str, Any]:
+    try:
+        normalized_role = normalize_view_role(role)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=f"role must be one of: {', '.join(sorted(SUPPORTED_VIEW_ROLES))}",
+        ) from exc
+    if normalized_role == "student":
+        raise HTTPException(status_code=422, detail="care queue role must be counselor, research, or admin.")
+
     session_store = get_session_store()
     queue = session_store.get_care_queue(
         limit=limit,
@@ -1381,14 +1401,16 @@ def get_care_queue(
         owner=owner,
         only_overdue=only_overdue,
     )
+    queue = project_care_queue_for_role(queue, normalized_role)
     logger.info(
-        "Care queue requested total=%s include_low=%s include_resolved=%s workflow_state=%s owner=%s only_overdue=%s",
+        "Care queue requested total=%s include_low=%s include_resolved=%s workflow_state=%s owner=%s only_overdue=%s role=%s",
         queue["total_items"],
         include_low_priority,
         include_resolved,
         workflow_state or "-",
         owner or "-",
         only_overdue,
+        normalized_role,
     )
     return queue
 

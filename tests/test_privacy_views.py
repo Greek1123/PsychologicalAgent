@@ -9,6 +9,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from campus_support_agent.privacy_views import (
+    project_care_queue_for_role,
     project_session_analysis_for_role,
     project_support_response_for_role,
 )
@@ -117,3 +118,55 @@ def test_admin_view_keeps_raw_private_identifiers_for_authorized_audit() -> None
     assert projected["input_text"] == "电话13812345678"
     assert projected["system_flags"]["manual_review"] is True
     assert "privacy_redaction" not in projected
+
+
+def test_care_queue_counselor_view_masks_intervention_identifiers() -> None:
+    queue = {
+        "total_items": 1,
+        "items": [
+            {
+                "session_id": "session-care",
+                "evidence": {
+                    "human_intervention": {
+                        "handler_id": "counselor-1",
+                        "note": "student phone 13812345678, email me@example.com",
+                        "next_action": "call 13812345678",
+                    }
+                },
+            }
+        ],
+    }
+
+    projected = project_care_queue_for_role(queue, "counselor")
+    intervention = projected["items"][0]["evidence"]["human_intervention"]
+
+    assert projected["role"] == "counselor"
+    assert "13812345678" not in intervention["note"]
+    assert "me@example.com" not in intervention["note"]
+    assert intervention["note"].count("[手机号]") >= 1
+    assert projected["privacy_redaction"]["total_redactions"] >= 2
+
+
+def test_care_queue_research_view_removes_direct_intervention_notes() -> None:
+    queue = {
+        "total_items": 1,
+        "items": [
+            {
+                "session_id": "session-care",
+                "evidence": {
+                    "human_intervention": {
+                        "handler_id": "counselor-1",
+                        "note": "called 13812345678",
+                        "next_action": "call again",
+                    }
+                },
+            }
+        ],
+    }
+
+    projected = project_care_queue_for_role(queue, "research")
+    intervention = projected["items"][0]["evidence"]["human_intervention"]
+
+    assert projected["role"] == "research"
+    assert "note" not in intervention
+    assert "next_action" not in intervention

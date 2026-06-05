@@ -38,6 +38,35 @@ def project_session_analysis_for_role(analysis: dict[str, Any], role: str) -> di
     return _counselor_analysis_view(analysis)
 
 
+def project_care_queue_for_role(queue: dict[str, Any], role: str) -> dict[str, Any]:
+    role = normalize_view_role(role)
+    if role == "admin":
+        return deepcopy(queue)
+    projected = deepcopy(queue)
+    items = projected.get("items") or []
+    if not isinstance(items, list):
+        projected["items"] = []
+        return projected
+
+    redacted_items = []
+    total_summary: dict[str, int] = {}
+    total_redactions = 0
+    for item in items:
+        item_view = _research_care_queue_item(item) if role == "research" else _counselor_care_queue_item(item)
+        redacted_items.append(item_view)
+        summary = item_view.get("privacy_redaction") or {}
+        total_redactions += int(summary.get("total_redactions") or 0)
+        for category, count in (summary.get("categories") or {}).items():
+            total_summary[category] = total_summary.get(category, 0) + int(count)
+    projected["items"] = redacted_items
+    projected["privacy_redaction"] = {
+        "total_redactions": total_redactions,
+        "categories": dict(sorted(total_summary.items())),
+    }
+    projected["role"] = role
+    return projected
+
+
 def _student_response_view(response: dict[str, Any]) -> dict[str, Any]:
     safety = response.get("safety") or {}
     entropy = response.get("entropy") or {}
@@ -128,6 +157,23 @@ def _research_analysis_view(analysis: dict[str, Any]) -> dict[str, Any]:
     ):
         projected.pop(key, None)
     projected["text_redacted"] = True
+    redacted, summary = redact_private_identifiers_in_value(projected)
+    redacted["privacy_redaction"] = summary.as_dict()
+    return redacted
+
+
+def _counselor_care_queue_item(item: dict[str, Any]) -> dict[str, Any]:
+    redacted, summary = redact_private_identifiers_in_value(item)
+    redacted["privacy_redaction"] = summary.as_dict()
+    return redacted
+
+
+def _research_care_queue_item(item: dict[str, Any]) -> dict[str, Any]:
+    projected = deepcopy(item)
+    intervention = ((projected.get("evidence") or {}).get("human_intervention") or {})
+    if isinstance(intervention, dict):
+        intervention.pop("note", None)
+        intervention.pop("next_action", None)
     redacted, summary = redact_private_identifiers_in_value(projected)
     redacted["privacy_redaction"] = summary.as_dict()
     return redacted

@@ -1116,3 +1116,7 @@ http://127.0.0.1:8000/app
 ## 2026-06-05 人工干预动作接口
 
 新增 `POST /api/v1/sessions/{session_id}/human-interventions/action`，把前端工作台常用动作封装为稳定接口：`claim`、`start`、`escalate`、`resolve`、`close`。接口会自动映射到底层状态 `acknowledged/in_progress/escalated/resolved/closed`，追加 `action:<name>` 标签，并返回最新 `care_queue_item`。`claim/start/escalate` 必须传 `handler_id`，避免无人认领的处理中状态。
+
+## 2026-06-05 Care Queue 角色化降敏视图
+
+`/api/v1/analytics/care-queue` 新增 `role=admin|counselor|research` 查询参数。默认 `admin` 保持完整审计数据；`counselor` 会保留处理上下文但遮蔽人工备注里的手机号、邮箱等直接身份标识；`research` 会进一步移除人工干预备注和下一步文本，只保留结构化统计和状态。这样前端工作台和研究面板可以共用同一个队列接口，但看到不同粒度的数据。
