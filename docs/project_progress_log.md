@@ -1469,3 +1469,36 @@ json = reports/random_reply_audits/20260605_222227_random_reply_audit.json
 ## 当前观察
 
 最后抽查确认：样本 01 的考试弱输出回到考试压力上下文；专业迷茫、宠物离世、暴食小步、欺凌触发和疑似被监控场景都能按上下文推进。随机报告仍是人工审阅材料，不代表质量已经完美；它的价值在于暴露“触发词过宽”和“短追问被旧模板抢走”这类真实对话问题。
+
+# 2026-06-05 后端处理层继续优化与实时抽检刷新
+
+## 本次做了什么
+
+- 继续留在后端处理层，没有进入下一层。
+- 调整 `scripts/generate_random_reply_audit.py`：默认不再直接沿用旧 DOCX 评估 JSONL 里的 `model_reply`，而是用当前后端实时重跑源文档那一轮；额外追问仍继续调用当前后端。保留 `--no-refresh-source` 选项，用于需要复看旧 JSONL 原始输出时使用。
+- 继续根据随机报告暴露的问题修复 follow-up 推进：
+  - 低动力/心理中心抗拒场景中，“很堵”“只做一小步”不再误走实验报告或游戏逃避重复模板。
+  - 白天强撑、晚上崩溃哭的孤单场景中，“很多余”“明天见到他们”不再误走班级活动或任务模板。
+  - 班级活动没人搭理场景中，“很多余”“明天还要见到他们”会推进到低压力入口和小连接动作，而不是重复首轮承接。
+  - 收紧夜里崩溃规则，必须有“哭/白天强撑/晚上崩溃/怕打扰朋友”等明确上下文，避免误抢社交或班级活动场景。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_followup_reply_overrides.py -q
+29 passed
+
+python -m py_compile scripts\generate_random_reply_audit.py
+passed
+
+python scripts\generate_random_reply_audit.py --sample-size 30 --seed 20260603
+markdown = reports/random_reply_audits/20260605_224223_random_reply_audit.md
+json = reports/random_reply_audits/20260605_224223_random_reply_audit.json
+
+python -m pytest -q
+348 passed
+```
+
+## 当前观察
+
+最新随机报告中的 Case 21 源文档轮次已经实时输出“去心理中心不代表有问题”；Case 22 能接住“怕打扰朋友”；Case 36 的额外追问能从“班级活动没人搭理”推进到“低压力入口”和“明天小连接”。这一层仍然可以继续优化，但已经比上一版更接近真实多轮对话，而不是单轮模板匹配。

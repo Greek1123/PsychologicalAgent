@@ -51,11 +51,23 @@ def maybe_build_followup_reply(user_text: str, history_text: str) -> str | None:
             "你可以把它理解成给自己找一个现实里的协助点，而不是给自己贴标签。"
             "如果现在还抗拒，可以先不预约，只先查一下学校心理中心的预约方式和开放时间，把信息放在手边。"
         )
+    if _low_motivation_vague_or_step(user, combined):
+        return (
+            "这种“堵”和没动力更像是状态持续低下后，大脑和身体都在省电，不是简单懒或者废。"
+            "现在先不要把任务、论文、未来都拉到一起想。只做一个能把你拉回现实的小动作：坐起来喝水、洗脸、打开窗帘，或者把今天必须做的一件事写成一句话。"
+            "如果这种灰暗感已经持续一段时间，心理中心可以先当作一次状态评估，而不是给自己贴标签。"
+        )
     if _lonely_crying_friend_fear(user, combined):
         return (
             "怕打扰朋友很能理解，但人在夜里崩溃时，完全一个人扛会更孤单。"
             "你不需要把所有细节讲完，可以只发一句低压力消息：“我今晚有点撑不住，能不能陪我聊十分钟，不方便也没关系。”"
             "真正的求助不一定是把痛苦全部交出去，而是先让一个人知道你现在不太好。"
+        )
+    if _night_crying_lonely_followup(user, combined):
+        return (
+            "你觉得自己很多余，通常不是事实本身，而是长期强撑后在夜里冒出来的孤立感。"
+            "明天如果还要见到别人，不需要装得完全没事；先维持最基本的节奏，比如上课、吃饭、回消息只回必要内容。"
+            "今晚更重要的是不要继续一个人憋到最深处，可以给一个低压力的人发一句：“我今晚有点难受，不用你解决，能陪我说几句就好。”"
         )
     if _body_image_vague_or_small_step(user, combined):
         return (
@@ -72,6 +84,18 @@ def maybe_build_followup_reply(user_text: str, history_text: str) -> str | None:
             "明天见到他们时，先保持正常节奏就好，不需要主动把事情重新翻出来。"
             "如果有人提起，你可以简短说：“昨天发错了，有点尴尬，已经处理了。”然后把话题转回眼前的课或事情。"
             "重点是不要用退缩让这件小插曲变成你生活里的大事件。"
+        )
+    if _class_activity_manyu_followup(user, combined):
+        return (
+            "你觉得自己很多余，是因为那次活动里确实没有被带进去，而不是你这个人没有位置。"
+            "下一步先不要把目标定成融入整个圈子，可以只选一个低压力入口：课后问一个同学作业、下次活动前找一个人同行，或主动接一个具体小任务。"
+            "存在感可以从一两个稳定的小连接开始，不需要一次证明自己属于所有人。"
+        )
+    if _class_activity_next_day_followup(user, combined):
+        return (
+            "明天见到他们时，先维持正常节奏，不需要急着解释自己为什么那天沉默。"
+            "你可以只做一个很小的连接动作：和相对熟悉的人打个招呼，或问一句具体问题，比如“上次作业你做到哪了？”"
+            "目标不是马上加入圈子，而是让关系有一个可继续的小入口。"
         )
     if _binge_eating_initial(user, combined):
         return (
@@ -469,9 +493,21 @@ def _mental_center_stigma(user: str, combined: str) -> bool:
     )
 
 
+def _low_motivation_vague_or_step(user: str, combined: str) -> bool:
+    return any(term in user for term in ("很堵", "不知道怎么说", "一小步", "先做哪一步", "启动不了")) and any(
+        term in combined for term in ("没动力", "灰暗", "游戏", "逃避", "睡到很晚", "心理中心", "生活变得")
+    )
+
+
 def _lonely_crying_friend_fear(user: str, combined: str) -> bool:
     return any(term in user for term in ("怕打扰朋友", "不敢找人", "哭的时候", "很孤单")) and any(
         term in combined for term in ("晚上", "崩溃", "哭", "白天强撑", "孤单")
+    )
+
+
+def _night_crying_lonely_followup(user: str, combined: str) -> bool:
+    return any(term in user for term in ("很多余", "明天还要见到", "见到他们", "一小步", "很堵")) and any(
+        term in combined for term in ("白天强撑", "晚上崩溃", "哭", "哭的时候", "怕打扰朋友")
     )
 
 
@@ -490,6 +526,18 @@ def _social_embarrassment_initial(user: str, combined: str) -> bool:
 def _social_embarrassment_next_day(user: str, combined: str) -> bool:
     return any(term in user for term in ("明天还要见到", "见到他们", "先做什么")) and any(
         term in combined for term in ("班群", "发错", "撤回", "尴尬", "社死")
+    )
+
+
+def _class_activity_manyu_followup(user: str, combined: str) -> bool:
+    return "很多余" in user and any(
+        term in combined for term in ("班级活动", "拍照", "没人叫我", "站在旁边", "班里没有存在感")
+    )
+
+
+def _class_activity_next_day_followup(user: str, combined: str) -> bool:
+    return any(term in user for term in ("明天还要见到", "见到他们", "先做什么")) and any(
+        term in combined for term in ("班级活动", "班里", "没人叫我", "站在旁边", "圈子", "插不进去")
     )
 
 

@@ -281,6 +281,72 @@ class FollowupReplyOverrideTests(unittest.TestCase):
         self.assertNotIn("学你说话", reply)
         self.assertNotIn("被嘲笑", reply)
 
+    def test_low_motivation_vague_followup_not_task_report(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我不知道怎么说，就是很堵。",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "我最近持续没动力，生活变得灰暗，每天打游戏逃避，睡到很晚。"},
+                {"role": "assistant", "content": "可以考虑找心理中心聊一聊。"},
+            ],
+        )
+
+        self.assertIn("状态持续低下", reply)
+        self.assertIn("心理中心", reply)
+        self.assertNotIn("实验报告", reply)
+
+    def test_low_motivation_small_step_not_game_repetition(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果我只愿意先做一小步，你建议是哪一步？",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "我不太想去心理中心，感觉去了就代表我有问题。最近没动力，生活很灰暗。"},
+            ],
+        )
+
+        self.assertIn("坐起来喝水", reply)
+        self.assertIn("状态评估", reply)
+        self.assertNotIn("彻底戒掉", reply)
+
+    def test_night_crying_lonely_followup_not_class_activity(self) -> None:
+        reply = finalize_user_visible_reply(
+            "嗯……我就是觉得自己很多余。",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "我白天强撑，晚上崩溃哭，哭的时候觉得很孤单，又怕打扰朋友。"},
+            ],
+        )
+
+        self.assertIn("夜里", reply)
+        self.assertIn("低压力", reply)
+        self.assertNotIn("班级活动", reply)
+
+    def test_class_activity_manyu_not_night_crying_template(self) -> None:
+        reply = finalize_user_visible_reply(
+            "嗯……我就是觉得自己很多余。",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "我去了班级活动，大家三三两两拍照聊天，没人叫我，我站在旁边很多余。"},
+            ],
+        )
+
+        self.assertIn("活动", reply)
+        self.assertIn("低压力入口", reply)
+        self.assertNotIn("夜里", reply)
+
+    def test_class_activity_next_day_gets_small_connection(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果我明天还要见到他们，我应该先做什么？",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "我去了班级活动，大家三三两两拍照聊天，没人叫我，我站在旁边很多余。"},
+            ],
+        )
+
+        self.assertIn("明天见到他们", reply)
+        self.assertIn("小的连接", reply)
+        self.assertNotIn("夜里", reply)
+
     def test_dangerous_place_still_uses_safety_priority(self) -> None:
         reply = finalize_user_visible_reply(
             "我好难受，我想去天台冷静一下。",
