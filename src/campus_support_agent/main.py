@@ -429,7 +429,7 @@ def get_frontend_contract() -> dict[str, Any]:
             "care_queue": {
                 "method": "GET",
                 "path": "/api/v1/analytics/care-queue",
-                "query": ["limit", "include_low_priority", "include_resolved"],
+                "query": ["limit", "include_low_priority", "include_resolved", "workflow_state", "owner", "only_overdue"],
                 "workflow_fields": [
                     "evidence.human_workflow.workflow_state",
                     "evidence.human_workflow.owner",
@@ -1256,18 +1256,27 @@ def get_care_queue(
     limit: int = 100,
     include_low_priority: bool = False,
     include_resolved: bool = False,
+    workflow_state: str | None = None,
+    owner: str | None = None,
+    only_overdue: bool = False,
 ) -> dict[str, Any]:
     session_store = get_session_store()
     queue = session_store.get_care_queue(
         limit=limit,
         include_low_priority=include_low_priority,
         include_resolved=include_resolved,
+        workflow_state=workflow_state,
+        owner=owner,
+        only_overdue=only_overdue,
     )
     logger.info(
-        "Care queue requested total=%s include_low=%s include_resolved=%s",
+        "Care queue requested total=%s include_low=%s include_resolved=%s workflow_state=%s owner=%s only_overdue=%s",
         queue["total_items"],
         include_low_priority,
         include_resolved,
+        workflow_state or "-",
+        owner or "-",
+        only_overdue,
     )
     return queue
 

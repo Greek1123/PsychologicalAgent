@@ -471,6 +471,15 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertEqual(queue["items"][0]["evidence"]["human_workflow"]["workflow_state"], "assigned")
         self.assertEqual(queue["items"][0]["evidence"]["human_workflow"]["owner"], "counselor-001")
         self.assertEqual(queue["items"][0]["evidence"]["human_workflow"]["next_action"], "start_or_record_followup")
+        assigned_queue = store.get_care_queue(workflow_state="assigned")
+        owner_queue = store.get_care_queue(owner="counselor-001")
+        overdue_queue = store.get_care_queue(only_overdue=True, include_low_priority=True)
+
+        self.assertEqual(assigned_queue["filters"]["workflow_state"], "assigned")
+        self.assertEqual(assigned_queue["total_items"], 1)
+        self.assertEqual(owner_queue["filters"]["owner"], "counselor-001")
+        self.assertEqual(owner_queue["total_items"], 1)
+        self.assertEqual(overdue_queue["total_items"], 0)
 
         store.append_human_intervention(
             session_id="session-human",
@@ -522,6 +531,10 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertEqual(workflow["next_action"], "assign_counselor_and_acknowledge")
         self.assertGreaterEqual(workflow["sla_hours"], 1)
         self.assertFalse(workflow["is_overdue"])
+        unassigned_queue = store.get_care_queue(workflow_state="unassigned", include_low_priority=True)
+
+        self.assertEqual(unassigned_queue["total_items"], 1)
+        self.assertEqual(unassigned_queue["filters"]["workflow_state"], "unassigned")
 
 
 if __name__ == "__main__":

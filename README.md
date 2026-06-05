@@ -1110,3 +1110,5 @@ http://127.0.0.1:8000/app
 本轮继续推进人机协同工作台所需后端能力。`/api/v1/analytics/care-queue` 的每个队列项现在会在 `evidence.human_workflow` 中返回工作流摘要，包括 `workflow_state`、`owner`、`sla_hours`、`elapsed_hours`、`is_overdue` 和 `next_action`。这些字段由当前风险优先级、队列推荐动作和最新人工干预记录推导，不需要新增数据库表。
 
 当前状态映射：未处理为 `unassigned`，已确认且有处理人为 `assigned`，处理中为 `in_progress`，升级为 `escalated`，结案为 `resolved/closed`。SLA 默认按优先级推导：critical 1 小时、high 4 小时、medium 24 小时、low 72 小时。前端/后台可以据此做认领、逾期和升级提示。
+
+`/api/v1/analytics/care-queue` 也支持工作流筛选：`workflow_state=assigned`、`owner=counselor-001`、`only_overdue=true`，并会在响应 `filters` 中回显当前筛选条件，方便前端工作台做“我的待办、未认领、逾期、已升级”等列表。

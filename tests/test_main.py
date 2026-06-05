@@ -346,6 +346,12 @@ class MainFlowTests(unittest.TestCase):
         interventions = main.get_session_human_interventions(session_id)
         analysis = main.get_session_analysis(session_id)
         queue = main.get_care_queue(limit=20, include_low_priority=True)
+        assigned_queue = main.get_care_queue(
+            limit=20,
+            include_low_priority=True,
+            workflow_state="assigned",
+            owner="counselor-001",
+        )
 
         self.assertEqual(created["human_intervention"]["status"], "acknowledged")
         self.assertEqual(interventions["latest_human_intervention"]["handler_id"], "counselor-001")
@@ -358,6 +364,9 @@ class MainFlowTests(unittest.TestCase):
                 for item in queue["items"]
             )
         )
+        self.assertEqual(assigned_queue["filters"]["workflow_state"], "assigned")
+        self.assertEqual(assigned_queue["filters"]["owner"], "counselor-001")
+        self.assertTrue(any(item["session_id"] == session_id for item in assigned_queue["items"]))
 
         main.append_session_human_intervention(
             session_id,

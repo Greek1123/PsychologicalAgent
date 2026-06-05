@@ -1633,6 +1633,9 @@ class SQLiteSessionStore:
         limit: int | None = 100,
         include_low_priority: bool = False,
         include_resolved: bool = False,
+        workflow_state: str | None = None,
+        owner: str | None = None,
+        only_overdue: bool = False,
     ) -> dict[str, Any]:
         records = self.list_support_responses(limit=None)
         latest_records = _latest_records_by_session(records)
@@ -1653,6 +1656,26 @@ class SQLiteSessionStore:
                 item
                 for item in items
                 if (item.evidence.get("human_intervention") or {}).get("status") not in {"resolved", "closed"}
+            ]
+        clean_workflow_state = workflow_state.strip() if isinstance(workflow_state, str) and workflow_state.strip() else None
+        clean_owner = owner.strip() if isinstance(owner, str) and owner.strip() else None
+        if clean_workflow_state:
+            items = [
+                item
+                for item in items
+                if (item.evidence.get("human_workflow") or {}).get("workflow_state") == clean_workflow_state
+            ]
+        if clean_owner:
+            items = [
+                item
+                for item in items
+                if (item.evidence.get("human_workflow") or {}).get("owner") == clean_owner
+            ]
+        if only_overdue:
+            items = [
+                item
+                for item in items
+                if bool((item.evidence.get("human_workflow") or {}).get("is_overdue"))
             ]
         items.sort(
             key=lambda item: (
@@ -1679,6 +1702,12 @@ class SQLiteSessionStore:
         return {
             "total_items": len(items),
             "include_low_priority": include_low_priority,
+            "include_resolved": include_resolved,
+            "filters": {
+                "workflow_state": clean_workflow_state,
+                "owner": clean_owner,
+                "only_overdue": only_overdue,
+            },
             "priority_counts": priority_counts,
             "route_counts": route_counts,
             "outcome_counts": outcome_counts,

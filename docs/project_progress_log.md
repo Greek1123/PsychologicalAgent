@@ -1573,3 +1573,29 @@ python -m pytest -q
 ## 当前判断
 
 这一层让 care queue 不再只是“高危列表”，而是能承载工作台处理流。下一步可以继续补更细的状态动作接口，例如单独的认领接口、批量关闭、逾期筛选、处理人筛选，以及面向辅导员的脱敏队列视图。
+
+# 2026-06-05 Care Queue 工作流筛选
+
+## 本次做了什么
+
+- 在 `GET /api/v1/analytics/care-queue` 增加工作流筛选参数：
+  - `workflow_state`
+  - `owner`
+  - `only_overdue`
+- 响应体新增 `filters`，回显当前筛选条件，方便前端工作台保持列表状态。
+- `/api/v1/frontend/contract` 同步更新 care queue query 字段。
+- 补充存储层和 API 层回归测试，覆盖 assigned、owner 和 only_overdue 筛选。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_storage.py tests\test_main.py -q
+25 passed
+
+python -m pytest -q
+356 passed
+```
+
+## 当前判断
+
+现在 care queue 已经从“后台看全部待关注学生”推进到“辅导员可以按处理状态和负责人筛选自己的待办”。下一步适合补单独的认领/状态流转接口，让前端不用手写 human intervention payload 就能执行 `claim / start / escalate / resolve` 这类动作。
