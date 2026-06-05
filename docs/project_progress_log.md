@@ -1681,3 +1681,30 @@ python -m pytest -q
 ## 当前判断
 
 这一步先把隐私策略显式化，暂不自动删除数据，避免开发阶段误删测试轨迹。下一步可以基于该策略补一个显式的 cleanup 脚本或受保护的维护接口，在确认后再清理过期会话。
+
+# 2026-06-05 显式过期数据清理脚本
+
+## 本次做了什么
+
+- 新增 `scripts/cleanup_expired_data.py`，用于按 `SESSION_DATA_RETENTION_DAYS` 和 `AUDIT_LOG_RETENTION_DAYS` 清理 SQLite 过期数据。
+- 脚本默认 dry-run，只返回各表 matched/deleted 统计，不删除数据。
+- 只有显式传入 `--apply` 才会执行删除。
+- 清理范围按表分组：
+  - session 数据：`conversation_messages`、`entropy_trace`、`support_responses`、`referral_events`、`intervention_feedback`
+  - audit 数据：`human_interventions`
+- 对不存在的表或缺少 `created_at` 的表会跳过，不中断整个维护任务。
+- 新增测试覆盖 dry-run 不删除、apply 只删除过期行。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_cleanup_expired_data.py tests\test_main.py tests\test_deployment_readiness.py -q
+26 passed
+
+python -m pytest -q
+365 passed
+```
+
+## 当前判断
+
+数据保留策略已经从“声明”推进到“可执行维护工具”，但仍保持人工确认删除，符合当前开发阶段。后续如果要部署，可以把这个脚本接入计划任务，或做成受保护的维护接口。

@@ -1124,3 +1124,5 @@ http://127.0.0.1:8000/app
 ## 2026-06-05 隐私策略与保留配置
 
 新增 `GET /api/v1/privacy/policy`，返回机器可读的角色视图、脱敏类别、受保护接口和数据保留策略。新增环境变量 `SESSION_DATA_RETENTION_DAYS` 与 `AUDIT_LOG_RETENTION_DAYS`，当前只作为策略声明和 readiness 检查，不在请求处理中自动删除数据。`/api/v1/ops/readiness` 会检查保留天数必须为正，并在 session 数据保留时间长于 audit log 时提示 degraded。
+
+新增 `scripts/cleanup_expired_data.py` 作为显式维护工具，默认 dry-run，只统计过期行；只有加 `--apply` 才会删除超过保留期的 SQLite 行。示例：`python scripts\cleanup_expired_data.py --db data\campus_agent.db` 预览，确认后再运行 `python scripts\cleanup_expired_data.py --db data\campus_agent.db --apply`。
