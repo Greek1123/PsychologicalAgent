@@ -485,6 +485,7 @@ def get_frontend_contract() -> dict[str, Any]:
             "system_flags": "Backend flags for manual review and repeated referral patterns.",
             "human_interventions": "Manual handling records in session analysis after staff acknowledgement or resolution.",
             "processing_summary": "Backend processing-layer route, completed stages, safety priority, and next backend action. Keep this in debug/research/admin views.",
+            "privacy_redaction": "Role-view metadata summarizing direct identifier masking for phone, email, ID, student number, WeChat, and QQ fields.",
         },
         "human_intervention_request_example": {
             "response_id": "support_xxx",
@@ -520,8 +521,8 @@ def get_frontend_contract() -> dict[str, Any]:
             ],
             "backend_role_views": {
                 "student": "Shows reply, safety notice, lightweight risk label, balance state, and user-facing care actions.",
-                "counselor": "Shows operational care fields while removing hidden clinical goals and backend-only action internals.",
-                "research": "Keeps structured metrics but redacts free text and direct intervention notes.",
+                "counselor": "Shows operational care fields while removing hidden clinical goals and masking direct identifiers.",
+                "research": "Keeps structured metrics, removes free text and direct intervention notes, and reports redaction counts.",
                 "admin": "Full internal payload for local development and audit.",
             },
         },

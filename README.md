@@ -1098,3 +1098,9 @@ http://127.0.0.1:8000/app
 本轮停止生成新的随机报告，转向项目成熟度建设：管理/研究类接口现在支持轻量 API Key 保护。本地开发时如果不配置 `ADMIN_API_KEY`，会话分析、角色视图、人工干预和 analytics 接口仍可直接调试；一旦配置 `ADMIN_API_KEY`，这些接口需要带 `X-Admin-API-Key: <key>` 或 `Authorization: Bearer <key>`。
 
 生产环境 `APP_ENV=production` 下必须配置 `ADMIN_API_KEY`，否则 `/api/v1/ops/readiness` 会返回 blocked。前端组可以通过 `/api/v1/frontend/contract` 的 `security` 字段读取受保护接口组和 header 约定。学生聊天入口 `/api/v1/support/text`、语音入口 `/api/v1/support/audio`、健康检查和模型状态保持开放，方便学生端联调。
+
+## 2026-06-05 角色视图隐私脱敏层
+
+本轮继续做成熟后端，不生成新报告。新增 `src/campus_support_agent/privacy_redaction.py`，统一识别并遮蔽手机号、邮箱、证件号、学号/工号、微信和 QQ 等直接身份标识。`student` 视图只返回学生端需要字段，并对可见回复做脱敏；`counselor` 视图保留风险、状态、照护和处理上下文，但移除后端内部字段并遮蔽直接身份标识；`research` 视图继续移除自由文本和人工干预备注，并附带 `privacy_redaction` 统计；`admin` 视图保留原始数据，用于授权审计。
+
+验证：`python -m pytest tests\test_privacy_views.py tests\test_main.py -q` 通过 19 项；`python -m pytest -q` 全量通过 355 项。

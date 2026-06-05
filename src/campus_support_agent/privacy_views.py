@@ -3,6 +3,8 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from .privacy_redaction import redact_private_identifiers_in_value
+
 
 SUPPORTED_VIEW_ROLES = {"student", "counselor", "research", "admin"}
 
@@ -22,7 +24,7 @@ def project_support_response_for_role(response: dict[str, Any], role: str) -> di
         return _student_response_view(response)
     if role == "research":
         return _research_response_view(response)
-    return _remove_sensitive_backend_fields(response)
+    return _counselor_response_view(response)
 
 
 def project_session_analysis_for_role(analysis: dict[str, Any], role: str) -> dict[str, Any]:
@@ -33,7 +35,7 @@ def project_session_analysis_for_role(analysis: dict[str, Any], role: str) -> di
         return _student_analysis_view(analysis)
     if role == "research":
         return _research_analysis_view(analysis)
-    return _remove_sensitive_backend_fields(analysis)
+    return _counselor_analysis_view(analysis)
 
 
 def _student_response_view(response: dict[str, Any]) -> dict[str, Any]:
@@ -41,9 +43,10 @@ def _student_response_view(response: dict[str, Any]) -> dict[str, Any]:
     entropy = response.get("entropy") or {}
     entropy_reduction = response.get("entropy_reduction") or {}
     risk = response.get("risk") or {}
+    reply_text, redaction_summary = redact_private_identifiers_in_value(response.get("reply_text") or "")
     return {
         "response_id": response.get("response_id"),
-        "reply_text": response.get("reply_text"),
+        "reply_text": reply_text,
         "risk": {
             "level": risk.get("level"),
             "needs_human_followup": bool(risk.get("needs_human_followup")),
@@ -63,14 +66,16 @@ def _student_response_view(response: dict[str, Any]) -> dict[str, Any]:
             "human_referral": safety.get("human_referral"),
         },
         "session": response.get("session"),
+        "privacy_redaction": redaction_summary.as_dict(),
     }
 
 
 def _student_analysis_view(analysis: dict[str, Any]) -> dict[str, Any]:
+    latest_reply_text, redaction_summary = redact_private_identifiers_in_value(analysis.get("latest_reply_text") or "")
     return {
         "session_id": analysis.get("session_id"),
         "total_responses": analysis.get("total_responses"),
-        "latest_reply_text": analysis.get("latest_reply_text"),
+        "latest_reply_text": latest_reply_text,
         "trend_warning": _pick(
             analysis.get("trend_warning") or {},
             ["level", "trend_state", "review_window_hours", "user_visible_mode"],
@@ -83,7 +88,22 @@ def _student_analysis_view(analysis: dict[str, Any]) -> dict[str, Any]:
             analysis.get("entropy_reduction_outcome") or {},
             ["status", "summary", "next_action"],
         ),
+        "privacy_redaction": redaction_summary.as_dict(),
     }
+
+
+def _counselor_response_view(response: dict[str, Any]) -> dict[str, Any]:
+    projected = _remove_sensitive_backend_fields(response)
+    redacted, summary = redact_private_identifiers_in_value(projected)
+    redacted["privacy_redaction"] = summary.as_dict()
+    return redacted
+
+
+def _counselor_analysis_view(analysis: dict[str, Any]) -> dict[str, Any]:
+    projected = _remove_sensitive_backend_fields(analysis)
+    redacted, summary = redact_private_identifiers_in_value(projected)
+    redacted["privacy_redaction"] = summary.as_dict()
+    return redacted
 
 
 def _research_response_view(response: dict[str, Any]) -> dict[str, Any]:
@@ -91,7 +111,9 @@ def _research_response_view(response: dict[str, Any]) -> dict[str, Any]:
     for key in ("input_text", "transcript", "reply_text", "safety", "campus_resources"):
         projected.pop(key, None)
     projected["text_redacted"] = True
-    return projected
+    redacted, summary = redact_private_identifiers_in_value(projected)
+    redacted["privacy_redaction"] = summary.as_dict()
+    return redacted
 
 
 def _research_analysis_view(analysis: dict[str, Any]) -> dict[str, Any]:
@@ -106,7 +128,9 @@ def _research_analysis_view(analysis: dict[str, Any]) -> dict[str, Any]:
     ):
         projected.pop(key, None)
     projected["text_redacted"] = True
-    return projected
+    redacted, summary = redact_private_identifiers_in_value(projected)
+    redacted["privacy_redaction"] = summary.as_dict()
+    return redacted
 
 
 def _remove_sensitive_backend_fields(value: Any) -> Any:
