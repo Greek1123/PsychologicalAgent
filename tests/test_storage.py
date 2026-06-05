@@ -468,6 +468,9 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertEqual(acknowledged["status"], "acknowledged")
         self.assertEqual(queue["total_items"], 1)
         self.assertEqual(queue["items"][0]["evidence"]["human_intervention"]["handler_id"], "counselor-001")
+        self.assertEqual(queue["items"][0]["evidence"]["human_workflow"]["workflow_state"], "assigned")
+        self.assertEqual(queue["items"][0]["evidence"]["human_workflow"]["owner"], "counselor-001")
+        self.assertEqual(queue["items"][0]["evidence"]["human_workflow"]["next_action"], "start_or_record_followup")
 
         store.append_human_intervention(
             session_id="session-human",
@@ -485,7 +488,40 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         self.assertEqual(open_queue["total_items"], 0)
         self.assertEqual(full_queue["total_items"], 1)
         self.assertEqual(full_queue["items"][0]["evidence"]["human_intervention"]["status"], "resolved")
+        self.assertEqual(full_queue["items"][0]["evidence"]["human_workflow"]["workflow_state"], "resolved")
+        self.assertEqual(full_queue["items"][0]["evidence"]["human_workflow"]["next_action"], "no_open_action")
         self.assertEqual(analysis["latest_human_intervention"]["status"], "resolved")
+
+    def test_care_queue_includes_unassigned_workflow_summary(self) -> None:
+        db_path = _test_db_path()
+
+        store = SQLiteSessionStore(str(db_path), max_messages=6)
+        store.store_support_response(
+            session_id="session-workflow-unassigned",
+            response_id="resp-workflow",
+            source="text",
+            input_text="我最近几天睡不着，也不太想见人。",
+            transcript=None,
+            student_context={},
+            conversation_history=[],
+            response_payload={
+                "reply_text": "先把今晚的负担降一点。",
+                "risk": {"level": "high", "score": 72},
+                "entropy": {"score": 76, "level": 4, "balance_state": "strained"},
+                "dynamic_adjustment": {"action": "human_followup_watch"},
+                "referral_decision": {"should_refer": True, "urgency": "recommended"},
+            },
+        )
+
+        queue = store.get_care_queue(include_low_priority=True)
+        item = next(item for item in queue["items"] if item["session_id"] == "session-workflow-unassigned")
+        workflow = item["evidence"]["human_workflow"]
+
+        self.assertEqual(workflow["workflow_state"], "unassigned")
+        self.assertIsNone(workflow["owner"])
+        self.assertEqual(workflow["next_action"], "assign_counselor_and_acknowledge")
+        self.assertGreaterEqual(workflow["sla_hours"], 1)
+        self.assertFalse(workflow["is_overdue"])
 
 
 if __name__ == "__main__":

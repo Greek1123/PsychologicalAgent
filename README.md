@@ -1104,3 +1104,9 @@ http://127.0.0.1:8000/app
 本轮继续做成熟后端，不生成新报告。新增 `src/campus_support_agent/privacy_redaction.py`，统一识别并遮蔽手机号、邮箱、证件号、学号/工号、微信和 QQ 等直接身份标识。`student` 视图只返回学生端需要字段，并对可见回复做脱敏；`counselor` 视图保留风险、状态、照护和处理上下文，但移除后端内部字段并遮蔽直接身份标识；`research` 视图继续移除自由文本和人工干预备注，并附带 `privacy_redaction` 统计；`admin` 视图保留原始数据，用于授权审计。
 
 验证：`python -m pytest tests\test_privacy_views.py tests\test_main.py -q` 通过 19 项；`python -m pytest -q` 全量通过 355 项。
+
+## 2026-06-05 人工干预工作流摘要
+
+本轮继续推进人机协同工作台所需后端能力。`/api/v1/analytics/care-queue` 的每个队列项现在会在 `evidence.human_workflow` 中返回工作流摘要，包括 `workflow_state`、`owner`、`sla_hours`、`elapsed_hours`、`is_overdue` 和 `next_action`。这些字段由当前风险优先级、队列推荐动作和最新人工干预记录推导，不需要新增数据库表。
+
+当前状态映射：未处理为 `unassigned`，已确认且有处理人为 `assigned`，处理中为 `in_progress`，升级为 `escalated`，结案为 `resolved/closed`。SLA 默认按优先级推导：critical 1 小时、high 4 小时、medium 24 小时、low 72 小时。前端/后台可以据此做认领、逾期和升级提示。

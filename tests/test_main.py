@@ -354,6 +354,7 @@ class MainFlowTests(unittest.TestCase):
             any(
                 item["session_id"] == session_id
                 and item["evidence"]["human_intervention"]["status"] == "acknowledged"
+                and item["evidence"]["human_workflow"]["workflow_state"] == "assigned"
                 for item in queue["items"]
             )
         )
@@ -372,7 +373,13 @@ class MainFlowTests(unittest.TestCase):
         full_queue = main.get_care_queue(limit=20, include_low_priority=True, include_resolved=True)
 
         self.assertFalse(any(item["session_id"] == session_id for item in open_queue["items"]))
-        self.assertTrue(any(item["session_id"] == session_id for item in full_queue["items"]))
+        self.assertTrue(
+            any(
+                item["session_id"] == session_id
+                and item["evidence"]["human_workflow"]["workflow_state"] == "resolved"
+                for item in full_queue["items"]
+            )
+        )
 
     def test_session_feedback_updates_analysis_and_overview(self) -> None:
         session_id = f"test-feedback-session-{uuid4().hex}"

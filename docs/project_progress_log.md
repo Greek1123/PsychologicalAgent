@@ -1543,3 +1543,33 @@ python -m pytest -q
 ## 当前判断
 
 这一层解决的是“同一份心理会话数据给不同角色看什么”的问题。现在后端已经具备接口鉴权和角色脱敏两个基础治理能力，下一步适合继续补人工干预闭环：例如干预记录状态机、处理时限、升级建议、已读/认领/结案动作，以及 care queue 的更成熟排序。
+
+# 2026-06-05 人工干预工作流摘要
+
+## 本次做了什么
+
+- 继续推进成熟项目的人工干预闭环，没有生成新的报告。
+- 在 `GET /api/v1/analytics/care-queue` 的每个队列项中新增 `evidence.human_workflow`，用于工作台直接展示处理状态。
+- `human_workflow` 包含：
+  - `workflow_state`：`unassigned / acknowledged / assigned / in_progress / escalated / resolved / closed`
+  - `owner`：当前处理人
+  - `sla_hours`：按 priority 推导的处理时限
+  - `elapsed_hours`：队列项创建至今经过小时数
+  - `is_overdue`：未结案且超过 SLA 时为 true
+  - `next_action`：下一步后台动作，例如 `assign_counselor_and_acknowledge`、`start_or_record_followup`、`escalate_overdue_followup`
+- SLA 规则暂定为：critical 1 小时、high 4 小时、medium 24 小时、low 72 小时。
+- `/api/v1/frontend/contract` 同步补充 care queue 的 workflow 字段说明。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_storage.py tests\test_main.py -q
+25 passed
+
+python -m pytest -q
+356 passed
+```
+
+## 当前判断
+
+这一层让 care queue 不再只是“高危列表”，而是能承载工作台处理流。下一步可以继续补更细的状态动作接口，例如单独的认领接口、批量关闭、逾期筛选、处理人筛选，以及面向辅导员的脱敏队列视图。

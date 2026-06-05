@@ -430,6 +430,14 @@ def get_frontend_contract() -> dict[str, Any]:
                 "method": "GET",
                 "path": "/api/v1/analytics/care-queue",
                 "query": ["limit", "include_low_priority", "include_resolved"],
+                "workflow_fields": [
+                    "evidence.human_workflow.workflow_state",
+                    "evidence.human_workflow.owner",
+                    "evidence.human_workflow.sla_hours",
+                    "evidence.human_workflow.elapsed_hours",
+                    "evidence.human_workflow.is_overdue",
+                    "evidence.human_workflow.next_action",
+                ],
             },
             "human_interventions": {
                 "method": "POST",
@@ -484,6 +492,7 @@ def get_frontend_contract() -> dict[str, Any]:
             "session": "Session id plus stored history and entropy trace counts.",
             "system_flags": "Backend flags for manual review and repeated referral patterns.",
             "human_interventions": "Manual handling records in session analysis after staff acknowledgement or resolution.",
+            "human_workflow": "Care queue workflow summary derived from latest human intervention status, owner, priority SLA, elapsed hours, overdue flag, and next staff action.",
             "processing_summary": "Backend processing-layer route, completed stages, safety priority, and next backend action. Keep this in debug/research/admin views.",
             "privacy_redaction": "Role-view metadata summarizing direct identifier masking for phone, email, ID, student number, WeChat, and QQ fields.",
         },

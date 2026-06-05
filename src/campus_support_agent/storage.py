@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from dataclasses import asdict
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -2257,6 +2258,12 @@ def _build_care_queue_item(
             "trend_warning_reasons": trend_warning.trigger_reasons,
             "trend_warning_evidence": trend_warning.evidence,
             "human_intervention": human_intervention,
+            "human_workflow": _build_human_workflow_status(
+                priority=priority,
+                recommended_action=recommended_action,
+                created_at=record.get("created_at"),
+                human_intervention=human_intervention,
+            ),
         },
     )
 
@@ -2316,6 +2323,96 @@ def _queue_score(
     if latest_entropy_score is not None:
         score += min(max(latest_entropy_score, 0), 100) // 5
     return score
+
+
+def _build_human_workflow_status(
+    *,
+    priority: str,
+    recommended_action: str,
+    created_at: str | None,
+    human_intervention: dict[str, Any] | None,
+) -> dict[str, Any]:
+    intervention_status = str((human_intervention or {}).get("status") or "").strip()
+    handler_id = (human_intervention or {}).get("handler_id")
+    created = _parse_sqlite_timestamp(created_at)
+    elapsed_hours = _elapsed_hours_since(created)
+    sla_hours = _workflow_sla_hours(priority)
+    terminal = intervention_status in {"resolved", "closed"}
+    is_overdue = bool(elapsed_hours is not None and elapsed_hours > sla_hours and not terminal)
+    workflow_state = _workflow_state(intervention_status, handler_id)
+    return {
+        "workflow_state": workflow_state,
+        "owner": handler_id,
+        "latest_status": intervention_status or None,
+        "sla_hours": sla_hours,
+        "elapsed_hours": elapsed_hours,
+        "is_overdue": is_overdue,
+        "next_action": _workflow_next_action(
+            workflow_state=workflow_state,
+            recommended_action=recommended_action,
+            is_overdue=is_overdue,
+        ),
+    }
+
+
+def _workflow_sla_hours(priority: str) -> int:
+    return {
+        "critical": 1,
+        "high": 4,
+        "medium": 24,
+        "low": 72,
+    }.get(priority, 24)
+
+
+def _workflow_state(status: str, handler_id: Any) -> str:
+    if status in {"resolved", "closed"}:
+        return status
+    if status == "escalated":
+        return "escalated"
+    if status == "in_progress":
+        return "in_progress"
+    if status == "acknowledged":
+        return "assigned" if handler_id else "acknowledged"
+    return "unassigned"
+
+
+def _workflow_next_action(*, workflow_state: str, recommended_action: str, is_overdue: bool) -> str:
+    if workflow_state in {"resolved", "closed"}:
+        return "no_open_action"
+    if is_overdue:
+        return "escalate_overdue_followup"
+    if workflow_state == "unassigned":
+        return "assign_counselor_and_acknowledge"
+    if workflow_state in {"acknowledged", "assigned"}:
+        return "start_or_record_followup"
+    if workflow_state == "in_progress":
+        return "update_progress_or_resolve"
+    if workflow_state == "escalated":
+        return "coordinate_escalated_support"
+    return recommended_action
+
+
+def _parse_sqlite_timestamp(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    raw = value.strip()
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+        try:
+            return datetime.strptime(raw, fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _elapsed_hours_since(created_at: datetime | None) -> int | None:
+    if created_at is None:
+        return None
+    delta = datetime.now(timezone.utc) - created_at.astimezone(timezone.utc)
+    return max(0, int(delta.total_seconds() // 3600))
 
 
 def _human_intervention_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
