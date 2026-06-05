@@ -6,6 +6,94 @@ def maybe_build_followup_reply(user_text: str, history_text: str) -> str | None:
     history = _compact(history_text)
     combined = f"{history}{user}"
 
+    if _major_direction_vague_or_ten_minute(user, combined):
+        return (
+            "不喜欢现在的专业时，先不要把问题压成“必须马上转走或彻底认命”。你现在更需要的是重新找一点可验证的方向感。"
+            "如果只能做十分钟，就写下三列：现在专业里最不排斥的一门课或技能、你真正好奇的领域、它们之间可能连接的一个选修/辅修/项目关键词。"
+            "这一步不是立刻决定人生，而是把“我很空”变成一个可以继续试探的小入口。"
+        )
+    if _pet_grief_photo_followup(user, combined):
+        return (
+            "看到照片就受不了，说明这段告别还在很新鲜的位置，不是你太脆弱。宠物离开后，家里少掉的是一个真实陪伴过你的日常成员。"
+            "今晚可以先别反复翻相册，选三张最想留下的照片，给其中一张写一句话，比如“谢谢你陪我到这里”。"
+            "写完后把手机放远一点，允许自己难过，但不要让照片循环把你一直拉回最痛的那一刻。"
+        )
+    if _bullying_next_time_response(user, combined):
+        return (
+            "如果下次又有人这样开玩笑，你可以先用很短、很稳的一句把边界说出来："
+            "“这个模仿让我不舒服，别这样学我说话。”说完就停，不需要马上解释童年经历，也不需要证明自己是不是小题大做。"
+            "如果对方继续，优先离开现场，事后找一个可信同学、老师或辅导员说明具体发生了什么。重点是保护现在的你，而不是在现场硬撑。"
+        )
+    if _paranoia_vague_followup(user, combined):
+        return (
+            "你说不清、觉得堵，同时前面已经提到被盯着、被监控和连续睡不好，我会更重视你的睡眠和安全感。"
+            "今晚先不要继续查证手机或反复观察别人反应，找一个可信的人陪你待一会儿；明天尽快联系校医院、心理中心或正规医疗机构做评估。"
+        )
+    if _exam_vague_block(user, combined):
+        return (
+            "你现在说“很堵”，更像是考试前压力卡在身体里，不一定需要马上分析清楚。"
+            "先做一个很小的卸压动作：把最担心的一句话写下来，再写旁边一句“明天先做会的题”。"
+            "如果还睡不着，就把目标改成闭眼休息 20 分钟，而不是逼自己立刻睡着。"
+        )
+    if _exam_minimal_step(user, combined):
+        return (
+            "只做一小步的话，就先把明天要带的证件、文具和准考信息放到同一个地方，拍一张照片确认。"
+            "做完这一步就停，不再反复检查。这个动作的目标不是复习更多，而是让大脑知道“最基本的安全项已经准备好了”。"
+        )
+    if _interview_start_block(user, combined):
+        return (
+            "启动不了时不要先整理完整项目。只做十分钟：打开一个空文档，写下今天面试里被问倒的一个问题，再写三行：题目问什么、我当时卡在哪里、下次第一句话怎么开头。"
+            "十分钟后可以停。先让材料从脑子里落到纸面上，比继续自责更重要。"
+        )
+    if _mental_center_stigma(user, combined):
+        return (
+            "去心理中心不代表你“有问题”，更像是在状态持续低下时做一次支持和评估。"
+            "你可以把它理解成给自己找一个现实里的协助点，而不是给自己贴标签。"
+            "如果现在还抗拒，可以先不预约，只先查一下学校心理中心的预约方式和开放时间，把信息放在手边。"
+        )
+    if _lonely_crying_friend_fear(user, combined):
+        return (
+            "怕打扰朋友很能理解，但人在夜里崩溃时，完全一个人扛会更孤单。"
+            "你不需要把所有细节讲完，可以只发一句低压力消息：“我今晚有点撑不住，能不能陪我聊十分钟，不方便也没关系。”"
+            "真正的求助不一定是把痛苦全部交出去，而是先让一个人知道你现在不太好。"
+        )
+    if _body_image_vague_or_small_step(user, combined):
+        return (
+            "如果只做一小步，先暂停一次检查：把镜子、相册或修图软件离开 20 分钟，去做一件和外貌无关的事，比如喝水、洗脸、走到楼下。"
+            "目标不是马上喜欢自己的样子，而是先把注意力从反复扫描缺点里拉出来一点。"
+        )
+    if _social_embarrassment_initial(user, combined):
+        return (
+            "发错消息后的尴尬会被大脑放大成“所有人都会记得”，但多数人的注意力不会停留那么久。"
+            "现在先不要反复回看群聊或猜别人怎么想。可以准备一句简短解释：“刚才发错了，已经撤回，不好意思。”说到这里就够了，不需要继续自我审判。"
+        )
+    if _social_embarrassment_next_day(user, combined):
+        return (
+            "明天见到他们时，先保持正常节奏就好，不需要主动把事情重新翻出来。"
+            "如果有人提起，你可以简短说：“昨天发错了，有点尴尬，已经处理了。”然后把话题转回眼前的课或事情。"
+            "重点是不要用退缩让这件小插曲变成你生活里的大事件。"
+        )
+    if _binge_eating_initial(user, combined):
+        return (
+            "昨晚停不下来和今天想不吃饭补回来，说明你现在被羞耻和补偿冲动夹住了。"
+            "但用不吃饭惩罚自己，往往会让下一次更容易失控。今天先不要极端补偿，至少保留一顿温和、规律的进食，比如粥、鸡蛋、面包或你能接受的简单食物。"
+            "暴食不是你失败了，而是身体和情绪都需要被更稳定地照顾。"
+        )
+    if _binge_eating_small_step(user, combined):
+        return (
+            "只做一小步的话，先不要称体重、不要跳过下一顿。给自己准备一份容易入口的正常食物，吃到七分就停。"
+            "这一步不是放纵，而是在打断“暴食-羞耻-节食-再暴食”的循环。"
+        )
+    if _bullying_trigger_initial(user, combined):
+        return (
+            "别人学你说话、周围人笑起来，会把你一下拉回过去被嘲笑的记忆里。你的身体发冷、想逃，不是小题大做，而是旧经历被触发了。"
+            "先把现在和过去分开：今天这件事让你难受，但你已经不是当年那个只能被困住的人。今晚先做一件稳定身体的事，比如踩实地面、喝水、离开反复回想的场景。"
+        )
+    if _bullying_trigger_small_step(user, combined):
+        return (
+            "只做一小步的话，先把身体从那一刻带回来：双脚踩地，慢慢呼气，然后说出三个现在能看到的东西。"
+            "等身体没那么紧，再决定要不要和一个可信同学或老师说这件事。现在先不急着证明他们有没有恶意，先照顾被触发的你。"
+        )
     if _relationship_checking_initial(user, combined):
         return (
             "你不是单纯想控制对方，更像是在用查岗确认“我没有被丢下”。这种不安很真实，但如果总靠对方即时回复来缓解，你会越来越累，对方也会有压力。"
@@ -335,6 +423,132 @@ def maybe_build_followup_reply(user_text: str, history_text: str) -> str | None:
 
 def _compact(text: str) -> str:
     return "".join(str(text or "").split())
+
+
+def _major_direction_vague_or_ten_minute(user: str, combined: str) -> bool:
+    return any(term in user for term in ("很空", "找不到方向", "十分钟", "一小步", "先做哪一步", "不能转专业")) and any(
+        term in combined for term in ("不喜欢现在的专业", "转专业", "专业内外", "上课听不进去", "辅修", "选修")
+    )
+
+
+def _pet_grief_photo_followup(user: str, combined: str) -> bool:
+    return any(term in user for term in ("看到照片", "反复翻照片", "受不了", "脑子很乱", "很堵")) and any(
+        term in combined for term in ("宠物", "离世", "走了", "家里少了一块")
+    )
+
+
+def _bullying_next_time_response(user: str, combined: str) -> bool:
+    return any(term in user for term in ("下次", "又有人这样", "开玩笑", "怎么回", "说什么")) and any(
+        term in combined for term in ("学我说话", "被嘲笑", "周围人都笑", "手发冷", "想逃")
+    )
+
+
+def _exam_vague_block(user: str, combined: str) -> bool:
+    return any(term in user for term in ("很堵", "不知道怎么说")) and any(
+        term in combined for term in ("明天", "考试", "考场", "脑子空白", "睡不着")
+    ) and not _danger_or_self_harm_context(combined) and not _paranoia_context(combined)
+
+
+def _exam_minimal_step(user: str, combined: str) -> bool:
+    return any(term in user for term in ("一小步", "先做哪一步")) and any(
+        term in combined for term in ("明天", "考试", "考场", "脑子空白", "准考", "文具")
+    ) and not _danger_or_self_harm_context(combined) and not _paranoia_context(combined)
+
+
+def _interview_start_block(user: str, combined: str) -> bool:
+    if any(term in combined for term in ("不喜欢现在的专业", "转专业", "专业内外")):
+        return False
+    return any(term in user for term in ("启动不了", "只能做十分钟", "十分钟")) and any(
+        term in combined for term in ("面试", "项目细节", "基础问题", "被问倒", "实习")
+    )
+
+
+def _mental_center_stigma(user: str, combined: str) -> bool:
+    return any(term in user for term in ("心理中心", "代表我有问题", "去了就代表")) and any(
+        term in combined for term in ("没动力", "生活", "灰暗", "游戏", "逃避", "睡")
+    )
+
+
+def _lonely_crying_friend_fear(user: str, combined: str) -> bool:
+    return any(term in user for term in ("怕打扰朋友", "不敢找人", "哭的时候", "很孤单")) and any(
+        term in combined for term in ("晚上", "崩溃", "哭", "白天强撑", "孤单")
+    )
+
+
+def _body_image_vague_or_small_step(user: str, combined: str) -> bool:
+    return any(term in user for term in ("很堵", "一小步", "先做哪一步")) and any(
+        term in combined for term in ("脸肿", "修图", "照镜子", "外貌", "照片", "不像自己")
+    )
+
+
+def _social_embarrassment_initial(user: str, combined: str) -> bool:
+    if any(term in user for term in ("明天还要见到", "见到他们", "怎么回一句")):
+        return False
+    return any(term in combined for term in ("发到了班群", "发错", "撤回", "尴尬到想退学", "社死"))
+
+
+def _social_embarrassment_next_day(user: str, combined: str) -> bool:
+    return any(term in user for term in ("明天还要见到", "见到他们", "先做什么")) and any(
+        term in combined for term in ("班群", "发错", "撤回", "尴尬", "社死")
+    )
+
+
+def _binge_eating_initial(user: str, combined: str) -> bool:
+    if any(term in user for term in ("一小步", "先做哪一步")):
+        return False
+    return any(term in combined for term in ("吃了很多", "停不下来", "恶心自己", "不吃饭补回来", "接受不了")) and any(
+        term in combined for term in ("昨晚", "今天", "暴食", "吃完")
+    )
+
+
+def _binge_eating_small_step(user: str, combined: str) -> bool:
+    return any(term in user for term in ("一小步", "先做哪一步")) and any(
+        term in combined for term in ("吃了很多", "停不下来", "不吃饭补回来", "暴食", "恶心自己")
+    )
+
+
+def _bullying_trigger_initial(user: str, combined: str) -> bool:
+    if any(term in user for term in ("下次", "又有人这样", "开玩笑", "怎么回", "说什么", "一小步", "先做哪一步", "很堵")):
+        return False
+    return any(term in combined for term in ("学我说话", "周围人都笑", "初中被嘲笑", "被嘲笑")) and any(
+        term in combined for term in ("手发冷", "想逃", "身体一下子僵住", "旧经历")
+    )
+
+
+def _bullying_trigger_small_step(user: str, combined: str) -> bool:
+    return any(term in user for term in ("一小步", "先做哪一步", "很堵")) and any(
+        term in combined for term in ("学我说话", "被嘲笑", "周围人都笑")
+    ) and any(
+        term in combined for term in ("手发冷", "旧时", "想逃", "身体一下子僵住")
+    )
+
+
+def _paranoia_vague_followup(user: str, combined: str) -> bool:
+    return any(term in user for term in ("很堵", "不知道怎么说", "一小步", "先做哪一步")) and any(
+        term in combined for term in ("被监控", "盯着我", "很多人都在盯", "几晚没睡", "正规医疗机构", "校医院")
+    )
+
+
+def _paranoia_context(text: str) -> bool:
+    return any(term in text for term in ("被监控", "盯着我", "很多人都在盯", "几晚没睡", "正规医疗机构", "校医院"))
+
+
+def _danger_or_self_harm_context(text: str) -> bool:
+    return any(
+        term in text
+        for term in (
+            "不想活",
+            "想死",
+            "伤害自己",
+            "天台",
+            "楼顶",
+            "高处",
+            "消失几天",
+            "不在了",
+            "账号密码",
+            "控制不住",
+        )
+    )
 
 
 def _relationship_checking_initial(user: str, combined: str) -> bool:

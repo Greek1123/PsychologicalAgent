@@ -149,6 +149,138 @@ class FollowupReplyOverrideTests(unittest.TestCase):
         self.assertIn("暗恋", reply)
         self.assertNotIn("姓名", reply)
 
+    def test_exam_vague_followup_does_not_over_crisis(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我不知道怎么说，就是很堵。",
+            "generic",
+            conversation_history=[{"role": "user", "content": "明天考试，我怕脑子空白，今晚睡不着。"}],
+        )
+
+        self.assertIn("考试前压力", reply)
+        self.assertIn("写下来", reply)
+        self.assertNotIn("紧急服务", reply)
+
+    def test_interview_ten_minute_followup_is_specific(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果只能做十分钟，你会让我先做哪一步？",
+            "generic",
+            conversation_history=[{"role": "user", "content": "实习面试里项目细节和基础问题都被问倒了。"}],
+        )
+
+        self.assertIn("十分钟", reply)
+        self.assertIn("被问倒", reply)
+        self.assertNotIn("只从最容易说的那一点开始", reply)
+
+    def test_binge_eating_initial_not_generic_crisis(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我昨晚又吃了很多东西，吃的时候停不下来，吃完就特别恶心自己。我今天想干脆不吃饭补回来。",
+            "当前最重要的不是继续分析问题，而是先保证你的安全。",
+        )
+
+        self.assertIn("不吃饭惩罚自己", reply)
+        self.assertIn("暴食", reply)
+        self.assertNotIn("紧急帮助", reply)
+
+    def test_binge_eating_small_step_does_not_repeat_initial(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果我只愿意先做一小步，你会让我先做哪一步？",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "我昨晚又吃了很多东西，吃的时候停不下来，吃完就特别恶心自己。我今天想干脆不吃饭补回来。"},
+            ],
+        )
+
+        self.assertIn("七分", reply)
+        self.assertIn("打断", reply)
+        self.assertNotIn("惩罚自己", reply)
+
+    def test_social_embarrassment_next_day_not_harassment_template(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果我明天还要见到他们，我应该先做什么？",
+            "只要他的行为让你明显不舒服，而且涉及身体边界或性意味，就值得被认真对待。",
+            conversation_history=[{"role": "user", "content": "我把吐槽的话发到班群里，很快撤回了，但很尴尬。"}],
+        )
+
+        self.assertIn("明天见到他们", reply)
+        self.assertIn("发错", reply)
+        self.assertNotIn("身体边界", reply)
+
+    def test_paranoia_vague_followup_keeps_medical_support_context(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我不知道怎么说，就是很堵。",
+            "generic",
+            conversation_history=[{"role": "user", "content": "我觉得班里很多人盯着我，手机像被监控一样，已经几晚没睡。"}],
+        )
+
+        self.assertIn("被盯着", reply)
+        self.assertIn("正规医疗机构", reply)
+        self.assertNotIn("考试压力", reply)
+
+    def test_paranoia_minimal_step_not_exam_preparation(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果我只愿意先做一小步，你会让我先做哪一步？",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "我觉得班里很多人盯着我，手机像被监控一样，已经几晚没睡。"},
+            ],
+        )
+
+        self.assertIn("校医院", reply)
+        self.assertIn("评估", reply)
+        self.assertNotIn("文具", reply)
+
+    def test_major_direction_ten_minutes_not_interview_template(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果只能做十分钟，我先做哪一步？",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "我不喜欢现在的专业，又不能确定要不要转专业，上课听不进去。"},
+            ],
+        )
+
+        self.assertIn("最不排斥", reply)
+        self.assertIn("选修", reply)
+        self.assertNotIn("面试", reply)
+
+    def test_pet_grief_photo_followup_not_privacy_template(self) -> None:
+        reply = finalize_user_visible_reply(
+            "我看到照片就受不了，脑子很乱。",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "我养了很多年的宠物离世了，家里像少了一块，我一直反复翻照片。"},
+            ],
+        )
+
+        self.assertIn("宠物离开", reply)
+        self.assertIn("三张", reply)
+        self.assertNotIn("隐私", reply)
+
+    def test_bullying_next_time_gets_boundary_sentence(self) -> None:
+        reply = finalize_user_visible_reply(
+            "如果下次又有人这样开玩笑，我应该怎么回？",
+            "generic",
+            conversation_history=[
+                {"role": "user", "content": "今天有人学我说话，周围人都笑了，我一下想到初中被嘲笑，手发冷很想逃。"},
+            ],
+        )
+
+        self.assertIn("别这样学我说话", reply)
+        self.assertIn("离开现场", reply)
+        self.assertNotIn("踏实地面", reply)
+
+    def test_task_escape_language_not_bullying_trigger(self) -> None:
+        reply = finalize_user_visible_reply(
+            "实验报告明天晚上交，可是我现在打开文档就想逃。",
+            "现在优先级可以先放在最近截止的实验报告上，不要同时和所有任务对抗。",
+            conversation_history=[
+                {"role": "user", "content": "我又拖延了，任务全堆在一起，还是控制不住。"},
+            ],
+        )
+
+        self.assertIn("实验报告", reply)
+        self.assertNotIn("学你说话", reply)
+        self.assertNotIn("被嘲笑", reply)
+
     def test_dangerous_place_still_uses_safety_priority(self) -> None:
         reply = finalize_user_visible_reply(
             "我好难受，我想去天台冷静一下。",
