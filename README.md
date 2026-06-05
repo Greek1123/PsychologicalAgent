@@ -1120,3 +1120,7 @@ http://127.0.0.1:8000/app
 ## 2026-06-05 Care Queue 角色化降敏视图
 
 `/api/v1/analytics/care-queue` 新增 `role=admin|counselor|research` 查询参数。默认 `admin` 保持完整审计数据；`counselor` 会保留处理上下文但遮蔽人工备注里的手机号、邮箱等直接身份标识；`research` 会进一步移除人工干预备注和下一步文本，只保留结构化统计和状态。这样前端工作台和研究面板可以共用同一个队列接口，但看到不同粒度的数据。
+
+## 2026-06-05 隐私策略与保留配置
+
+新增 `GET /api/v1/privacy/policy`，返回机器可读的角色视图、脱敏类别、受保护接口和数据保留策略。新增环境变量 `SESSION_DATA_RETENTION_DAYS` 与 `AUDIT_LOG_RETENTION_DAYS`，当前只作为策略声明和 readiness 检查，不在请求处理中自动删除数据。`/api/v1/ops/readiness` 会检查保留天数必须为正，并在 session 数据保留时间长于 audit log 时提示 degraded。

@@ -76,6 +76,10 @@ class Settings:
     require_admin_api_key: bool = field(
         default_factory=lambda: _env_flag(os.getenv("REQUIRE_ADMIN_API_KEY"), False)
     )
+    session_data_retention_days: int = field(
+        default_factory=lambda: int(os.getenv("SESSION_DATA_RETENTION_DAYS", "180"))
+    )
+    audit_log_retention_days: int = field(default_factory=lambda: int(os.getenv("AUDIT_LOG_RETENTION_DAYS", "365")))
 
     llm_provider: str = field(default_factory=lambda: os.getenv("LLM_PROVIDER", "mock"))
     llm_model: str = field(default_factory=lambda: os.getenv("LLM_MODEL", "EmoLLM-2.0"))

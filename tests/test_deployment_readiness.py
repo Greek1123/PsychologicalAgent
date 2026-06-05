@@ -35,6 +35,7 @@ def test_deployment_readiness_passes_for_mock_provider(tmp_path: Path) -> None:
         "campus_kb_path",
         "frontend_allowed_origins",
         "admin_api_key",
+        "privacy_retention",
         "python_runtime",
     }
 
@@ -121,3 +122,44 @@ def test_deployment_readiness_warns_for_short_admin_key(tmp_path: Path) -> None:
     assert readiness["status"] == "degraded"
     assert admin_check["status"] == "warn"
     assert admin_check["details"]["configured"] is True
+
+
+def test_deployment_readiness_fails_invalid_retention_policy(tmp_path: Path) -> None:
+    kb_path = tmp_path / "campus_knowledge.json"
+    kb_path.write_text("[]", encoding="utf-8")
+    settings = Settings(
+        llm_provider="mock",
+        stt_provider="mock",
+        database_path=str(tmp_path / "agent.db"),
+        log_file_path=str(tmp_path / "app.log"),
+        campus_kb_path=str(kb_path),
+        session_data_retention_days=0,
+        audit_log_retention_days=365,
+    )
+
+    readiness = build_deployment_readiness(settings)
+    retention_check = next(check for check in readiness["checks"] if check["name"] == "privacy_retention")
+
+    assert readiness["status"] == "blocked"
+    assert retention_check["status"] == "fail"
+    assert retention_check["details"]["session_data_env"] == "SESSION_DATA_RETENTION_DAYS"
+
+
+def test_deployment_readiness_warns_when_session_retention_exceeds_audit_retention(tmp_path: Path) -> None:
+    kb_path = tmp_path / "campus_knowledge.json"
+    kb_path.write_text("[]", encoding="utf-8")
+    settings = Settings(
+        llm_provider="mock",
+        stt_provider="mock",
+        database_path=str(tmp_path / "agent.db"),
+        log_file_path=str(tmp_path / "app.log"),
+        campus_kb_path=str(kb_path),
+        session_data_retention_days=365,
+        audit_log_retention_days=180,
+    )
+
+    readiness = build_deployment_readiness(settings)
+    retention_check = next(check for check in readiness["checks"] if check["name"] == "privacy_retention")
+
+    assert readiness["status"] == "degraded"
+    assert retention_check["status"] == "warn"

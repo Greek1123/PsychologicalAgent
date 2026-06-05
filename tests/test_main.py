@@ -239,12 +239,23 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("role_view", contract["endpoints"])
         self.assertIn("ops_readiness", contract["endpoints"])
         self.assertIn("processing_health", contract["endpoints"])
+        self.assertIn("privacy_policy", contract["endpoints"])
         self.assertIn("backend_role_views", contract["frontend_display_policy"])
         self.assertIn("student_chat", contract["frontend_display_policy"])
         self.assertIn("research_dashboard", contract["frontend_display_policy"])
         self.assertIn("processing_summary", contract["frontend_display_policy"]["research_dashboard"])
         self.assertIn("critical", contract["risk_badges"])
         self.assertGreaterEqual(len(contract["demo_prompts"]), 4)
+
+    def test_privacy_policy_exposes_retention_and_role_boundaries(self) -> None:
+        policy = main.get_privacy_policy()
+
+        self.assertEqual(policy["retention"]["session_data_env"], "SESSION_DATA_RETENTION_DAYS")
+        self.assertEqual(policy["retention"]["audit_log_env"], "AUDIT_LOG_RETENTION_DAYS")
+        self.assertFalse(policy["retention"]["automatic_deletion_enabled"])
+        self.assertIn("phone", policy["redaction"]["direct_identifier_categories"])
+        self.assertIn("counselor", policy["role_views"])
+        self.assertIn("admin_api_key_required", policy["protected_interfaces"])
 
     def test_cors_preflight_allows_local_frontend_origin(self) -> None:
         client = TestClient(main.app)

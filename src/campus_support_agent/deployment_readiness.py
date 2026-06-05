@@ -29,6 +29,7 @@ def build_deployment_readiness(settings: Settings) -> dict[str, Any]:
         _file_exists_check("campus_kb_path", settings.campus_kb_path),
         _frontend_origins_check(settings),
         _admin_api_key_check(settings),
+        _retention_policy_check(settings),
         _local_checkpoint_check(settings),
         _python_runtime_check(),
     ]
@@ -200,6 +201,46 @@ def _admin_api_key_check(settings: Settings) -> ReadinessCheck:
             "required": True,
             "configured": True,
             "minimum_length": 16,
+        },
+    )
+
+
+def _retention_policy_check(settings: Settings) -> ReadinessCheck:
+    session_days = settings.session_data_retention_days
+    audit_days = settings.audit_log_retention_days
+    if session_days <= 0 or audit_days <= 0:
+        return ReadinessCheck(
+            name="privacy_retention",
+            status="fail",
+            message="Privacy retention days must be positive.",
+            details={
+                "session_data_env": "SESSION_DATA_RETENTION_DAYS",
+                "audit_log_env": "AUDIT_LOG_RETENTION_DAYS",
+                "session_data_days": session_days,
+                "audit_log_days": audit_days,
+            },
+        )
+    if session_days > audit_days:
+        return ReadinessCheck(
+            name="privacy_retention",
+            status="warn",
+            message="Session data retention is longer than audit log retention.",
+            details={
+                "session_data_env": "SESSION_DATA_RETENTION_DAYS",
+                "audit_log_env": "AUDIT_LOG_RETENTION_DAYS",
+                "session_data_days": session_days,
+                "audit_log_days": audit_days,
+            },
+        )
+    return ReadinessCheck(
+        name="privacy_retention",
+        status="pass",
+        message="Privacy retention policy is configured.",
+        details={
+            "session_data_env": "SESSION_DATA_RETENTION_DAYS",
+            "audit_log_env": "AUDIT_LOG_RETENTION_DAYS",
+            "session_data_days": session_days,
+            "audit_log_days": audit_days,
         },
     )
 

@@ -1653,3 +1653,31 @@ python -m pytest -q
 ## 当前判断
 
 care queue 已经具备“同接口多角色输出”的基础能力。下一步可以继续做批量工作流动作，或者开始补运行层的数据保留/清理策略，减少长期测试数据库中的敏感内容堆积。
+
+# 2026-06-05 隐私策略与保留配置
+
+## 本次做了什么
+
+- 新增 `SESSION_DATA_RETENTION_DAYS` 和 `AUDIT_LOG_RETENTION_DAYS` 配置，默认分别为 180 天和 365 天。
+- 新增 `GET /api/v1/privacy/policy`，返回机器可读的隐私策略：
+  - 数据保留天数
+  - 直接标识脱敏类别
+  - student/counselor/research/admin 角色视图边界
+  - 受保护接口的 API key 要求
+- `/api/v1/frontend/contract` 新增 `privacy_policy` 端点说明。
+- `/api/v1/ops/readiness` 新增 `privacy_retention` 检查：保留天数小于等于 0 会 blocked；session 数据保留天数长于 audit log 会 degraded。
+- `.env.example` 同步新增保留策略配置项。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_main.py tests\test_deployment_readiness.py -q
+24 passed
+
+python -m pytest -q
+363 passed
+```
+
+## 当前判断
+
+这一步先把隐私策略显式化，暂不自动删除数据，避免开发阶段误删测试轨迹。下一步可以基于该策略补一个显式的 cleanup 脚本或受保护的维护接口，在确认后再清理过期会话。

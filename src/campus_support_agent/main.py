@@ -484,6 +484,10 @@ def get_frontend_contract() -> dict[str, Any]:
                 "path": "/api/v1/analytics/processing-health",
                 "query": ["limit"],
             },
+            "privacy_policy": {
+                "method": "GET",
+                "path": "/api/v1/privacy/policy",
+            },
         },
         "text_request_example": {
             "session_id": "demo-student-001",
@@ -575,6 +579,38 @@ def get_frontend_contract() -> dict[str, Any]:
             "我喜欢一个同学很久了，但怕表白后连朋友都做不成。",
             "有人一直跟着我到宿舍附近，但我又怕是自己想多了。",
         ],
+    }
+
+
+@app.get("/api/v1/privacy/policy")
+def get_privacy_policy() -> dict[str, Any]:
+    settings = get_settings()
+    return {
+        "version": "2026-06-05",
+        "purpose": "Machine-readable privacy, role-view, and retention policy for frontend handoff and deployment review.",
+        "retention": {
+            "session_data_days": settings.session_data_retention_days,
+            "audit_log_days": settings.audit_log_retention_days,
+            "session_data_env": "SESSION_DATA_RETENTION_DAYS",
+            "audit_log_env": "AUDIT_LOG_RETENTION_DAYS",
+            "automatic_deletion_enabled": False,
+            "note": "Retention is currently declared for review and future cleanup jobs; no automatic deletion runs in request handlers.",
+        },
+        "redaction": {
+            "direct_identifier_categories": ["phone", "email", "id_card", "student_id", "wechat", "qq"],
+            "applies_to": ["student_role_view", "counselor_role_view", "research_role_view", "care_queue_counselor_view", "care_queue_research_view"],
+        },
+        "role_views": {
+            "student": "Only student-visible support fields; hides backend strategy, flags, and raw input.",
+            "counselor": "Operational care context with backend internals removed and direct identifiers masked.",
+            "research": "Structured metrics with free text and direct intervention notes removed.",
+            "admin": "Full authorized audit payload; requires admin API key when configured or in production.",
+        },
+        "protected_interfaces": {
+            "admin_api_key_required": is_admin_api_key_required(settings),
+            "admin_header": "X-Admin-API-Key",
+            "bearer_supported": True,
+        },
     }
 
 
