@@ -424,6 +424,52 @@ class MainFlowTests(unittest.TestCase):
         self.assertGreaterEqual(overview["feedback_summary"]["total_feedback"], 1)
         self.assertIn("care_pathway_priorities", overview)
 
+    def test_human_intervention_action_endpoint_maps_workflow_actions(self) -> None:
+        session_id = f"test-human-action-session-{uuid4().hex}"
+        response = main.support_text(
+            {
+                "session_id": session_id,
+                "text": "我最近几天睡不着，也不太想见人。",
+                "student_context": {},
+                "conversation_history": [],
+            }
+        )
+
+        claimed = main.apply_session_human_intervention_action(
+            session_id,
+            {
+                "action": "claim",
+                "response_id": response["response_id"],
+                "handler_id": "counselor-claim",
+                "note": "已认领。",
+            },
+        )
+        resolved = main.apply_session_human_intervention_action(
+            session_id,
+            {
+                "action": "resolve",
+                "response_id": response["response_id"],
+                "handler_id": "counselor-claim",
+                "note": "已完成初步跟进。",
+            },
+        )
+
+        self.assertEqual(claimed["human_intervention"]["status"], "acknowledged")
+        self.assertEqual(claimed["care_queue_item"]["evidence"]["human_workflow"]["workflow_state"], "assigned")
+        self.assertEqual(resolved["human_intervention"]["status"], "resolved")
+        self.assertEqual(resolved["care_queue_item"]["evidence"]["human_workflow"]["workflow_state"], "resolved")
+        self.assertIn("action:claim", claimed["human_intervention"]["tags"])
+        self.assertIn("action:resolve", resolved["human_intervention"]["tags"])
+
+    def test_human_intervention_action_requires_handler_for_open_actions(self) -> None:
+        with self.assertRaises(HTTPException):
+            main.apply_session_human_intervention_action(
+                "test-missing-handler",
+                {
+                    "action": "claim",
+                },
+            )
+
     def test_session_feedback_rejects_invalid_payload(self) -> None:
         with self.assertRaises(HTTPException):
             main.submit_session_feedback(

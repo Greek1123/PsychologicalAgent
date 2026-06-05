@@ -1599,3 +1599,32 @@ python -m pytest -q
 ## 当前判断
 
 现在 care queue 已经从“后台看全部待关注学生”推进到“辅导员可以按处理状态和负责人筛选自己的待办”。下一步适合补单独的认领/状态流转接口，让前端不用手写 human intervention payload 就能执行 `claim / start / escalate / resolve` 这类动作。
+
+# 2026-06-05 人工干预动作接口
+
+## 本次做了什么
+
+- 新增 `POST /api/v1/sessions/{session_id}/human-interventions/action`，面向前端工作台封装常用人工处理动作。
+- 支持动作：
+  - `claim` -> `acknowledged`
+  - `start` -> `in_progress`
+  - `escalate` -> `escalated`
+  - `resolve` -> `resolved`
+  - `close` -> `closed`
+- `claim/start/escalate` 必须传 `handler_id`，避免创建无人负责的开放处理状态。
+- 接口自动追加 `action:<name>` 标签，默认补 `next_action`，并返回最新 `care_queue_item`，前端可以立即刷新该 session 的工作流状态。
+- `/api/v1/frontend/contract` 同步新增 `human_intervention_action` 端点说明和示例。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_main.py -q
+16 passed
+
+python -m pytest -q
+358 passed
+```
+
+## 当前判断
+
+人工干预层现在已有三部分：底层 intervention 记录、care queue 工作流摘要与筛选、面向前端的动作接口。下一步适合补辅导员安全视图和批量操作，或者转向部署/运行层的健康监控和数据清理策略。

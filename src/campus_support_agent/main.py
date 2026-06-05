@@ -56,6 +56,13 @@ logger = get_logger("main")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 APP_HTML = STATIC_DIR / "app.html"
 HUMAN_INTERVENTION_STATUSES = {"acknowledged", "in_progress", "escalated", "resolved", "closed"}
+HUMAN_INTERVENTION_ACTIONS = {
+    "claim": "acknowledged",
+    "start": "in_progress",
+    "escalate": "escalated",
+    "resolve": "resolved",
+    "close": "closed",
+}
 PRODUCTION_ENVS = {"prod", "production"}
 
 
@@ -444,6 +451,12 @@ def get_frontend_contract() -> dict[str, Any]:
                 "path": "/api/v1/sessions/{session_id}/human-interventions",
                 "statuses": sorted(HUMAN_INTERVENTION_STATUSES),
             },
+            "human_intervention_action": {
+                "method": "POST",
+                "path": "/api/v1/sessions/{session_id}/human-interventions/action",
+                "actions": sorted(HUMAN_INTERVENTION_ACTIONS),
+                "required_for_open_actions": ["handler_id"],
+            },
             "role_view": {
                 "method": "GET",
                 "path": "/api/v1/sessions/{session_id}/view",
@@ -503,6 +516,12 @@ def get_frontend_contract() -> dict[str, Any]:
             "note": "已查看高优先级队列，准备线下跟进。",
             "next_action": "contact_student_with_low_pressure_checkin",
             "tags": ["manual_followup", "same_day_review"],
+        },
+        "human_intervention_action_example": {
+            "action": "claim",
+            "response_id": "support_xxx",
+            "handler_id": "counselor-001",
+            "note": "已认领，准备当天低压力联系。",
         },
         "frontend_display_policy": {
             "student_chat": ["reply_text", "safety.emergency_notice", "safety.human_referral"],
@@ -1017,6 +1036,65 @@ def _parse_human_intervention_payload(payload: dict[str, Any]) -> dict[str, Any]
     }
 
 
+def _parse_human_intervention_action_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    action = str(payload.get("action", "")).strip().lower()
+    if action not in HUMAN_INTERVENTION_ACTIONS:
+        allowed = ", ".join(sorted(HUMAN_INTERVENTION_ACTIONS))
+        raise HTTPException(status_code=422, detail=f"action must be one of: {allowed}")
+
+    def optional_text(field_name: str) -> str | None:
+        value = payload.get(field_name)
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise HTTPException(status_code=422, detail=f"{field_name} must be a string.")
+        return value.strip() or None
+
+    handler_id = optional_text("handler_id")
+    if action in {"claim", "start", "escalate"} and not handler_id:
+        raise HTTPException(status_code=422, detail="handler_id is required for claim, start, and escalate actions.")
+
+    tags = payload.get("tags") or []
+    if not isinstance(tags, list):
+        raise HTTPException(status_code=422, detail="tags must be a string array.")
+    action_tag = f"action:{action}"
+    clean_tags = [str(tag).strip() for tag in tags if str(tag).strip()]
+    if action_tag not in clean_tags:
+        clean_tags.append(action_tag)
+
+    return {
+        "action": action,
+        "response_id": optional_text("response_id"),
+        "status": HUMAN_INTERVENTION_ACTIONS[action],
+        "handler_id": handler_id,
+        "note": optional_text("note"),
+        "next_action": optional_text("next_action") or _default_next_action_for_human_action(action),
+        "tags": clean_tags,
+    }
+
+
+def _default_next_action_for_human_action(action: str) -> str:
+    return {
+        "claim": "start_low_pressure_followup",
+        "start": "record_followup_progress",
+        "escalate": "coordinate_escalated_support",
+        "resolve": "continue_observation",
+        "close": "no_open_action",
+    }.get(action, "continue_observation")
+
+
+def _find_session_queue_item(session_store: Any, session_id: str, *, include_resolved: bool = True) -> dict[str, Any] | None:
+    queue = session_store.get_care_queue(
+        limit=None,
+        include_low_priority=True,
+        include_resolved=include_resolved,
+    )
+    for item in queue["items"]:
+        if item.get("session_id") == session_id:
+            return item
+    return None
+
+
 @app.post("/api/v1/sessions/{session_id}/human-interventions", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def append_session_human_intervention(session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     parsed = _parse_human_intervention_payload(payload)
@@ -1040,6 +1118,40 @@ def append_session_human_intervention(session_id: str, payload: dict[str, Any]) 
         "session_id": session_id,
         "human_intervention": intervention,
         "human_interventions": session_store.get_human_interventions(session_id),
+    }
+
+
+@app.post("/api/v1/sessions/{session_id}/human-interventions/action", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
+def apply_session_human_intervention_action(session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+    parsed = _parse_human_intervention_action_payload(payload)
+    session_store = get_session_store()
+    intervention = session_store.append_human_intervention(
+        session_id=session_id,
+        response_id=parsed["response_id"],
+        status=parsed["status"],
+        handler_id=parsed["handler_id"],
+        note=parsed["note"],
+        next_action=parsed["next_action"],
+        tags=parsed["tags"],
+    )
+    queue_item = _find_session_queue_item(
+        session_store,
+        session_id,
+        include_resolved=parsed["status"] in {"resolved", "closed"},
+    )
+    logger.info(
+        "Human intervention action applied session_id=%s action=%s status=%s handler=%s",
+        session_id,
+        parsed["action"],
+        parsed["status"],
+        parsed["handler_id"] or "-",
+    )
+    return {
+        "session_id": session_id,
+        "action": parsed["action"],
+        "human_intervention": intervention,
+        "human_interventions": session_store.get_human_interventions(session_id),
+        "care_queue_item": queue_item,
     }
 
 

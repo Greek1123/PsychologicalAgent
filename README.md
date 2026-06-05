@@ -1112,3 +1112,7 @@ http://127.0.0.1:8000/app
 当前状态映射：未处理为 `unassigned`，已确认且有处理人为 `assigned`，处理中为 `in_progress`，升级为 `escalated`，结案为 `resolved/closed`。SLA 默认按优先级推导：critical 1 小时、high 4 小时、medium 24 小时、low 72 小时。前端/后台可以据此做认领、逾期和升级提示。
 
 `/api/v1/analytics/care-queue` 也支持工作流筛选：`workflow_state=assigned`、`owner=counselor-001`、`only_overdue=true`，并会在响应 `filters` 中回显当前筛选条件，方便前端工作台做“我的待办、未认领、逾期、已升级”等列表。
+
+## 2026-06-05 人工干预动作接口
+
+新增 `POST /api/v1/sessions/{session_id}/human-interventions/action`，把前端工作台常用动作封装为稳定接口：`claim`、`start`、`escalate`、`resolve`、`close`。接口会自动映射到底层状态 `acknowledged/in_progress/escalated/resolved/closed`，追加 `action:<name>` 标签，并返回最新 `care_queue_item`。`claim/start/escalate` 必须传 `handler_id`，避免无人认领的处理中状态。
