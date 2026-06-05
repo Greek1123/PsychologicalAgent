@@ -34,6 +34,7 @@ def test_deployment_readiness_passes_for_mock_provider(tmp_path: Path) -> None:
         "log_file_path",
         "campus_kb_path",
         "frontend_allowed_origins",
+        "admin_api_key",
         "python_runtime",
     }
 
@@ -70,6 +71,7 @@ def test_deployment_readiness_warns_for_wildcard_origin_in_production(tmp_path: 
         log_file_path=str(tmp_path / "app.log"),
         campus_kb_path=str(kb_path),
         frontend_allowed_origins=["*"],
+        admin_api_key="production-admin-key",
     )
 
     readiness = build_deployment_readiness(settings)
@@ -78,3 +80,44 @@ def test_deployment_readiness_warns_for_wildcard_origin_in_production(tmp_path: 
     assert readiness["status"] == "degraded"
     assert cors_check["status"] == "warn"
     assert cors_check["details"]["env"] == "FRONTEND_ALLOWED_ORIGINS"
+
+
+def test_deployment_readiness_blocks_production_without_admin_key(tmp_path: Path) -> None:
+    kb_path = tmp_path / "campus_knowledge.json"
+    kb_path.write_text("[]", encoding="utf-8")
+    settings = Settings(
+        app_env="production",
+        llm_provider="mock",
+        stt_provider="mock",
+        database_path=str(tmp_path / "agent.db"),
+        log_file_path=str(tmp_path / "app.log"),
+        campus_kb_path=str(kb_path),
+        admin_api_key="",
+    )
+
+    readiness = build_deployment_readiness(settings)
+    admin_check = next(check for check in readiness["checks"] if check["name"] == "admin_api_key")
+
+    assert readiness["status"] == "blocked"
+    assert admin_check["status"] == "fail"
+    assert admin_check["details"]["required"] is True
+
+
+def test_deployment_readiness_warns_for_short_admin_key(tmp_path: Path) -> None:
+    kb_path = tmp_path / "campus_knowledge.json"
+    kb_path.write_text("[]", encoding="utf-8")
+    settings = Settings(
+        llm_provider="mock",
+        stt_provider="mock",
+        database_path=str(tmp_path / "agent.db"),
+        log_file_path=str(tmp_path / "app.log"),
+        campus_kb_path=str(kb_path),
+        admin_api_key="short",
+    )
+
+    readiness = build_deployment_readiness(settings)
+    admin_check = next(check for check in readiness["checks"] if check["name"] == "admin_api_key")
+
+    assert readiness["status"] == "degraded"
+    assert admin_check["status"] == "warn"
+    assert admin_check["details"]["configured"] is True

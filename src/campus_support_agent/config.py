@@ -42,6 +42,12 @@ def _split_csv(value: str | None, fallback: list[str]) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _env_flag(value: str | None, default: bool = False) -> bool:
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @dataclass(slots=True)
 class Settings:
     app_env: str = field(default_factory=lambda: os.getenv("APP_ENV", "development"))
@@ -65,6 +71,10 @@ class Settings:
                 "http://localhost:8000",
             ],
         )
+    )
+    admin_api_key: str = field(default_factory=lambda: os.getenv("ADMIN_API_KEY", ""))
+    require_admin_api_key: bool = field(
+        default_factory=lambda: _env_flag(os.getenv("REQUIRE_ADMIN_API_KEY"), False)
     )
 
     llm_provider: str = field(default_factory=lambda: os.getenv("LLM_PROVIDER", "mock"))

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import hmac
 import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -55,6 +56,43 @@ logger = get_logger("main")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 APP_HTML = STATIC_DIR / "app.html"
 HUMAN_INTERVENTION_STATUSES = {"acknowledged", "in_progress", "escalated", "resolved", "closed"}
+PRODUCTION_ENVS = {"prod", "production"}
+
+
+def is_admin_api_key_required(settings: Settings | None = None) -> bool:
+    active_settings = settings or get_settings()
+    return (
+        bool(active_settings.admin_api_key.strip())
+        or active_settings.require_admin_api_key
+        or active_settings.app_env.strip().lower() in PRODUCTION_ENVS
+    )
+
+
+def require_admin_access(
+    authorization: str | None = Header(default=None),
+    x_admin_api_key: str | None = Header(default=None),
+) -> None:
+    settings = get_settings()
+    if not is_admin_api_key_required(settings):
+        return
+
+    expected_key = settings.admin_api_key.strip()
+    if not expected_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin API key is required but ADMIN_API_KEY is not configured.",
+        )
+
+    supplied_key = (x_admin_api_key or "").strip()
+    if not supplied_key and authorization:
+        scheme, _, token = authorization.partition(" ")
+        if scheme.lower() == "bearer":
+            supplied_key = token.strip()
+    if not supplied_key or not hmac.compare_digest(supplied_key, expected_key):
+        raise HTTPException(status_code=401, detail="Missing or invalid admin API key.")
+
+
+PROTECTED_ROUTE_DEPENDENCIES = [Depends(require_admin_access)]
 
 
 @lru_cache(maxsize=1)
@@ -345,6 +383,19 @@ def get_frontend_contract() -> dict[str, Any]:
             "allowed_origins": get_settings().frontend_allowed_origins,
             "env": "FRONTEND_ALLOWED_ORIGINS",
             "example": "http://127.0.0.1:5173,http://localhost:5173",
+        },
+        "security": {
+            "admin_api_key_required": is_admin_api_key_required(),
+            "admin_header": "X-Admin-API-Key",
+            "authorization_header": "Authorization: Bearer <ADMIN_API_KEY>",
+            "protected_endpoint_groups": [
+                "session_history",
+                "session_analysis",
+                "role_view",
+                "human_interventions",
+                "analytics",
+            ],
+            "local_development_note": "If ADMIN_API_KEY is not configured and APP_ENV is development, protected endpoints remain open for local testing.",
         },
         "endpoints": {
             "text_support": {
@@ -722,7 +773,7 @@ async def support_audio(
     return response
 
 
-@app.get("/api/v1/sessions/{session_id}")
+@app.get("/api/v1/sessions/{session_id}", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_history(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     history = session_store.get_history(session_id)
@@ -736,7 +787,7 @@ def get_session_history(session_id: str) -> dict[str, Any]:
     }
 
 
-@app.get("/api/v1/sessions/{session_id}/analysis")
+@app.get("/api/v1/sessions/{session_id}/analysis", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_analysis(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     analysis = session_store.get_session_analysis(session_id)
@@ -744,7 +795,7 @@ def get_session_analysis(session_id: str) -> dict[str, Any]:
     return analysis
 
 
-@app.get("/api/v1/sessions/{session_id}/view")
+@app.get("/api/v1/sessions/{session_id}/view", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_role_view(session_id: str, role: str = "student") -> dict[str, Any]:
     try:
         normalized_role = normalize_view_role(role)
@@ -771,7 +822,7 @@ def get_session_role_view(session_id: str, role: str = "student") -> dict[str, A
     }
 
 
-@app.get("/api/v1/sessions/{session_id}/audit")
+@app.get("/api/v1/sessions/{session_id}/audit", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_audit(session_id: str, limit: int | None = 50) -> dict[str, Any]:
     session_store = get_session_store()
     audit = session_store.get_intervention_audits(session_id, limit=limit)
@@ -779,7 +830,7 @@ def get_session_audit(session_id: str, limit: int | None = 50) -> dict[str, Any]
     return audit
 
 
-@app.get("/api/v1/sessions/{session_id}/memory")
+@app.get("/api/v1/sessions/{session_id}/memory", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_memory(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     memory = session_store.get_session_memory(session_id)
@@ -787,7 +838,7 @@ def get_session_memory(session_id: str) -> dict[str, Any]:
     return memory
 
 
-@app.get("/api/v1/sessions/{session_id}/trend-warning")
+@app.get("/api/v1/sessions/{session_id}/trend-warning", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_trend_warning(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     warning = session_store.get_session_trend_warning(session_id)
@@ -799,7 +850,7 @@ def get_session_trend_warning(session_id: str) -> dict[str, Any]:
     return warning
 
 
-@app.get("/api/v1/sessions/{session_id}/care-plan")
+@app.get("/api/v1/sessions/{session_id}/care-plan", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_care_plan(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     care_plan = session_store.get_session_care_plan(session_id)
@@ -812,7 +863,7 @@ def get_session_care_plan(session_id: str) -> dict[str, Any]:
     return care_plan
 
 
-@app.get("/api/v1/sessions/{session_id}/reply-quality")
+@app.get("/api/v1/sessions/{session_id}/reply-quality", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_reply_quality(session_id: str, limit: int | None = None) -> dict[str, Any]:
     session_store = get_session_store()
     quality = session_store.get_session_reply_quality(session_id, limit=limit)
@@ -824,7 +875,7 @@ def get_session_reply_quality(session_id: str, limit: int | None = None) -> dict
     return quality
 
 
-@app.get("/api/v1/sessions/{session_id}/intervention-effectiveness")
+@app.get("/api/v1/sessions/{session_id}/intervention-effectiveness", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_intervention_effectiveness(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     effectiveness = session_store.get_session_intervention_effectiveness(session_id)
@@ -837,7 +888,7 @@ def get_session_intervention_effectiveness(session_id: str) -> dict[str, Any]:
     return effectiveness
 
 
-@app.get("/api/v1/sessions/{session_id}/intervention-next-step")
+@app.get("/api/v1/sessions/{session_id}/intervention-next-step", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_intervention_next_step(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     next_step = session_store.get_session_intervention_next_step(session_id)
@@ -850,7 +901,7 @@ def get_session_intervention_next_step(session_id: str) -> dict[str, Any]:
     return next_step
 
 
-@app.get("/api/v1/sessions/{session_id}/tracking")
+@app.get("/api/v1/sessions/{session_id}/tracking", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_tracking(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     tracking = session_store.get_session_tracking(session_id)
@@ -862,7 +913,7 @@ def get_session_tracking(session_id: str) -> dict[str, Any]:
     return tracking
 
 
-@app.get("/api/v1/sessions/{session_id}/strategy-version")
+@app.get("/api/v1/sessions/{session_id}/strategy-version", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_strategy_version(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     version = session_store.get_session_strategy_version(session_id)
@@ -875,7 +926,7 @@ def get_session_strategy_version(session_id: str) -> dict[str, Any]:
     return version
 
 
-@app.get("/api/v1/sessions/{session_id}/strategy-layer")
+@app.get("/api/v1/sessions/{session_id}/strategy-layer", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_strategy_layer(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     strategy_layer = session_store.get_session_strategy_layer(session_id)
@@ -889,7 +940,7 @@ def get_session_strategy_layer(session_id: str) -> dict[str, Any]:
     return strategy_layer
 
 
-@app.get("/api/v1/sessions/{session_id}/decision-trace")
+@app.get("/api/v1/sessions/{session_id}/decision-trace", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_decision_trace(session_id: str, limit: int | None = 50) -> dict[str, Any]:
     session_store = get_session_store()
     trace = session_store.get_session_decision_trace(session_id, limit=limit)
@@ -902,7 +953,7 @@ def get_session_decision_trace(session_id: str, limit: int | None = 50) -> dict[
     return trace
 
 
-@app.get("/api/v1/sessions/{session_id}/entropy-loop")
+@app.get("/api/v1/sessions/{session_id}/entropy-loop", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_entropy_reduction_loop(session_id: str) -> dict[str, Any]:
     session_store = get_session_store()
     loop = session_store.get_session_entropy_reduction_loop(session_id)
@@ -916,7 +967,7 @@ def get_session_entropy_reduction_loop(session_id: str) -> dict[str, Any]:
     return loop
 
 
-@app.get("/api/v1/sessions/{session_id}/referrals")
+@app.get("/api/v1/sessions/{session_id}/referrals", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_referrals(session_id: str, limit: int | None = None) -> dict[str, Any]:
     session_store = get_session_store()
     events = session_store.get_referral_events(session_id, limit=limit)
@@ -956,7 +1007,7 @@ def _parse_human_intervention_payload(payload: dict[str, Any]) -> dict[str, Any]
     }
 
 
-@app.post("/api/v1/sessions/{session_id}/human-interventions")
+@app.post("/api/v1/sessions/{session_id}/human-interventions", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def append_session_human_intervention(session_id: str, payload: dict[str, Any]) -> dict[str, Any]:
     parsed = _parse_human_intervention_payload(payload)
     session_store = get_session_store()
@@ -982,7 +1033,7 @@ def append_session_human_intervention(session_id: str, payload: dict[str, Any]) 
     }
 
 
-@app.get("/api/v1/sessions/{session_id}/human-interventions")
+@app.get("/api/v1/sessions/{session_id}/human-interventions", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_human_interventions(session_id: str, limit: int | None = None) -> dict[str, Any]:
     session_store = get_session_store()
     interventions = session_store.get_human_interventions(session_id, limit=limit)
@@ -1064,7 +1115,7 @@ def submit_session_feedback(session_id: str, payload: dict[str, Any]) -> dict[st
     }
 
 
-@app.get("/api/v1/sessions/{session_id}/feedback")
+@app.get("/api/v1/sessions/{session_id}/feedback", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_feedback(session_id: str, limit: int | None = None) -> dict[str, Any]:
     session_store = get_session_store()
     feedback = session_store.get_intervention_feedback(session_id, limit=limit)
@@ -1160,7 +1211,7 @@ def _build_processing_health_report(
     }
 
 
-@app.get("/api/v1/analytics/overview")
+@app.get("/api/v1/analytics/overview", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_overview_analytics(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     stats = session_store.get_overview_stats(limit=limit)
@@ -1168,7 +1219,7 @@ def get_overview_analytics(limit: int = 200) -> dict[str, Any]:
     return stats
 
 
-@app.get("/api/v1/analytics/processing-health")
+@app.get("/api/v1/analytics/processing-health", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_processing_health(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     readiness = build_deployment_readiness(get_settings())
@@ -1190,7 +1241,7 @@ def get_processing_health(limit: int = 200) -> dict[str, Any]:
     return health
 
 
-@app.get("/api/v1/analytics/care-queue")
+@app.get("/api/v1/analytics/care-queue", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_care_queue(
     limit: int = 100,
     include_low_priority: bool = False,
@@ -1211,7 +1262,7 @@ def get_care_queue(
     return queue
 
 
-@app.get("/api/v1/analytics/reply-quality")
+@app.get("/api/v1/analytics/reply-quality", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_reply_quality_overview(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     quality = session_store.get_reply_quality_overview(limit=limit)
@@ -1223,7 +1274,7 @@ def get_reply_quality_overview(limit: int = 200) -> dict[str, Any]:
     return quality
 
 
-@app.get("/api/v1/analytics/intervention-effectiveness")
+@app.get("/api/v1/analytics/intervention-effectiveness", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_intervention_effectiveness_overview(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     overview = session_store.get_intervention_effectiveness_overview(limit=limit)
@@ -1234,7 +1285,7 @@ def get_intervention_effectiveness_overview(limit: int = 200) -> dict[str, Any]:
     return overview
 
 
-@app.get("/api/v1/analytics/session-tracking")
+@app.get("/api/v1/analytics/session-tracking", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_session_tracking_overview(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     overview = session_store.get_session_tracking_overview(limit=limit)
@@ -1245,7 +1296,7 @@ def get_session_tracking_overview(limit: int = 200) -> dict[str, Any]:
     return overview
 
 
-@app.get("/api/v1/analytics/strategy-version")
+@app.get("/api/v1/analytics/strategy-version", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_strategy_version_overview(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     overview = session_store.get_strategy_version_overview(limit=limit)
@@ -1257,7 +1308,7 @@ def get_strategy_version_overview(limit: int = 200) -> dict[str, Any]:
     return overview
 
 
-@app.get("/api/v1/analytics/strategy-layer")
+@app.get("/api/v1/analytics/strategy-layer", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_strategy_layer_overview(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     overview = session_store.get_strategy_layer_overview(limit=limit)
@@ -1269,7 +1320,7 @@ def get_strategy_layer_overview(limit: int = 200) -> dict[str, Any]:
     return overview
 
 
-@app.get("/api/v1/analytics/decision-trace")
+@app.get("/api/v1/analytics/decision-trace", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_decision_trace_overview(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     overview = session_store.get_decision_trace_overview(limit=limit)
@@ -1281,7 +1332,7 @@ def get_decision_trace_overview(limit: int = 200) -> dict[str, Any]:
     return overview
 
 
-@app.get("/api/v1/analytics/entropy-loop")
+@app.get("/api/v1/analytics/entropy-loop", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_entropy_reduction_loop_overview(limit: int = 200) -> dict[str, Any]:
     session_store = get_session_store()
     overview = session_store.get_entropy_reduction_loop_overview(limit=limit)
@@ -1292,7 +1343,7 @@ def get_entropy_reduction_loop_overview(limit: int = 200) -> dict[str, Any]:
     return overview
 
 
-@app.get("/api/v1/analytics/reply-quality/bad-cases")
+@app.get("/api/v1/analytics/reply-quality/bad-cases", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_reply_quality_bad_cases(
     session_id: str | None = None,
     source_limit: int = 200,
@@ -1315,7 +1366,7 @@ def get_reply_quality_bad_cases(
     return bad_cases
 
 
-@app.get("/api/v1/analytics/refinement-plan")
+@app.get("/api/v1/analytics/refinement-plan", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_quality_refinement_plan(
     session_id: str | None = None,
     source_limit: int = 200,
@@ -1340,7 +1391,7 @@ def get_quality_refinement_plan(
     return plan
 
 
-@app.delete("/api/v1/sessions/{session_id}")
+@app.delete("/api/v1/sessions/{session_id}", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def clear_session_history(session_id: str) -> dict[str, Any]:
     # 研究测试时经常需要从干净状态重新跑同一个案例，这里提供显式清空入口。
     session_store = get_session_store()

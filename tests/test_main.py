@@ -23,8 +23,18 @@ class MainFlowTests(unittest.TestCase):
     def setUp(self) -> None:
         self._saved_env = {
             key: os.environ.get(key)
-            for key in ("LLM_PROVIDER", "LOCAL_CHECKPOINT_PATH", "LOCAL_BASE_MODEL_PATH")
+            for key in (
+                "APP_ENV",
+                "ADMIN_API_KEY",
+                "REQUIRE_ADMIN_API_KEY",
+                "LLM_PROVIDER",
+                "LOCAL_CHECKPOINT_PATH",
+                "LOCAL_BASE_MODEL_PATH",
+            )
         }
+        os.environ["APP_ENV"] = "development"
+        os.environ.pop("ADMIN_API_KEY", None)
+        os.environ.pop("REQUIRE_ADMIN_API_KEY", None)
         os.environ["LLM_PROVIDER"] = "mock"
         main.get_settings.cache_clear()
         main.get_agent.cache_clear()
@@ -214,6 +224,9 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("cors", contract)
         self.assertIn("FRONTEND_ALLOWED_ORIGINS", contract["cors"]["env"])
         self.assertIn("http://127.0.0.1:5173", contract["cors"]["allowed_origins"])
+        self.assertIn("security", contract)
+        self.assertEqual(contract["security"]["admin_header"], "X-Admin-API-Key")
+        self.assertIn("analytics", contract["security"]["protected_endpoint_groups"])
         self.assertIn("text", contract["text_request_example"])
         self.assertIn("reply_text", contract["response_core_fields"])
         self.assertIn("risk", contract["response_core_fields"])
@@ -247,6 +260,39 @@ class MainFlowTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["access-control-allow-origin"], "http://127.0.0.1:5173")
+
+    def test_protected_endpoints_are_open_for_local_development_without_admin_key(self) -> None:
+        client = TestClient(main.app)
+
+        response = client.get("/api/v1/sessions/auth-local/analysis")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["session_id"], "auth-local")
+
+    def test_protected_endpoints_require_admin_key_when_configured(self) -> None:
+        os.environ["ADMIN_API_KEY"] = "test-admin-key-12345"
+        main.get_settings.cache_clear()
+        client = TestClient(main.app)
+
+        missing = client.get("/api/v1/sessions/auth-required/analysis")
+        wrong = client.get(
+            "/api/v1/sessions/auth-required/analysis",
+            headers={"Authorization": "Bearer wrong-key"},
+        )
+        allowed_by_header = client.get(
+            "/api/v1/sessions/auth-required/analysis",
+            headers={"X-Admin-API-Key": "test-admin-key-12345"},
+        )
+        allowed_by_bearer = client.get(
+            "/api/v1/analytics/overview",
+            headers={"Authorization": "Bearer test-admin-key-12345"},
+        )
+
+        self.assertEqual(missing.status_code, 401)
+        self.assertEqual(wrong.status_code, 401)
+        self.assertEqual(allowed_by_header.status_code, 200)
+        self.assertEqual(allowed_by_header.json()["session_id"], "auth-required")
+        self.assertEqual(allowed_by_bearer.status_code, 200)
 
     def test_session_role_view_projects_privacy_fields(self) -> None:
         session_id = f"test-view-session-{uuid4().hex}"

@@ -28,6 +28,7 @@ def build_deployment_readiness(settings: Settings) -> dict[str, Any]:
         _path_parent_check("log_file_path", settings.log_file_path),
         _file_exists_check("campus_kb_path", settings.campus_kb_path),
         _frontend_origins_check(settings),
+        _admin_api_key_check(settings),
         _local_checkpoint_check(settings),
         _python_runtime_check(),
     ]
@@ -149,6 +150,57 @@ def _frontend_origins_check(settings: Settings) -> ReadinessCheck:
         status="pass",
         message="Frontend CORS origins are configured.",
         details={"env": "FRONTEND_ALLOWED_ORIGINS", "origins": origins},
+    )
+
+
+def _admin_api_key_check(settings: Settings) -> ReadinessCheck:
+    key = settings.admin_api_key.strip()
+    production_like = settings.app_env.strip().lower() in {"prod", "production"}
+    required = production_like or settings.require_admin_api_key or bool(key)
+    if not required:
+        return ReadinessCheck(
+            name="admin_api_key",
+            status="pass",
+            message="Admin API key is optional in local development.",
+            details={
+                "env": "ADMIN_API_KEY",
+                "required": False,
+                "configured": False,
+            },
+        )
+    if not key:
+        return ReadinessCheck(
+            name="admin_api_key",
+            status="fail",
+            message="Admin API key is required but not configured.",
+            details={
+                "env": "ADMIN_API_KEY",
+                "required": True,
+                "configured": False,
+            },
+        )
+    if len(key) < 16:
+        return ReadinessCheck(
+            name="admin_api_key",
+            status="warn",
+            message="Admin API key is configured but too short for deployment.",
+            details={
+                "env": "ADMIN_API_KEY",
+                "required": True,
+                "configured": True,
+                "minimum_length": 16,
+            },
+        )
+    return ReadinessCheck(
+        name="admin_api_key",
+        status="pass",
+        message="Admin API key is configured for protected endpoints.",
+        details={
+            "env": "ADMIN_API_KEY",
+            "required": True,
+            "configured": True,
+            "minimum_length": 16,
+        },
     )
 
 

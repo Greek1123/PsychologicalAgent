@@ -1502,3 +1502,18 @@ python -m pytest -q
 ## 当前观察
 
 最新随机报告中的 Case 21 源文档轮次已经实时输出“去心理中心不代表有问题”；Case 22 能接住“怕打扰朋友”；Case 36 的额外追问能从“班级活动没人搭理”推进到“低压力入口”和“明天小连接”。这一层仍然可以继续优化，但已经比上一版更接近真实多轮对话，而不是单轮模板匹配。
+
+# 2026-06-05 后端接口安全成熟化
+
+## 本次做了什么
+
+- 根据“不要生成报告，继续把项目做成熟”的要求，本轮没有再生成新的随机回复报告，转向后端产品化能力。
+- 新增 `ADMIN_API_KEY` 和 `REQUIRE_ADMIN_API_KEY` 配置：本地开发默认不强制，配置 key 后自动保护敏感接口；生产环境 `APP_ENV=production` 必须配置 key。
+- 为会话历史、会话分析、角色视图、记忆/趋势/照护计划、人工干预、反馈读取、全局 analytics、坏例与 refinement plan、删除 session 等接口挂上统一管理员鉴权。
+- 学生侧入口保持开放：`POST /api/v1/support/text`、`POST /api/v1/support/audio`、`/health`、`/api/v1/model/status` 和 `/api/v1/frontend/contract` 仍可用于前端联调。
+- `/api/v1/frontend/contract` 新增 `security` 字段，告诉前端组受保护接口组以及 `X-Admin-API-Key` / `Authorization: Bearer <key>` 两种传参方式。
+- `/api/v1/ops/readiness` 新增 `admin_api_key` 检查：生产缺 key 会 blocked，key 过短会 degraded，避免正式部署时敏感数据裸露。
+
+## 当前判断
+
+这一层属于“部署与接口治理层”，不是模型训练层。它不直接提升回复文本质量，但会让系统从实验脚本更接近可交付后端：学生输入、管理后台、研究分析和人工干预的边界更清楚。下一步可以继续补成熟项目需要的审计、数据脱敏、真实前端 token 对接或人机协同工作台接口。
