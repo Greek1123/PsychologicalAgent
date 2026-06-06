@@ -1126,3 +1126,7 @@ http://127.0.0.1:8000/app
 新增 `GET /api/v1/privacy/policy`，返回机器可读的角色视图、脱敏类别、受保护接口和数据保留策略。新增环境变量 `SESSION_DATA_RETENTION_DAYS` 与 `AUDIT_LOG_RETENTION_DAYS`，当前只作为策略声明和 readiness 检查，不在请求处理中自动删除数据。`/api/v1/ops/readiness` 会检查保留天数必须为正，并在 session 数据保留时间长于 audit log 时提示 degraded。
 
 新增 `scripts/cleanup_expired_data.py` 作为显式维护工具，默认 dry-run，只统计过期行；只有加 `--apply` 才会删除超过保留期的 SQLite 行。示例：`python scripts\cleanup_expired_data.py --db data\campus_agent.db` 预览，确认后再运行 `python scripts\cleanup_expired_data.py --db data\campus_agent.db --apply`。
+
+## 2026-06-06 数据库完整性自检
+
+新增 `GET /api/v1/ops/database-integrity`，用于部署和运维阶段只读检查 SQLite 数据库。检查内容包括：数据库是否存在、`PRAGMA quick_check`、核心表是否齐全、各核心表行数、`referral_events` / `intervention_feedback` / `human_interventions` 是否引用了不存在的 `support_responses.response_id`。接口受管理员 API Key 保护，并已写入 `/api/v1/frontend/contract`。

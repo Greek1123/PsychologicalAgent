@@ -16,6 +16,7 @@ from .agent import CampusSupportAgent
 from .adjustment_loop import build_entropy_adjustment_loop, enrich_student_context_with_adjustment_loop
 from .care_plan import enrich_student_context_with_care_plan
 from .config import Settings
+from .database_integrity import build_database_integrity_report
 from .deployment_readiness import build_deployment_readiness
 from .dialogue_memory import enrich_student_context_with_memory
 from .dynamic_adjustment import build_dynamic_adjustment
@@ -381,6 +382,18 @@ def get_ops_readiness() -> dict[str, Any]:
     return readiness
 
 
+@app.get("/api/v1/ops/database-integrity", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
+def get_ops_database_integrity() -> dict[str, Any]:
+    report = build_database_integrity_report(get_settings().database_path)
+    logger.info(
+        "Database integrity requested status=%s blocking=%s watch=%s",
+        report["status"],
+        ",".join(report.get("blocking_issues") or []),
+        ",".join(report.get("watch_items") or []),
+    )
+    return report
+
+
 @app.get("/api/v1/frontend/contract")
 def get_frontend_contract() -> dict[str, Any]:
     logger.info("Frontend contract requested.")
@@ -478,6 +491,11 @@ def get_frontend_contract() -> dict[str, Any]:
             "ops_readiness": {
                 "method": "GET",
                 "path": "/api/v1/ops/readiness",
+            },
+            "database_integrity": {
+                "method": "GET",
+                "path": "/api/v1/ops/database-integrity",
+                "protected": True,
             },
             "processing_health": {
                 "method": "GET",

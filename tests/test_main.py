@@ -238,6 +238,7 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("human_interventions", contract["endpoints"])
         self.assertIn("role_view", contract["endpoints"])
         self.assertIn("ops_readiness", contract["endpoints"])
+        self.assertIn("database_integrity", contract["endpoints"])
         self.assertIn("processing_health", contract["endpoints"])
         self.assertIn("privacy_policy", contract["endpoints"])
         self.assertIn("backend_role_views", contract["frontend_display_policy"])
@@ -256,6 +257,15 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("phone", policy["redaction"]["direct_identifier_categories"])
         self.assertIn("counselor", policy["role_views"])
         self.assertIn("admin_api_key_required", policy["protected_interfaces"])
+
+    def test_database_integrity_endpoint_reports_current_store(self) -> None:
+        report = main.get_ops_database_integrity()
+
+        self.assertIn(report["status"], {"ok", "watch", "blocked"})
+        self.assertIn("quick_check", report)
+        self.assertIn("table_counts", report)
+        self.assertIn("blocking_issues", report)
+        self.assertIn("watch_items", report)
 
     def test_cors_preflight_allows_local_frontend_origin(self) -> None:
         client = TestClient(main.app)
@@ -356,7 +366,7 @@ class MainFlowTests(unittest.TestCase):
         )
         interventions = main.get_session_human_interventions(session_id)
         analysis = main.get_session_analysis(session_id)
-        queue = main.get_care_queue(limit=20, include_low_priority=True)
+        queue = main.get_care_queue(limit=None, include_low_priority=True)
         assigned_queue = main.get_care_queue(
             limit=20,
             include_low_priority=True,
@@ -387,7 +397,7 @@ class MainFlowTests(unittest.TestCase):
                 "note": "student phone 13812345678",
             },
         )
-        counselor_queue = main.get_care_queue(limit=20, include_low_priority=True, role="counselor")
+        counselor_queue = main.get_care_queue(limit=None, include_low_priority=True, role="counselor")
         counselor_item = next(item for item in counselor_queue["items"] if item["session_id"] == session_id)
         self.assertNotIn("13812345678", counselor_item["evidence"]["human_intervention"]["note"])
         self.assertIn("[手机号]", counselor_item["evidence"]["human_intervention"]["note"])
@@ -403,7 +413,7 @@ class MainFlowTests(unittest.TestCase):
             },
         )
         open_queue = main.get_care_queue(limit=20, include_low_priority=True)
-        full_queue = main.get_care_queue(limit=20, include_low_priority=True, include_resolved=True)
+        full_queue = main.get_care_queue(limit=None, include_low_priority=True, include_resolved=True)
 
         self.assertFalse(any(item["session_id"] == session_id for item in open_queue["items"]))
         self.assertTrue(

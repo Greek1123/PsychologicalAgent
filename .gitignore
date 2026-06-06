@@ -9,6 +9,7 @@ logs/
 reports/
 tmp_test_artifacts/
 test_tmp/
+.pytest_tmp/
 tmp*/
 
 data/campus_agent.db

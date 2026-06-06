@@ -1708,3 +1708,32 @@ python -m pytest -q
 ## 当前判断
 
 数据保留策略已经从“声明”推进到“可执行维护工具”，但仍保持人工确认删除，符合当前开发阶段。后续如果要部署，可以把这个脚本接入计划任务，或做成受保护的维护接口。
+
+# 2026-06-06 数据库完整性自检
+
+## 本次做了什么
+
+- 新增 `src/campus_support_agent/database_integrity.py`，提供只读 SQLite 完整性报告。
+- 新增受保护接口 `GET /api/v1/ops/database-integrity`，用于部署/运维检查当前数据库状态。
+- 检查内容包括：
+  - 数据库文件是否存在
+  - `PRAGMA quick_check`
+  - 核心表是否缺失
+  - 核心表行数
+  - `referral_events`、`intervention_feedback`、`human_interventions` 中是否存在引用不到 `support_responses.response_id` 的孤立记录
+- `/api/v1/frontend/contract` 同步新增 `database_integrity` 端点说明。
+- 新增 `tests/test_database_integrity.py`，覆盖缺库 blocked、完整库 ok、孤立引用 watch。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_database_integrity.py tests\test_main.py -q --basetemp .pytest_tmp
+21 passed
+
+python -m pytest -q --basetemp .pytest_tmp
+369 passed
+```
+
+## 当前判断
+
+部署层现在不仅能检查配置，还能检查数据库内容基本完整性。下一步可以继续把这个报告并入 processing-health，或者补数据库备份/导出工具。
