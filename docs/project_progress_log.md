@@ -1763,3 +1763,26 @@ python -m pytest -q --basetemp .pytest_tmp
 ## 当前判断
 
 部署交付层现在具备 readiness、数据库完整性检查、保留策略、显式清理和清理前备份工具。下一步可以把 backup + cleanup 串成一个安全维护流程，或继续补导出/脱敏审计包。
+# 2026-06-06 SQLite 安全维护流程
+
+## 本次做了什么
+
+- 新增 `scripts/maintain_sqlite_database.py`，把完整性检查、备份、过期数据清理合并为一个统一维护入口。
+- 默认模式仍然是 dry-run：只返回完整性状态和各表过期数据 matched 数量，不创建备份、不删除数据。
+- `--apply` 模式会先检查数据库完整性，再创建 SQLite 备份和 JSON 元数据，最后执行保留期清理。
+- 如果完整性状态是 `blocked`，维护流程拒绝执行写入；如果是 `watch`，默认也拒绝 `--apply`，必须显式传 `--allow-watch` 才能保留现场并继续清理。
+- 新增 `tests/test_maintain_sqlite_database.py`，覆盖 dry-run、正常 apply、watch 拒绝、watch 显式允许四条路径。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_maintain_sqlite_database.py -q --basetemp .pytest_tmp
+4 passed
+
+python -m pytest tests\test_maintain_sqlite_database.py tests\test_backup_sqlite_database.py tests\test_cleanup_expired_data.py tests\test_database_integrity.py -q --basetemp .pytest_tmp
+12 passed
+```
+
+## 当前判断
+
+部署交付层现在不只是有零散的检查、备份、清理脚本，而是具备了一条可重复执行的安全维护流程。下一步适合继续补“可审计导出/脱敏数据包”或把维护状态纳入 ops/processing health，让后台可以看到最近一次维护结果。

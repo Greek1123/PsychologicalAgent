@@ -1134,3 +1134,18 @@ http://127.0.0.1:8000/app
 ## 2026-06-06 SQLite 备份工具
 
 新增 `scripts/backup_sqlite_database.py`，使用 SQLite 原生 backup API 创建数据库备份，并生成同名 JSON 元数据。默认会先运行数据库完整性检查，只有状态为 `ok` 才备份；如果完整性为 `watch` 且仍需保留现场，可显式传 `--allow-watch`。默认输出目录为 `data/backups/`，该目录已加入 `.gitignore`。示例：`python scripts\backup_sqlite_database.py --db data\campus_agent.db --label before-cleanup`。
+## 2026-06-06 SQLite 安全维护流程
+
+新增 `scripts/maintain_sqlite_database.py`，把数据库完整性检查、备份和过期数据清理串成一个显式维护流程。默认不写入数据，只做 dry-run：
+
+```powershell
+python scripts\maintain_sqlite_database.py --db data\campus_agent.db
+```
+
+确认后再执行：
+
+```powershell
+python scripts\maintain_sqlite_database.py --db data\campus_agent.db --apply --label before-cleanup
+```
+
+流程规则：先运行数据库完整性检查；如果状态为 `blocked`，拒绝执行清理；如果状态为 `watch`，默认拒绝 `--apply`，需要显式加 `--allow-watch` 才会先备份现场再清理；`--apply` 默认会先在 `data/backups/` 创建 SQLite backup 和 JSON 元数据，然后才删除超过保留期的数据。`--skip-backup` 只用于已经另有备份的受控场景。
