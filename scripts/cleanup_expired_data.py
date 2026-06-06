@@ -23,7 +23,7 @@ SESSION_DATA_TABLES = (
     "referral_events",
     "intervention_feedback",
 )
-AUDIT_LOG_TABLES = ("human_interventions",)
+AUDIT_LOG_TABLES = ("human_interventions", "audit_events")
 
 
 def cleanup_expired_data(

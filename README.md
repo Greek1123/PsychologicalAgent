@@ -1163,3 +1163,6 @@ python scripts\export_redacted_audit_package.py --db data\campus_agent.db --labe
 新增受保护接口 `GET /api/v1/ops/data-governance`，用于一次性查看后端数据治理状态。该接口不会执行备份、清理或导出，只汇总管理员鉴权、角色视图、直接标识脱敏类别、数据保留天数、数据库完整性状态，以及 `cleanup`、`backup`、`maintain`、`redacted audit export` 四类本地维护脚本是否存在、默认输出目录是否已加入 `.gitignore`。
 
 状态规则：部署 readiness 或数据库完整性为 `blocked` 时返回 `blocked`；存在 degraded readiness、数据库 `watch` 或维护脚本/输出忽略配置缺失时返回 `watch`；全部满足时返回 `ok`。该接口已写入 `/api/v1/frontend/contract`，供后台管理页或验收脚本读取。
+## 2026-06-06 API 审计日志
+
+新增 SQLite 表 `audit_events` 和受保护接口 `GET /api/v1/ops/audit-events`。当前已记录的事件包括：读取数据库完整性、读取数据治理状态、创建人工干预记录、执行人工干预动作。审计事件包含 `event_type`、`actor_id`、`target_type`、`target_id`、`metadata` 和 `created_at`，用于后台复盘“谁在什么时候对哪个会话做了什么”。`audit_events` 已纳入过期数据清理脚本的 audit log 保留策略，也会被脱敏审计导出包导出。

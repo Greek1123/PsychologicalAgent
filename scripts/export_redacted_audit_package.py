@@ -30,6 +30,7 @@ EXPORT_TABLES = (
     "referral_events",
     "intervention_feedback",
     "human_interventions",
+    "audit_events",
 )
 
 PSEUDONYM_FIELDS = {

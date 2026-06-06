@@ -275,13 +275,45 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("privacy", governance)
         self.assertIn("database", governance)
         self.assertIn("maintenance", governance)
+        self.assertIn("audit_logging", governance)
         self.assertEqual(governance["maintenance"]["default_mode"], "dry_run")
         self.assertIn("maintain_sqlite_database", governance["maintenance"]["scripts"])
         self.assertTrue(governance["maintenance"]["scripts"]["maintain_sqlite_database"]["exists"])
         self.assertTrue(governance["maintenance"]["scripts"]["backup_sqlite_database"]["output_dir_ignored"])
         self.assertTrue(governance["maintenance"]["scripts"]["export_redacted_audit_package"]["output_dir_ignored"])
+        self.assertIn("ops.data_governance.read", governance["audit_logging"]["covered_events"])
         self.assertIn("student", governance["privacy"]["role_views"])
         self.assertIn("database_integrity", governance["source_endpoints"])
+
+    def test_audit_events_capture_ops_and_human_actions(self) -> None:
+        session_id = f"test-audit-session-{uuid4().hex}"
+        response = main.support_text(
+            {
+                "session_id": session_id,
+                "text": "我最近压力很大，晚上睡不好。",
+                "student_context": {},
+                "conversation_history": [],
+            }
+        )
+
+        main.get_ops_data_governance()
+        main.apply_session_human_intervention_action(
+            session_id,
+            {
+                "action": "claim",
+                "response_id": response["response_id"],
+                "handler_id": "audit-counselor",
+            },
+        )
+        events = main.get_ops_audit_events(limit=20)
+        action_events = main.get_ops_audit_events(limit=20, event_type="human_intervention.action")
+
+        event_types = {event["event_type"] for event in events["events"]}
+        self.assertIn("ops.data_governance.read", event_types)
+        self.assertIn("human_intervention.action", event_types)
+        self.assertEqual(action_events["events"][0]["actor_id"], "audit-counselor")
+        self.assertEqual(action_events["events"][0]["target_id"], session_id)
+        self.assertEqual(action_events["events"][0]["metadata"]["action"], "claim")
 
     def test_cors_preflight_allows_local_frontend_origin(self) -> None:
         client = TestClient(main.app)

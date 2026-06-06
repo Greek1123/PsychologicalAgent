@@ -215,6 +215,19 @@ class SQLiteSessionStore:
 
                 CREATE INDEX IF NOT EXISTS idx_human_intervention_session
                 ON human_interventions (session_id, id);
+
+                CREATE TABLE IF NOT EXISTS audit_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    actor_id TEXT,
+                    target_type TEXT,
+                    target_id TEXT,
+                    metadata_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_audit_events_type
+                ON audit_events (event_type, id);
                 """
             )
         logger.info("SQLite session store initialized at %s", self.db_path)
@@ -550,6 +563,72 @@ class SQLiteSessionStore:
                 """
             ).fetchall()
         return {str(row["session_id"]): _human_intervention_row_to_dict(row) for row in rows}
+
+    def append_audit_event(
+        self,
+        *,
+        event_type: str,
+        actor_id: str | None = None,
+        target_type: str | None = None,
+        target_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        clean_event_type = event_type.strip()
+        if not clean_event_type:
+            raise ValueError("event_type must not be empty.")
+        clean_actor_id = actor_id.strip() if isinstance(actor_id, str) and actor_id.strip() else None
+        clean_target_type = target_type.strip() if isinstance(target_type, str) and target_type.strip() else None
+        clean_target_id = target_id.strip() if isinstance(target_id, str) and target_id.strip() else None
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO audit_events (
+                    event_type,
+                    actor_id,
+                    target_type,
+                    target_id,
+                    metadata_json
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    clean_event_type,
+                    clean_actor_id,
+                    clean_target_type,
+                    clean_target_id,
+                    json.dumps(metadata or {}, ensure_ascii=False, sort_keys=True),
+                ),
+            )
+            row = connection.execute(
+                """
+                SELECT id, event_type, actor_id, target_type, target_id,
+                       metadata_json, created_at
+                FROM audit_events
+                WHERE id = ?
+                """,
+                (cursor.lastrowid,),
+            ).fetchone()
+        logger.info("Stored audit event type=%s target=%s:%s", clean_event_type, clean_target_type, clean_target_id)
+        return _audit_event_row_to_dict(row)
+
+    def list_audit_events(self, *, limit: int = 100, event_type: str | None = None) -> list[dict[str, Any]]:
+        clean_limit = min(max(int(limit), 1), 500)
+        query = """
+            SELECT id, event_type, actor_id, target_type, target_id,
+                   metadata_json, created_at
+            FROM audit_events
+        """
+        params: list[Any] = []
+        if event_type:
+            query += " WHERE event_type = ?"
+            params.append(event_type.strip())
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(clean_limit)
+        with self._connect() as connection:
+            if not _table_exists(connection, "audit_events"):
+                return []
+            rows = connection.execute(query, tuple(params)).fetchall()
+        return [_audit_event_row_to_dict(row) for row in rows]
 
     def append_intervention_feedback(
         self,
@@ -2456,6 +2535,26 @@ def _human_intervention_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
         "tags": json.loads(row["tags_json"]),
         "created_at": row["created_at"],
     }
+
+
+def _audit_event_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "event_type": row["event_type"],
+        "actor_id": row["actor_id"],
+        "target_type": row["target_type"],
+        "target_id": row["target_id"],
+        "metadata": json.loads(row["metadata_json"]),
+        "created_at": row["created_at"],
+    }
+
+
+def _table_exists(connection: sqlite3.Connection, table: str) -> bool:
+    row = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table,),
+    ).fetchone()
+    return row is not None
 
 
 def _safe_int(value: Any) -> int | None:

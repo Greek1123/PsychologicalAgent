@@ -1839,3 +1839,32 @@ python -m pytest tests\test_main.py tests\test_deployment_readiness.py tests\tes
 ## 当前判断
 
 后端运维治理层已经有一个统一只读入口，可以支撑后台管理页、组员联调和答辩验收。下一步适合继续补 API 级审计日志，把谁在什么时候访问了受保护接口、做了什么人工干预动作记录下来。
+# 2026-06-06 API 审计日志
+
+## 本次做了什么
+
+- 新增 SQLite 表 `audit_events`，用于记录受保护运维接口和人工干预动作。
+- 新增存储层方法 `append_audit_event` 和 `list_audit_events`。
+- 新增受保护接口 `GET /api/v1/ops/audit-events`，支持 `limit` 和 `event_type` 查询。
+- 当前自动记录事件：
+  - `ops.database_integrity.read`
+  - `ops.data_governance.read`
+  - `human_intervention.create`
+  - `human_intervention.action`
+- `audit_events` 纳入 `scripts/cleanup_expired_data.py` 的 audit log 保留策略。
+- `scripts/export_redacted_audit_package.py` 导出范围补充 `audit_events`，方便生成脱敏审计包。
+- `/api/v1/ops/data-governance` 和 `/api/v1/frontend/contract` 同步补充审计日志能力说明。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_main.py -q --basetemp .pytest_tmp
+20 passed
+
+python -m pytest tests\test_storage.py tests\test_cleanup_expired_data.py tests\test_export_redacted_audit_package.py tests\test_main.py -q --basetemp .pytest_tmp
+36 passed
+```
+
+## 当前判断
+
+后端现在具备了基础的“接口访问与人工处理可追踪”能力。它还不是完整安全审计系统，但已经能支撑项目答辩和后台工作台的关键问题：高风险会话由谁认领、何时处理、运维状态何时被读取。下一步可以继续补批量人工处理接口，或把审计日志的 actor 来源从 payload/header 中进一步规范化。

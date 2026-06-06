@@ -386,6 +386,13 @@ def get_ops_readiness() -> dict[str, Any]:
 @app.get("/api/v1/ops/database-integrity", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
 def get_ops_database_integrity() -> dict[str, Any]:
     report = build_database_integrity_report(get_settings().database_path)
+    _append_audit_event(
+        event_type="ops.database_integrity.read",
+        actor_id="admin_api",
+        target_type="database",
+        target_id=get_settings().database_path,
+        metadata={"status": report["status"]},
+    )
     logger.info(
         "Database integrity requested status=%s blocking=%s watch=%s",
         report["status"],
@@ -405,6 +412,13 @@ def get_ops_data_governance() -> dict[str, Any]:
         readiness=readiness,
         database_integrity=database_integrity,
     )
+    _append_audit_event(
+        event_type="ops.data_governance.read",
+        actor_id="admin_api",
+        target_type="data_governance",
+        target_id=settings.database_path,
+        metadata={"status": governance["status"]},
+    )
     logger.info(
         "Data governance requested status=%s blocking=%s watch=%s",
         governance["status"],
@@ -412,6 +426,37 @@ def get_ops_data_governance() -> dict[str, Any]:
         ",".join(governance["watch_items"]),
     )
     return governance
+
+
+@app.get("/api/v1/ops/audit-events", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
+def get_ops_audit_events(limit: int = 100, event_type: str | None = None) -> dict[str, Any]:
+    events = get_session_store().list_audit_events(limit=limit, event_type=event_type)
+    return {
+        "total_events": len(events),
+        "limit": min(max(int(limit), 1), 500),
+        "event_type": event_type,
+        "events": events,
+    }
+
+
+def _append_audit_event(
+    *,
+    event_type: str,
+    actor_id: str | None = None,
+    target_type: str | None = None,
+    target_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    try:
+        get_session_store().append_audit_event(
+            event_type=event_type,
+            actor_id=actor_id,
+            target_type=target_type,
+            target_id=target_id,
+            metadata=metadata or {},
+        )
+    except Exception as exc:  # pragma: no cover - audit failures must not break student support.
+        logger.warning("Failed to store audit event type=%s error=%s", event_type, exc)
 
 
 def _build_data_governance_report(
@@ -455,6 +500,17 @@ def _build_data_governance_report(
             "audit_log_retention_days": settings.audit_log_retention_days,
             "automatic_request_time_deletion": False,
         },
+        "audit_logging": {
+            "enabled": True,
+            "table": "audit_events",
+            "covered_events": [
+                "ops.database_integrity.read",
+                "ops.data_governance.read",
+                "human_intervention.create",
+                "human_intervention.action",
+            ],
+            "query_endpoint": "/api/v1/ops/audit-events",
+        },
         "database": {
             "path": settings.database_path,
             "integrity_status": database_integrity.get("status"),
@@ -473,6 +529,7 @@ def _build_data_governance_report(
             "database_integrity": "/api/v1/ops/database-integrity",
             "privacy_policy": "/api/v1/privacy/policy",
             "processing_health": "/api/v1/analytics/processing-health",
+            "audit_events": "/api/v1/ops/audit-events",
         },
     }
 
@@ -628,6 +685,12 @@ def get_frontend_contract() -> dict[str, Any]:
             "data_governance": {
                 "method": "GET",
                 "path": "/api/v1/ops/data-governance",
+                "protected": True,
+            },
+            "audit_events": {
+                "method": "GET",
+                "path": "/api/v1/ops/audit-events",
+                "query": ["limit", "event_type"],
                 "protected": True,
             },
             "processing_health": {
@@ -1304,6 +1367,17 @@ def append_session_human_intervention(session_id: str, payload: dict[str, Any]) 
         next_action=parsed["next_action"],
         tags=parsed["tags"],
     )
+    _append_audit_event(
+        event_type="human_intervention.create",
+        actor_id=parsed["handler_id"],
+        target_type="session",
+        target_id=session_id,
+        metadata={
+            "status": parsed["status"],
+            "response_id": parsed["response_id"],
+            "tags": parsed["tags"],
+        },
+    )
     logger.info(
         "Human intervention submitted session_id=%s status=%s handler=%s",
         session_id,
@@ -1334,6 +1408,18 @@ def apply_session_human_intervention_action(session_id: str, payload: dict[str, 
         session_store,
         session_id,
         include_resolved=parsed["status"] in {"resolved", "closed"},
+    )
+    _append_audit_event(
+        event_type="human_intervention.action",
+        actor_id=parsed["handler_id"],
+        target_type="session",
+        target_id=session_id,
+        metadata={
+            "action": parsed["action"],
+            "status": parsed["status"],
+            "response_id": parsed["response_id"],
+            "tags": parsed["tags"],
+        },
     )
     logger.info(
         "Human intervention action applied session_id=%s action=%s status=%s handler=%s",
