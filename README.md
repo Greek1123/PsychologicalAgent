@@ -1149,3 +1149,12 @@ python scripts\maintain_sqlite_database.py --db data\campus_agent.db --apply --l
 ```
 
 流程规则：先运行数据库完整性检查；如果状态为 `blocked`，拒绝执行清理；如果状态为 `watch`，默认拒绝 `--apply`，需要显式加 `--allow-watch` 才会先备份现场再清理；`--apply` 默认会先在 `data/backups/` 创建 SQLite backup 和 JSON 元数据，然后才删除超过保留期的数据。`--skip-backup` 只用于已经另有备份的受控场景。
+## 2026-06-06 脱敏审计导出包
+
+新增 `scripts/export_redacted_audit_package.py`，用于把本地 SQLite 数据库导出为可审计的 JSONL 包。导出时会对 `input_text`、`content`、`reply_text`、`note`、`next_action` 等文本字段做直接标识脱敏，并把 `session_id`、`response_id`、`handler_id` 转成稳定伪匿名 ID，保证跨表还能关联但不暴露原始标识。
+
+```powershell
+python scripts\export_redacted_audit_package.py --db data\campus_agent.db --label handoff
+```
+
+默认输出到 `data/audit_exports/`，该目录已加入 `.gitignore`，不随 GitHub 提交。导出前会先运行数据库完整性检查；`blocked` 状态会拒绝导出，`watch` 状态默认也拒绝，需要显式传 `--allow-watch` 才能导出带 warning 的现场数据。

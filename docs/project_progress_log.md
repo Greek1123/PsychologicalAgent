@@ -1786,3 +1786,27 @@ python -m pytest tests\test_maintain_sqlite_database.py tests\test_backup_sqlite
 ## 当前判断
 
 部署交付层现在不只是有零散的检查、备份、清理脚本，而是具备了一条可重复执行的安全维护流程。下一步适合继续补“可审计导出/脱敏数据包”或把维护状态纳入 ops/processing health，让后台可以看到最近一次维护结果。
+# 2026-06-06 脱敏审计导出包
+
+## 本次做了什么
+
+- 新增 `scripts/export_redacted_audit_package.py`，用于从 SQLite 导出可审计 JSONL 包。
+- 导出表覆盖 `conversation_messages`、`entropy_trace`、`support_responses`、`referral_events`、`intervention_feedback`、`human_interventions`。
+- 对文本字段继续复用后端隐私脱敏能力，遮蔽手机号、邮箱、身份证号、学号/工号、微信、QQ 等直接标识。
+- 对 `session_id`、`response_id`、`handler_id` 做稳定伪匿名化，保留跨表关联能力，但不暴露原始 ID。
+- 导出前先运行数据库完整性检查：`blocked` 拒绝导出，`watch` 默认拒绝，显式 `--allow-watch` 才允许导出带 warning 的现场包。
+- 输出目录默认为 `data/audit_exports/`，已加入 `.gitignore`，避免误把本地审计数据提交到 GitHub。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_export_redacted_audit_package.py -q --basetemp .pytest_tmp
+3 passed
+
+python -m pytest tests\test_export_redacted_audit_package.py tests\test_privacy_views.py tests\test_database_integrity.py tests\test_maintain_sqlite_database.py -q --basetemp .pytest_tmp
+17 passed
+```
+
+## 当前判断
+
+后端现在已经具备“可运行、可检查、可备份、可清理、可脱敏导出”的基础运维闭环。下一步可以把这些运维能力汇总到一个 ops health 状态里，或者继续补 API 级审计日志，让敏感接口调用本身也可追踪。
