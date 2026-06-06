@@ -1169,3 +1169,10 @@ python scripts\export_redacted_audit_package.py --db data\campus_agent.db --labe
 ## 2026-06-06 Care Queue 批量动作
 
 新增受保护接口 `POST /api/v1/analytics/care-queue/actions/batch`，支持对多个 `session_id` 一次执行 `claim/start/escalate/resolve/close`。`claim/start/escalate` 仍要求传 `handler_id`，避免无负责人状态；每个会话会独立创建 human intervention 记录，并写入 `human_intervention.batch_action` 审计事件。该接口用于后台工作台的批量认领、批量关闭和批量升级。
+## 2026-06-06 Care Queue 快照导出
+
+新增 `scripts/export_care_queue_snapshot.py`，可直接从 SQLite 导出当前人工干预队列的 JSON 和 Markdown 快照。脚本复用后端 care queue 排序、工作流状态和角色降敏视图，默认 `role=counselor`，也支持 `research/admin`；`research` 视图会移除人工干预备注和 next action。默认输出到 `data/care_queue_exports/`，该目录已加入 `.gitignore`。
+
+```powershell
+python scripts\export_care_queue_snapshot.py --db data\campus_agent.db --role counselor --include-low-priority
+```

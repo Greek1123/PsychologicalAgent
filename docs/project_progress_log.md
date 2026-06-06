@@ -1894,3 +1894,34 @@ python -m pytest tests\test_main.py -q --basetemp .pytest_tmp
 ## 当前判断
 
 人工干预工作台层现在具备单条动作、批量动作、队列筛选、角色降敏视图和审计追踪。下一步可以继续增强 actor 来源识别，或补后台导出当前 care queue 快照的功能。
+# 2026-06-06 Care Queue 快照导出
+
+## 本次做了什么
+
+- 新增 `scripts/export_care_queue_snapshot.py`。
+- 脚本从 SQLite 读取当前 care queue，并复用后端队列排序、工作流状态、角色视图和脱敏逻辑。
+- 支持输出 JSON 和 Markdown 两份快照，适合没有正式前端时做后台联调、答辩展示或人工复盘。
+- 支持参数：
+  - `--role counselor|research|admin`
+  - `--include-low-priority`
+  - `--include-resolved`
+  - `--workflow-state`
+  - `--owner`
+  - `--only-overdue`
+  - `--allow-watch`
+- 默认输出目录 `data/care_queue_exports/` 已加入 `.gitignore`，避免把本地队列快照提交到 GitHub。
+- 新增 `tests/test_export_care_queue_snapshot.py`，覆盖 counselor 脱敏导出和 research 移除人工备注。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_export_care_queue_snapshot.py -q --basetemp .pytest_tmp
+2 passed
+
+python -m pytest tests\test_export_care_queue_snapshot.py tests\test_privacy_views.py tests\test_main.py tests\test_database_integrity.py -q --basetemp .pytest_tmp
+33 passed
+```
+
+## 当前判断
+
+人工干预层现在不依赖前端也能导出“当前要处理什么、由谁负责、下一步是什么”的队列快照。下一步可以继续把 actor 来源规范化，或补真实部署时的运维说明与命令清单。
