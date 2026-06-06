@@ -13,6 +13,7 @@ test_tmp/
 tmp*/
 
 data/campus_agent.db
+data/backups/
 data/psychologicalAgent.zip
 data/PsyDTCorpus_*.json
 data/Psychology-10K-ZH(1).json

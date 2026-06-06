@@ -1130,3 +1130,7 @@ http://127.0.0.1:8000/app
 ## 2026-06-06 数据库完整性自检
 
 新增 `GET /api/v1/ops/database-integrity`，用于部署和运维阶段只读检查 SQLite 数据库。检查内容包括：数据库是否存在、`PRAGMA quick_check`、核心表是否齐全、各核心表行数、`referral_events` / `intervention_feedback` / `human_interventions` 是否引用了不存在的 `support_responses.response_id`。接口受管理员 API Key 保护，并已写入 `/api/v1/frontend/contract`。
+
+## 2026-06-06 SQLite 备份工具
+
+新增 `scripts/backup_sqlite_database.py`，使用 SQLite 原生 backup API 创建数据库备份，并生成同名 JSON 元数据。默认会先运行数据库完整性检查，只有状态为 `ok` 才备份；如果完整性为 `watch` 且仍需保留现场，可显式传 `--allow-watch`。默认输出目录为 `data/backups/`，该目录已加入 `.gitignore`。示例：`python scripts\backup_sqlite_database.py --db data\campus_agent.db --label before-cleanup`。

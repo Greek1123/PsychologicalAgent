@@ -1737,3 +1737,29 @@ python -m pytest -q --basetemp .pytest_tmp
 ## 当前判断
 
 部署层现在不仅能检查配置，还能检查数据库内容基本完整性。下一步可以继续把这个报告并入 processing-health，或者补数据库备份/导出工具。
+
+# 2026-06-06 SQLite 备份工具
+
+## 本次做了什么
+
+- 新增 `scripts/backup_sqlite_database.py`，使用 SQLite 原生 backup API 生成一致性备份。
+- 备份前会调用 `build_database_integrity_report`：
+  - 默认只允许 `status=ok` 时备份。
+  - 如果数据库存在孤立引用等 `watch` 状态，可显式传 `--allow-watch` 保留现场。
+- 备份文件默认写入 `data/backups/`，并生成同名 `.json` 元数据，记录 source、backup、label、创建时间、文件大小、完整性状态和表行数。
+- `data/backups/` 已加入 `.gitignore`，避免误把本地敏感数据备份传到 GitHub。
+- 新增 `tests/test_backup_sqlite_database.py`，覆盖正常备份、默认拒绝 watch、允许 watch 备份。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_backup_sqlite_database.py tests\test_database_integrity.py tests\test_cleanup_expired_data.py -q --basetemp .pytest_tmp
+8 passed
+
+python -m pytest -q --basetemp .pytest_tmp
+372 passed
+```
+
+## 当前判断
+
+部署交付层现在具备 readiness、数据库完整性检查、保留策略、显式清理和清理前备份工具。下一步可以把 backup + cleanup 串成一个安全维护流程，或继续补导出/脱敏审计包。
