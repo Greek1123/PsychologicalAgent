@@ -1176,3 +1176,6 @@ python scripts\export_redacted_audit_package.py --db data\campus_agent.db --labe
 ```powershell
 python scripts\export_care_queue_snapshot.py --db data\campus_agent.db --role counselor --include-low-priority
 ```
+## 2026-06-06 后端运维 Runbook
+
+新增 `docs/backend_ops_runbook.md`，把启动前检查、本地启动、核心接口自检、数据库维护、人工干预工作台、脱敏导出、验收 smoke、GitHub 提交边界和常见问题整理成单独文档。组员接手后优先看这份 Runbook，再按需要回到 README 查看系统背景。

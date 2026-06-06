@@ -1925,3 +1925,30 @@ python -m pytest tests\test_export_care_queue_snapshot.py tests\test_privacy_vie
 ## 当前判断
 
 人工干预层现在不依赖前端也能导出“当前要处理什么、由谁负责、下一步是什么”的队列快照。下一步可以继续把 actor 来源规范化，或补真实部署时的运维说明与命令清单。
+# 2026-06-06 后端运维 Runbook
+
+## 本次做了什么
+
+- 新增 `docs/backend_ops_runbook.md`，把当前后端运维和交付命令集中整理。
+- Runbook 覆盖：
+  - 启动前 readiness；
+  - mock/local checkpoint 启动；
+  - 前端契约、文本接口、processing health、data governance 自检；
+  - 数据库完整性检查、备份、清理、安全维护流程；
+  - care queue 查询、单条动作、批量动作和审计事件查询；
+  - 脱敏审计包、care queue 快照、验收报告和 smoke；
+  - GitHub 提交边界；
+  - 端口占用、PowerShell/cmd 环境变量差异、生产 readiness blocked 排查。
+- 新增 `tests/test_backend_ops_runbook.py`，锁定 Runbook 必须包含当前关键脚本和接口，避免后续文档漏掉核心运维入口。
+- README 增加 Runbook 入口说明。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_backend_ops_runbook.py -q --basetemp .pytest_tmp
+1 passed
+```
+
+## 当前判断
+
+部署交付层现在不仅有脚本和接口，也有一份可以直接交给组员执行的运维手册。下一步可以继续补 actor 来源规范化，或者把 Runbook 中的关键命令做成一键 smoke/ops checklist。
