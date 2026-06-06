@@ -1868,3 +1868,29 @@ python -m pytest tests\test_storage.py tests\test_cleanup_expired_data.py tests\
 ## 当前判断
 
 后端现在具备了基础的“接口访问与人工处理可追踪”能力。它还不是完整安全审计系统，但已经能支撑项目答辩和后台工作台的关键问题：高风险会话由谁认领、何时处理、运维状态何时被读取。下一步可以继续补批量人工处理接口，或把审计日志的 actor 来源从 payload/header 中进一步规范化。
+# 2026-06-06 Care Queue 批量动作
+
+## 本次做了什么
+
+- 新增受保护接口 `POST /api/v1/analytics/care-queue/actions/batch`。
+- 支持对多个 `session_id` 一次执行 `claim/start/escalate/resolve/close`。
+- 复用单条人工干预动作的状态映射：
+  - `claim` -> `acknowledged`
+  - `start` -> `in_progress`
+  - `escalate` -> `escalated`
+  - `resolve` -> `resolved`
+  - `close` -> `closed`
+- `claim/start/escalate` 仍要求 `handler_id`，避免批量创建无人负责的开放状态。
+- 每个 session 会独立写入一条 human intervention，并写入 `human_intervention.batch_action` 审计事件。
+- `/api/v1/frontend/contract` 新增 `care_queue_batch_action` 端点说明。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_main.py -q --basetemp .pytest_tmp
+21 passed
+```
+
+## 当前判断
+
+人工干预工作台层现在具备单条动作、批量动作、队列筛选、角色降敏视图和审计追踪。下一步可以继续增强 actor 来源识别，或补后台导出当前 care queue 快照的功能。

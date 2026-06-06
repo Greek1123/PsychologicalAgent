@@ -508,6 +508,7 @@ def _build_data_governance_report(
                 "ops.data_governance.read",
                 "human_intervention.create",
                 "human_intervention.action",
+                "human_intervention.batch_action",
             ],
             "query_endpoint": "/api/v1/ops/audit-events",
         },
@@ -662,6 +663,13 @@ def get_frontend_contract() -> dict[str, Any]:
                 "method": "POST",
                 "path": "/api/v1/sessions/{session_id}/human-interventions/action",
                 "actions": sorted(HUMAN_INTERVENTION_ACTIONS),
+                "required_for_open_actions": ["handler_id"],
+            },
+            "care_queue_batch_action": {
+                "method": "POST",
+                "path": "/api/v1/analytics/care-queue/actions/batch",
+                "actions": sorted(HUMAN_INTERVENTION_ACTIONS),
+                "required_fields": ["session_ids", "action"],
                 "required_for_open_actions": ["handler_id"],
             },
             "role_view": {
@@ -1332,6 +1340,29 @@ def _parse_human_intervention_action_payload(payload: dict[str, Any]) -> dict[st
     }
 
 
+def _parse_human_intervention_batch_action_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    session_ids = payload.get("session_ids")
+    if not isinstance(session_ids, list) or not session_ids:
+        raise HTTPException(status_code=422, detail="session_ids must be a non-empty string array.")
+    clean_session_ids = []
+    seen = set()
+    for value in session_ids:
+        session_id = str(value).strip()
+        if not session_id or session_id in seen:
+            continue
+        clean_session_ids.append(session_id)
+        seen.add(session_id)
+    if not clean_session_ids:
+        raise HTTPException(status_code=422, detail="session_ids must contain at least one non-empty value.")
+    if len(clean_session_ids) > 100:
+        raise HTTPException(status_code=422, detail="session_ids cannot contain more than 100 items.")
+    parsed_action = _parse_human_intervention_action_payload(payload)
+    return {
+        **parsed_action,
+        "session_ids": clean_session_ids,
+    }
+
+
 def _default_next_action_for_human_action(action: str) -> str:
     return {
         "claim": "start_low_pressure_followup",
@@ -1352,6 +1383,61 @@ def _find_session_queue_item(session_store: Any, session_id: str, *, include_res
         if item.get("session_id") == session_id:
             return item
     return None
+
+
+@app.post("/api/v1/analytics/care-queue/actions/batch", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
+def apply_care_queue_batch_action(payload: dict[str, Any]) -> dict[str, Any]:
+    parsed = _parse_human_intervention_batch_action_payload(payload)
+    session_store = get_session_store()
+    results: list[dict[str, Any]] = []
+    for session_id in parsed["session_ids"]:
+        intervention = session_store.append_human_intervention(
+            session_id=session_id,
+            response_id=parsed["response_id"],
+            status=parsed["status"],
+            handler_id=parsed["handler_id"],
+            note=parsed["note"],
+            next_action=parsed["next_action"],
+            tags=parsed["tags"],
+        )
+        queue_item = _find_session_queue_item(
+            session_store,
+            session_id,
+            include_resolved=parsed["status"] in {"resolved", "closed"},
+        )
+        _append_audit_event(
+            event_type="human_intervention.batch_action",
+            actor_id=parsed["handler_id"],
+            target_type="session",
+            target_id=session_id,
+            metadata={
+                "action": parsed["action"],
+                "status": parsed["status"],
+                "response_id": parsed["response_id"],
+                "batch_size": len(parsed["session_ids"]),
+                "tags": parsed["tags"],
+            },
+        )
+        results.append(
+            {
+                "session_id": session_id,
+                "human_intervention": intervention,
+                "care_queue_item": queue_item,
+            }
+        )
+    logger.info(
+        "Care queue batch action applied action=%s status=%s handler=%s sessions=%s",
+        parsed["action"],
+        parsed["status"],
+        parsed["handler_id"] or "-",
+        len(results),
+    )
+    return {
+        "action": parsed["action"],
+        "status": parsed["status"],
+        "total_sessions": len(results),
+        "results": results,
+    }
 
 
 @app.post("/api/v1/sessions/{session_id}/human-interventions", dependencies=PROTECTED_ROUTE_DEPENDENCIES)

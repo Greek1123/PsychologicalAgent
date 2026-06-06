@@ -1166,3 +1166,6 @@ python scripts\export_redacted_audit_package.py --db data\campus_agent.db --labe
 ## 2026-06-06 API 审计日志
 
 新增 SQLite 表 `audit_events` 和受保护接口 `GET /api/v1/ops/audit-events`。当前已记录的事件包括：读取数据库完整性、读取数据治理状态、创建人工干预记录、执行人工干预动作。审计事件包含 `event_type`、`actor_id`、`target_type`、`target_id`、`metadata` 和 `created_at`，用于后台复盘“谁在什么时候对哪个会话做了什么”。`audit_events` 已纳入过期数据清理脚本的 audit log 保留策略，也会被脱敏审计导出包导出。
+## 2026-06-06 Care Queue 批量动作
+
+新增受保护接口 `POST /api/v1/analytics/care-queue/actions/batch`，支持对多个 `session_id` 一次执行 `claim/start/escalate/resolve/close`。`claim/start/escalate` 仍要求传 `handler_id`，避免无负责人状态；每个会话会独立创建 human intervention 记录，并写入 `human_intervention.batch_action` 审计事件。该接口用于后台工作台的批量认领、批量关闭和批量升级。

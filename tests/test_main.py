@@ -552,6 +552,39 @@ class MainFlowTests(unittest.TestCase):
                 },
             )
 
+    def test_care_queue_batch_action_applies_to_multiple_sessions(self) -> None:
+        session_ids = [f"test-batch-session-{uuid4().hex}" for _ in range(2)]
+        for session_id in session_ids:
+            main.support_text(
+                {
+                    "session_id": session_id,
+                    "text": "我最近压力很大，睡不好，也不太想见人。",
+                    "student_context": {},
+                    "conversation_history": [],
+                }
+            )
+
+        result = main.apply_care_queue_batch_action(
+            {
+                "session_ids": session_ids,
+                "action": "claim",
+                "handler_id": "batch-counselor",
+                "note": "批量认领，稍后逐个跟进。",
+                "tags": ["batch"],
+            }
+        )
+        audit_events = main.get_ops_audit_events(limit=20, event_type="human_intervention.batch_action")
+
+        self.assertEqual(result["total_sessions"], 2)
+        self.assertEqual(result["status"], "acknowledged")
+        self.assertEqual({item["session_id"] for item in result["results"]}, set(session_ids))
+        for session_id in session_ids:
+            interventions = main.get_session_human_interventions(session_id)
+            self.assertEqual(interventions["latest_human_intervention"]["handler_id"], "batch-counselor")
+            self.assertEqual(interventions["latest_human_intervention"]["status"], "acknowledged")
+        self.assertGreaterEqual(audit_events["total_events"], 2)
+        self.assertEqual(audit_events["events"][0]["metadata"]["batch_size"], 2)
+
     def test_session_feedback_rejects_invalid_payload(self) -> None:
         with self.assertRaises(HTTPException):
             main.submit_session_feedback(
