@@ -267,6 +267,22 @@ class MainFlowTests(unittest.TestCase):
         self.assertIn("blocking_issues", report)
         self.assertIn("watch_items", report)
 
+    def test_data_governance_endpoint_summarizes_ops_privacy_and_scripts(self) -> None:
+        governance = main.get_ops_data_governance()
+
+        self.assertIn(governance["status"], {"ok", "watch", "blocked"})
+        self.assertIn("security", governance)
+        self.assertIn("privacy", governance)
+        self.assertIn("database", governance)
+        self.assertIn("maintenance", governance)
+        self.assertEqual(governance["maintenance"]["default_mode"], "dry_run")
+        self.assertIn("maintain_sqlite_database", governance["maintenance"]["scripts"])
+        self.assertTrue(governance["maintenance"]["scripts"]["maintain_sqlite_database"]["exists"])
+        self.assertTrue(governance["maintenance"]["scripts"]["backup_sqlite_database"]["output_dir_ignored"])
+        self.assertTrue(governance["maintenance"]["scripts"]["export_redacted_audit_package"]["output_dir_ignored"])
+        self.assertIn("student", governance["privacy"]["role_views"])
+        self.assertIn("database_integrity", governance["source_endpoints"])
+
     def test_cors_preflight_allows_local_frontend_origin(self) -> None:
         client = TestClient(main.app)
 

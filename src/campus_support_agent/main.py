@@ -57,6 +57,7 @@ def get_settings() -> Settings:
 logger = get_logger("main")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 APP_HTML = STATIC_DIR / "app.html"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 HUMAN_INTERVENTION_STATUSES = {"acknowledged", "in_progress", "escalated", "resolved", "closed"}
 HUMAN_INTERVENTION_ACTIONS = {
     "claim": "acknowledged",
@@ -394,6 +395,133 @@ def get_ops_database_integrity() -> dict[str, Any]:
     return report
 
 
+@app.get("/api/v1/ops/data-governance", dependencies=PROTECTED_ROUTE_DEPENDENCIES)
+def get_ops_data_governance() -> dict[str, Any]:
+    settings = get_settings()
+    readiness = build_deployment_readiness(settings)
+    database_integrity = build_database_integrity_report(settings.database_path)
+    governance = _build_data_governance_report(
+        settings=settings,
+        readiness=readiness,
+        database_integrity=database_integrity,
+    )
+    logger.info(
+        "Data governance requested status=%s blocking=%s watch=%s",
+        governance["status"],
+        ",".join(governance["blocking_issues"]),
+        ",".join(governance["watch_items"]),
+    )
+    return governance
+
+
+def _build_data_governance_report(
+    *,
+    settings: Settings,
+    readiness: dict[str, Any],
+    database_integrity: dict[str, Any],
+) -> dict[str, Any]:
+    script_checks = _build_data_governance_script_checks()
+    blocking_issues: list[str] = []
+    watch_items: list[str] = []
+    if readiness.get("status") == "blocked":
+        blocking_issues.append("deployment_readiness_blocked")
+    if database_integrity.get("status") == "blocked":
+        blocking_issues.append("database_integrity_blocked")
+    if readiness.get("status") == "degraded":
+        watch_items.append("deployment_readiness_degraded")
+    if database_integrity.get("status") == "watch":
+        watch_items.append("database_integrity_watch")
+    for name, check in script_checks.items():
+        if not check["exists"]:
+            watch_items.append(f"script_missing:{name}")
+        if check.get("output_dir_ignored") is False:
+            watch_items.append(f"output_not_ignored:{name}")
+
+    status = "blocked" if blocking_issues else "watch" if watch_items else "ok"
+    return {
+        "status": status,
+        "blocking_issues": blocking_issues,
+        "watch_items": watch_items,
+        "security": {
+            "admin_api_key_required": is_admin_api_key_required(settings),
+            "protected_endpoint": True,
+            "admin_header": "X-Admin-API-Key",
+            "bearer_supported": True,
+        },
+        "privacy": {
+            "role_views": sorted(SUPPORTED_VIEW_ROLES),
+            "direct_identifier_categories": ["phone", "email", "id_card", "student_id", "wechat", "qq"],
+            "session_data_retention_days": settings.session_data_retention_days,
+            "audit_log_retention_days": settings.audit_log_retention_days,
+            "automatic_request_time_deletion": False,
+        },
+        "database": {
+            "path": settings.database_path,
+            "integrity_status": database_integrity.get("status"),
+            "quick_check": database_integrity.get("quick_check"),
+            "missing_tables": database_integrity.get("missing_tables") or [],
+            "watch_items": database_integrity.get("watch_items") or [],
+            "blocking_issues": database_integrity.get("blocking_issues") or [],
+        },
+        "maintenance": {
+            "scripts": script_checks,
+            "safe_order": ["database_integrity", "backup", "cleanup"],
+            "default_mode": "dry_run",
+        },
+        "source_endpoints": {
+            "readiness": "/api/v1/ops/readiness",
+            "database_integrity": "/api/v1/ops/database-integrity",
+            "privacy_policy": "/api/v1/privacy/policy",
+            "processing_health": "/api/v1/analytics/processing-health",
+        },
+    }
+
+
+def _build_data_governance_script_checks() -> dict[str, dict[str, Any]]:
+    return {
+        "cleanup_expired_data": _script_check(
+            "scripts/cleanup_expired_data.py",
+            default_output_dir=None,
+        ),
+        "backup_sqlite_database": _script_check(
+            "scripts/backup_sqlite_database.py",
+            default_output_dir="data/backups/",
+        ),
+        "maintain_sqlite_database": _script_check(
+            "scripts/maintain_sqlite_database.py",
+            default_output_dir="data/backups/",
+        ),
+        "export_redacted_audit_package": _script_check(
+            "scripts/export_redacted_audit_package.py",
+            default_output_dir="data/audit_exports/",
+        ),
+    }
+
+
+def _script_check(script_relative_path: str, *, default_output_dir: str | None) -> dict[str, Any]:
+    path = PROJECT_ROOT / script_relative_path
+    return {
+        "path": script_relative_path,
+        "exists": path.exists(),
+        "default_output_dir": default_output_dir,
+        "output_dir_ignored": _gitignore_contains(default_output_dir) if default_output_dir else None,
+    }
+
+
+def _gitignore_contains(pattern: str | None) -> bool | None:
+    if not pattern:
+        return None
+    gitignore = PROJECT_ROOT / ".gitignore"
+    if not gitignore.exists():
+        return False
+    lines = {
+        line.strip().replace("\\", "/")
+        for line in gitignore.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+    return pattern.replace("\\", "/").strip() in lines
+
+
 @app.get("/api/v1/frontend/contract")
 def get_frontend_contract() -> dict[str, Any]:
     logger.info("Frontend contract requested.")
@@ -495,6 +623,11 @@ def get_frontend_contract() -> dict[str, Any]:
             "database_integrity": {
                 "method": "GET",
                 "path": "/api/v1/ops/database-integrity",
+                "protected": True,
+            },
+            "data_governance": {
+                "method": "GET",
+                "path": "/api/v1/ops/data-governance",
                 "protected": True,
             },
             "processing_health": {

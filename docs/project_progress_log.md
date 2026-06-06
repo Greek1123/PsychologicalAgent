@@ -1810,3 +1810,32 @@ python -m pytest tests\test_export_redacted_audit_package.py tests\test_privacy_
 ## 当前判断
 
 后端现在已经具备“可运行、可检查、可备份、可清理、可脱敏导出”的基础运维闭环。下一步可以把这些运维能力汇总到一个 ops health 状态里，或者继续补 API 级审计日志，让敏感接口调用本身也可追踪。
+# 2026-06-06 数据治理状态接口
+
+## 本次做了什么
+
+- 新增受保护接口 `GET /api/v1/ops/data-governance`。
+- 该接口只读，不会执行备份、清理或导出；它汇总当前数据治理状态，方便后台或验收脚本一次性读取。
+- 汇总内容包括：
+  - 管理员 API key 是否启用；
+  - student/counselor/research/admin 角色视图是否可用；
+  - 直接标识脱敏类别；
+  - session/audit 保留天数；
+  - 当前 SQLite 完整性状态；
+  - `cleanup_expired_data.py`、`backup_sqlite_database.py`、`maintain_sqlite_database.py`、`export_redacted_audit_package.py` 是否存在；
+  - `data/backups/` 和 `data/audit_exports/` 是否已加入 `.gitignore`。
+- `/api/v1/frontend/contract` 同步新增 `data_governance` 端点说明。
+
+## 验证结果
+
+```text
+python -m pytest tests\test_main.py -q --basetemp .pytest_tmp
+19 passed
+
+python -m pytest tests\test_main.py tests\test_deployment_readiness.py tests\test_database_integrity.py tests\test_export_redacted_audit_package.py -q --basetemp .pytest_tmp
+32 passed
+```
+
+## 当前判断
+
+后端运维治理层已经有一个统一只读入口，可以支撑后台管理页、组员联调和答辩验收。下一步适合继续补 API 级审计日志，把谁在什么时候访问了受保护接口、做了什么人工干预动作记录下来。

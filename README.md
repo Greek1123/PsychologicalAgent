@@ -1158,3 +1158,8 @@ python scripts\export_redacted_audit_package.py --db data\campus_agent.db --labe
 ```
 
 默认输出到 `data/audit_exports/`，该目录已加入 `.gitignore`，不随 GitHub 提交。导出前会先运行数据库完整性检查；`blocked` 状态会拒绝导出，`watch` 状态默认也拒绝，需要显式传 `--allow-watch` 才能导出带 warning 的现场数据。
+## 2026-06-06 数据治理状态接口
+
+新增受保护接口 `GET /api/v1/ops/data-governance`，用于一次性查看后端数据治理状态。该接口不会执行备份、清理或导出，只汇总管理员鉴权、角色视图、直接标识脱敏类别、数据保留天数、数据库完整性状态，以及 `cleanup`、`backup`、`maintain`、`redacted audit export` 四类本地维护脚本是否存在、默认输出目录是否已加入 `.gitignore`。
+
+状态规则：部署 readiness 或数据库完整性为 `blocked` 时返回 `blocked`；存在 degraded readiness、数据库 `watch` 或维护脚本/输出忽略配置缺失时返回 `watch`；全部满足时返回 `ok`。该接口已写入 `/api/v1/frontend/contract`，供后台管理页或验收脚本读取。
